@@ -1,0 +1,16 @@
+# Deploy bundle me bhejne ki zarurat nahi
+node_modules
+.git
+.env
+.env.local
+credentials.json
+apps_script_proof_upload.gs
+
+# DB dumps na jaayein — par migrations code ka hissa hain aur "New Client Copy"
+# tab ko poora source chahiye hota hai (adhura source ho to wo generate hi nahi
+# karta), isliye migrations/ aur scripts/ ab deploy me jaate hain.
+# `**` zaroori hai — migrations data/migrations/postgres/ aur .../mysql/ me hain,
+# yaani do level gehri. Iske bina deployed app par generator "source files
+# missing" dekar mana kar deta hai, aur yehi file client ki copy me bhi jaati hai.
+*.sql
+!data/migrations/**/*.sql

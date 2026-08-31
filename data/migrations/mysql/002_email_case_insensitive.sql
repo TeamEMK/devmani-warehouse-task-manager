@@ -1,0 +1,12 @@
+-- Email ko case ke lihaaz se ek maano.
+--
+-- MySQL ka utf8mb4_general_ci collation waise hi case-insensitive hai, isliye
+-- `WHERE email = 'rajesh@gmail.com'` "Rajesh@Gmail.com" wale row se bhi match
+-- kar jaata hai — aur upar wali UNIQUE (email) bhi dono ko ek hi maanti hai.
+-- Yaani yahan wo dikkat hai hi nahi jo Postgres par thi.
+--
+-- Phir bhi index Postgres wali file ke barabar rakha hai, taaki dono database
+-- par schema ek jaisa rahe aur LOWER(email) wale lookups (code sab jagah wahi
+-- karta hai) index use kar sakein. MySQL 8.0.13+ me functional index ke liye
+-- expression ke ird-gird DOHRE brackets zaroori hain.
+CREATE UNIQUE INDEX users_email_lower_uq ON users ((LOWER(email)));

@@ -1,0 +1,1933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title data-brand="full">Devmani Warehouse — Task Manager</title>
+<!-- data-brand="…" wale elements ka text "New Client Copy" tab likhta hai.
+     Values: full = "Company — Product", short = Company, company, product.
+     Inhe hataana nahi — hata diya to naye client ki copy me naam nahi badlega. -->
+<link rel="icon" type="image/png" href="/logo.png"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+/* Theme paint se pehle set karo, warna page load par white flash aayega */
+(function(){
+  try{
+    // Default hamesha light — dark sirf tab jab user ne khud toggle kiya ho
+    var saved = localStorage.getItem('tm-theme');
+    document.documentElement.setAttribute('data-theme', saved === 'dark' ? 'dark' : 'light');
+    // Sidebar pin bhi yahin restore karo, warna load par ek jhalak collapsed dikhti hai
+    if (localStorage.getItem('tm-sidebar-pinned') === '1') {
+      document.documentElement.classList.add('sidebar-pinned');
+    }
+  }catch(e){ document.documentElement.setAttribute('data-theme','light'); }
+})();
+</script>
+<link rel="stylesheet" href="/css/app.css"/>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     SIDEBAR
+══════════════════════════════════════ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <!-- object-fit:cover — logo square hai, isliye poora chip bharta hai; koi
+         doosra aspect aaya to crop hoke bhi saaf dikhega, letterbox nahi banega.
+         Radius login page ke 104px/22px wale ratio se mel khaata hai. -->
+    <img src="/logo.png" alt="Company logo"
+      style="width:34px;height:34px;object-fit:cover;border-radius:8px;flex-shrink:0"/>
+    <div class="logo-text" data-brand="short">Devmani Warehouse</div>
+    <button class="sidebar-pin" id="sidebarPin" onclick="toggleSidebarPin()"
+            title="Keep sidebar open" aria-label="Pin sidebar" aria-pressed="false">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 4h-6l1 6-4 3v2h12v-2l-4-3z"/><path stroke-linecap="round" stroke-width="2" d="M12 15v5"/></svg>
+    </button>
+  </div>
+  <nav class="nav">
+    <div class="nav-item active" onclick="navigate('dashboard',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      <span class="nav-label-text">Dashboard</span>
+    </div>
+    <div class="nav-item" onclick="navigate('alltasks',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      <span class="nav-label-text">All Tasks</span>
+    </div>
+    <div class="nav-item" id="nav-approvals" onclick="navigate('approvals',this)" style="position:relative;display:none">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span class="nav-label-text">Approvals</span>
+      <span id="approvalBadge" style="display:none;position:absolute;top:6px;right:8px;background:var(--destructive);color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;align-items:center;justify-content:center">0</span>
+      <span id="transferBadge" style="display:none;position:absolute;top:6px;right:26px;background:var(--chart-5);color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;align-items:center;justify-content:center">0</span>
+      <span id="leaveBadge" style="display:none;position:absolute;top:6px;right:44px;background:var(--warning);color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;align-items:center;justify-content:center">0</span>
+    </div>
+    <div class="nav-item" id="nav-leaves" onclick="navigate('leaves',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      <span class="nav-label-text">Leave</span>
+    </div>
+    <div class="nav-item" id="nav-query" onclick="navigate('query',this)" style="position:relative">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span class="nav-label-text">Query</span>
+      <span id="queryBadge" style="display:none;position:absolute;top:6px;right:8px;background:var(--destructive);color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;align-items:center;justify-content:center">0</span>
+    </div>
+    <div class="nav-item" id="nav-users" style="display:none" onclick="navigate('users',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      <span class="nav-label-text">Users</span>
+    </div>
+    <div class="nav-item" id="nav-mis" style="display:none" onclick="navigate('mis',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      <span class="nav-label-text">MIS Report</span>
+    </div>
+    <div class="nav-item" id="nav-records" style="display:none" onclick="navigate('records',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+      <span class="nav-label-text">Records</span>
+    </div>
+    <div class="nav-item" id="nav-fms" style="display:none" onclick="navigate('fms',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
+      <span class="nav-label-text">FMS Admin</span>
+    </div>
+    <div class="nav-item" id="nav-fms-tasks" onclick="navigate('fms-tasks',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M3 6h18M3 18h18"/></svg>
+      <span class="nav-label-text">FMS Tasks</span>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-item" onclick="navigate('profile',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+      <span class="nav-label-text">Profile</span>
+    </div>
+  </nav>
+  <div class="sidebar-user" onclick="navigate('profile',document.querySelector('.nav-item[onclick*=profile]'))" style="cursor:pointer">
+    <div class="su-avatar" id="sidebarAvatar" style="overflow:hidden">?</div>
+    <div class="su-info">
+      <div class="su-name" id="sidebarName">Loading…</div>
+      <div class="su-role" id="sidebarRole"></div>
+    </div>
+  </div>
+  <div class="sidebar-bottom">
+    <button class="logout-btn" onclick="logout()">
+      <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      <span class="logout-label">Logout</span>
+    </button>
+  </div>
+</aside>
+
+<!-- ══════════════════════════════════════
+     MAIN
+══════════════════════════════════════ -->
+<div class="main" id="mainContent">
+  <div class="topbar">
+    <div style="display:flex;align-items:center">
+      <div class="topbar-title" id="topbarTitle">Dashboard</div>
+      <span class="viewonly-pill" title="You have view-only access">👁 View only</span>
+    </div>
+    <div class="topbar-right" id="topbarActions">
+      <!-- Light / dark theme toggle -->
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark theme" aria-label="Toggle light or dark theme">
+        <svg class="icon-moon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        <svg class="icon-sun" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── DASHBOARD ── -->
+  <div id="page-dashboard" class="page active">
+    <div class="dash-topbar">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <select id="dashEmployeeFilter" onchange="onPCFilterChange()"
+          style="padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:var(--foreground);background:var(--card);display:none">
+          <option value="all">All Employees</option>
+        </select>
+        <!-- PC-only date range filter -->
+        <div id="pcDateRangeFilter" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;">
+          <label style="font-size:12px;color:var(--muted-foreground);font-weight:600">From:</label>
+          <input type="date" id="pcDateFrom" onchange="onPCFilterChange()"
+            style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:var(--foreground);background:var(--card)">
+          <label style="font-size:12px;color:var(--muted-foreground);font-weight:600">To:</label>
+          <input type="date" id="pcDateTo" onchange="onPCFilterChange()"
+            style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:var(--foreground);background:var(--card)">
+          <button onclick="clearPCDateFilter()" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:var(--card);cursor:pointer;color:var(--muted-foreground)">✕ Clear</button>
+        </div>
+      </div>
+      <div class="dash-topbar-btns" id="dashBtns"></div>
+    </div>
+    <div class="overview-cards">
+      <div class="ov-card total clickable"     id="card-all"       onclick="selectDashCard('all')"       title="Show all tasks below"><div class="label">Total Tasks</div><div class="number" id="dTotal">—</div></div>
+      <!-- "Upcoming (this month)" card yahan se hata diya gaya. Upcoming tasks
+           All Tasks page ke apne Upcoming tab me milte hain. -->
+      <div class="ov-card pending clickable"   id="card-pending"   onclick="selectDashCard('pending')"   title="Show pending tasks below"><div class="label">Pending</div><div class="number" id="dPending">—</div></div>
+      <div class="ov-card revised clickable"   id="card-revised"   onclick="selectDashCard('revised')"   title="Show revised tasks below"><div class="label">Revised</div><div class="number" id="dRevised">—</div></div>
+      <div class="ov-card completed clickable" id="card-completed" onclick="selectDashCard('completed')" title="Show completed tasks below"><div class="label">Completed</div><div class="number" id="dCompleted">—</div></div>
+    </div>
+    <div class="dash-bottom">
+      <div class="task-table-card">
+        <div class="card-head">
+          <div class="card-head-title" id="dashTableTitle">All Pending Tasks</div>
+          <div class="tab-group" id="dashTypeTabGroup">
+            <div class="tab active" id="dashTabAll"   onclick="dashTab('all',this)">All</div>
+            <div class="tab"        id="dashTabDel"   onclick="dashTab('delegation',this)">Delegation</div>
+            <div class="tab"        id="dashTabChl"   onclick="dashTab('checklist',this)">Checklist</div>
+            <div class="tab"        id="dashTabFms"   onclick="dashTab('fms',this)">FMS</div>
+          </div>
+        </div>
+        <!-- Height screen ke hisaab se: upar ka topbar, filters, stat cards aur
+             card-head milakar ~330px lete hain, baaki jagah table ko de dete
+             hain. min-height isliye ki chhoti screen par table kuchal na jaye —
+             wahan wo pehle jaisa scroll karta rahega. -->
+        <div class="dash-table-scroll" style="overflow-x:auto;overflow-y:auto;">
+          <table style="min-width:600px">
+            <thead style="position:sticky;top:0;z-index:2;background:var(--muted)">
+              <!-- Do alag header: FMS ki rows ka dhaancha hi alag hai (step, sheet ke
+                   columns, planned date) — usme Type/Priority ka koi matlab nahi. -->
+              <tr id="dashHeadNormal">
+                <th style="white-space:nowrap">Type</th>
+                <th>Description</th>
+                <th id="dashDoerHead">Doer</th>
+                <th style="white-space:nowrap;cursor:pointer;user-select:none" onclick="toggleDashDateSort()" title="Click to sort by date">Date <span id="dashDateSortIcon" style="font-size:10px;color:var(--muted-foreground)">⇅</span></th>
+                <th>Priority</th>
+                <th>Action</th>
+              </tr>
+              <tr id="dashHeadFms" style="display:none">
+                <th style="white-space:nowrap">FMS — Step</th>
+                <th>Details</th>
+                <th style="white-space:nowrap;cursor:pointer;user-select:none" onclick="toggleDashDateSort()" title="Click to sort by date">Planned Date <span style="font-size:10px;color:var(--muted-foreground)">⇅</span></th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="dashTbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Task Overview</h3>
+        <div class="chart-wrap"><canvas id="dashChart"></canvas></div>
+        <div style="display:flex;gap:12px;justify-content:center;margin-top:10px;font-size:11px;color:var(--muted-foreground)">
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:50%;background:var(--success);display:inline-block"></span>Completed</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:50%;background:var(--destructive);display:inline-block"></span>Pending</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:50%;background:var(--warning);display:inline-block"></span>Revised</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- FMS Dashboard Section -->
+    <div id="dashFMSSection" style="margin-top:18px;display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="font-size:16px;font-weight:700;color:var(--foreground)">📊 FMS Pending Tasks</div>
+        <button class="btn btn-outline btn-sm" onclick="loadDashFMS()">🔄 Refresh</button>
+      </div>
+
+      <!-- v16: PC-only FMS step-detail panel — select FMS → step-wise pending counts -->
+      <div id="dashFMSStepDetailPanel" style="display:none;background:var(--card);border-radius:12px;border:1.5px solid var(--accent);padding:14px 16px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+          <span style="font-size:14px">🔎</span>
+          <div style="font-size:13px;font-weight:700;color:var(--foreground)">FMS Step-wise Breakdown:</div>
+          <select id="dashFMSStepDetailSelect" onchange="onDashFMSStepDetailChange()"
+            style="flex:1;min-width:200px;padding:8px 12px;border:1.5px solid var(--accent);border-radius:8px;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;outline:none;color:var(--foreground);background:var(--card)">
+            <option value="">-- Select an FMS to see pending per step --</option>
+          </select>
+        </div>
+        <div id="dashFMSStepDetailBody" style="display:none">
+          <div id="dashFMSStepDetailLoading" style="padding:20px;text-align:center;color:var(--muted-foreground);font-size:13px;display:none">⏳ Loading step details...</div>
+          <div id="dashFMSStepDetailContent"></div>
+        </div>
+      </div>
+
+      <!-- FMS chart -->
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:18px;margin-bottom:16px">
+        <div style="background:var(--card);border-radius:12px;border:1px solid var(--border);padding:16px">
+          <div style="font-size:13px;font-weight:700;color:var(--foreground);margin-bottom:10px">FMS Summary by Sheet</div>
+          <div id="dashFMSSummary"></div>
+        </div>
+        <div class="chart-card">
+          <h3>FMS Overview</h3>
+          <div class="chart-wrap"><canvas id="dashFMSChart"></canvas></div>
+          <div style="display:flex;gap:12px;justify-content:center;margin-top:10px;font-size:11px;color:var(--muted-foreground)">
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:50%;background:var(--destructive);display:inline-block"></span>Pending</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:50%;background:var(--warning);display:inline-block"></span>Late</span>
+          </div>
+        </div>
+      </div>
+      <div class="task-table-card">
+        <div class="card-head">
+          <div class="card-head-title">Today's FMS Pending <span id="dashFMSCount" style="font-size:12px;color:var(--destructive);font-weight:600;margin-left:6px"></span></div>
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>FMS Name</th>
+                <th>Step</th>
+                <th id="dashFMSDoerHead">Doer</th>
+                <th>Plan Date</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="dashFMSTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── ALL TASKS ── -->
+  <div id="page-alltasks" class="page">
+    <div class="page-header">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="tab-group" id="tasksTypeTabGroup">
+          <div class="tab active" id="tasksTabDel" onclick="tasksTab('delegation')">Delegation</div>
+          <div class="tab" id="tasksTabChl" onclick="tasksTab('checklist')">Checklist</div>
+          <div class="tab" id="tasksTabFms" onclick="tasksTab('fms')">FMS</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <!-- PC-only: user filter + date range (desktop only) -->
+        <div id="tasksUserDateFilters" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;">
+          <select id="tasksUserFilter" onchange="filterTasks()"
+            style="padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:var(--foreground);background:var(--card)">
+            <option value="all">All Employees</option>
+          </select>
+          <input type="date" id="tasksDateFrom" onchange="filterTasks()"
+            style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:var(--foreground);background:var(--card)">
+          <span style="font-size:12px;color:var(--muted-foreground)">to</span>
+          <input type="date" id="tasksDateTo" onchange="filterTasks()"
+            style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:var(--foreground);background:var(--card)">
+          <button onclick="clearTasksDateFilter()" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:var(--card);cursor:pointer;color:var(--muted-foreground)">✕ Clear</button>
+        </div>
+        <div style="position:relative">
+          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted-foreground)">🔍</span>
+          <input type="text" id="taskSearch" placeholder="Search by name, date, desc, status..." oninput="filterTasks()"
+            style="padding:8px 12px 8px 32px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;width:260px"/>
+        </div>
+        <button class="btn btn-outline" id="delegateByMeBtn" onclick="openDelegateByMeModal()"
+          style="color:var(--primary);border-color:var(--accent)">📤 Delegate by Me</button>
+        <button class="btn btn-outline" id="transferModeBtn" onclick="openNewTransferModal()"
+          style="color:var(--chart-5);border-color:color-mix(in srgb,var(--chart-5) 25%,transparent)">🔀 Transfer</button>
+        <button class="btn btn-primary" id="tasksAssignBtn" onclick="openDelegate()" style="display:none">+ Assign Task</button>
+        <button class="btn btn-outline" id="bulkEditBtn" onclick="openBulkEditModal()"
+          style="color:var(--chart-1);border-color:color-mix(in srgb,var(--chart-1) 22%,transparent);display:none">✏️ Bulk Edit</button>
+        <button class="btn btn-outline" id="bulkDeleteBtn" onclick="openBulkDeleteModal()"
+          style="color:var(--destructive);border-color:color-mix(in srgb,var(--destructive) 22%,transparent);display:none">🗑 Bulk Delete</button>
+      </div>
+    </div>
+    <!-- Status filter tabs -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <div class="tab-group" id="tasksStatusTabGroup">
+        <div class="tab" id="statusTabAll" onclick="filterTaskStatus('all')">All</div>
+        <div class="tab active" id="statusTabPending" onclick="filterTaskStatus('pending')">Pending</div>
+        <div class="tab" id="statusTabUpcoming" onclick="filterTaskStatus('upcoming')">Upcoming</div>
+        <!-- Checklist tasks revise nahi hote, isliye Checklist tab par ye chhupa dete hain -->
+        <div class="tab" id="statusTabRevised" onclick="filterTaskStatus('revised')">Revised</div>
+        <div class="tab" id="statusTabCompleted" onclick="filterTaskStatus('completed')">Completed</div>
+      </div>
+    </div>
+    <div id="tasksContent"></div>
+  </div>
+
+  <!-- ── USERS ── -->
+  <div id="page-users" class="page">
+    <div class="page-header">
+      <div></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="position:relative">
+          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted-foreground)">🔍</span>
+          <input type="text" id="userSearch" placeholder="Search by name, email, dept, role…" oninput="filterUsers()"
+            style="padding:8px 12px 8px 32px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;width:260px"/>
+        </div>
+        <!-- Tabhi dikhta hai jab kam se kam ek row tick ho -->
+        <button class="btn" id="userBulkDeleteBtn" onclick="deleteSelectedUsers()" style="display:none;background:var(--destructive);color:#fff">🗑 Delete Selected (<span id="userSelCount">0</span>)</button>
+        <button class="btn btn-primary" onclick="openAddUser()">+ Add User</button>
+      </div>
+    </div>
+    <div class="users-grid">
+      <table>
+        <thead><tr>
+          <th style="width:36px"><input type="checkbox" id="userSelectAll" onclick="toggleAllUsers(this)" title="Select all" style="accent-color:var(--primary);cursor:pointer"/></th>
+          <th>Name</th><th>Email</th><th>Phone</th><th>Department</th><th>Role</th><th>Action</th>
+        </tr></thead>
+        <tbody id="usersTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── PROFILE ── -->
+  <div id="page-profile" class="page">
+    <div class="page-header"></div>
+    <div class="profile-card">
+
+      <!-- Profile Image Section -->
+      <div style="display:flex;align-items:center;gap:20px;margin-bottom:22px;">
+        <div style="position:relative;cursor:pointer" onclick="document.getElementById('profileImgInput').click()">
+          <div id="profileAvatar" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--primary),color-mix(in srgb,var(--primary) 65%,#fff));display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;overflow:hidden;flex-shrink:0;border:3px solid var(--border);">?</div>
+          <div style="position:absolute;bottom:0;right:0;width:24px;height:24px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--card);">
+            <span style="color:#fff;font-size:12px">✏️</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:var(--foreground)" id="profileNameDisplay">—</div>
+          <div style="font-size:12px;color:var(--muted-foreground);margin-top:2px" id="profileRoleDisplay">—</div>
+          <button class="btn btn-outline" style="margin-top:8px;font-size:12px;padding:5px 12px" onclick="document.getElementById('profileImgInput').click()">📷 Change Photo</button>
+          <button class="btn btn-outline" style="margin-top:8px;margin-left:6px;font-size:12px;padding:5px 12px;color:var(--destructive);border-color:color-mix(in srgb,var(--destructive) 22%,transparent)" onclick="removeProfileImage()">✕ Remove</button>
+        </div>
+      </div>
+      <input type="file" id="profileImgInput" accept="image/*" style="display:none" onchange="handleProfileImage(event)"/>
+
+      <div class="alert success" id="profileSuccess"></div>
+      <div class="alert error" id="profileError"></div>
+      <div class="form-group"><label>Full Name</label><input type="text" id="pName"/></div>
+      <div class="form-group"><label>Email Address</label><input type="email" id="pEmail"/></div>
+      <div class="form-group">
+        <label>Notification Email <span style="color:var(--muted-foreground);font-weight:400;font-size:12px">(real Gmail/Outlook for task notifications)</span></label>
+        <input type="email" id="pNotifEmail" placeholder="yourrealemail@gmail.com"/>
+      </div>
+      <div class="form-group"><label>Phone Number</label><input type="tel" id="pPhone" placeholder="Enter phone number"/></div>
+      <div class="section-title">Change Password</div>
+      <div class="form-group"><label>Current Password</label>
+        <div style="position:relative">
+          <input type="password" id="pCurrent" placeholder="Enter current password" style="padding-right:42px"/>
+          <button type="button" class="pw-toggle-btn" onclick="togglePw(this,'pCurrent')" aria-label="Show password">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="form-group"><label>New Password</label>
+        <div style="position:relative">
+          <input type="password" id="pNew" placeholder="Enter new password" style="padding-right:42px"/>
+          <button type="button" class="pw-toggle-btn" onclick="togglePw(this,'pNew')" aria-label="Show password">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="form-group"><label>Confirm Password</label>
+        <div style="position:relative">
+          <input type="password" id="pConfirm" placeholder="Confirm new password" style="padding-right:42px"/>
+          <button type="button" class="pw-toggle-btn" onclick="togglePw(this,'pConfirm')" aria-label="Show password">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveProfile()">Save Changes</button>
+    </div>
+  </div>
+
+  <!-- ── APPROVALS ── -->
+  <div id="page-approvals" class="page">
+    <div class="page-header"></div>
+
+    <!-- Tabs -->
+    <div style="display:flex;gap:4px;background:var(--muted);padding:3px;border-radius:8px;width:fit-content;margin-bottom:18px">
+      <div class="tab active" id="apprTabTask" onclick="switchApprovalTab('task',this)">📋 Task Approvals<span class="tab-count" id="apprCountTask"></span></div>
+      <div class="tab" id="apprTabTransfer" onclick="switchApprovalTab('transfer',this)" style="display:none">🔀 Transfer Requests<span class="tab-count" id="apprCountTransfer"></span></div>
+      <div class="tab" id="apprTabLeave" onclick="switchApprovalTab('leave',this)" style="display:none">🗓 Leave Requests<span class="tab-count" id="apprCountLeave"></span></div>
+    </div>
+
+    <!-- Task approvals panel -->
+    <div id="approvalsPanel">
+      <div id="approvalsContent">
+        <div class="empty" style="background:var(--card);border-radius:12px;border:1px solid var(--border);">Loading…</div>
+      </div>
+    </div>
+
+    <!-- Transfer approvals panel (admin/HOD only) -->
+    <div id="transferApprovalsPanel" style="display:none">
+      <div id="transferApprovalsContent" class="flat-tasks-table" style="background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden">
+        <div class="empty">Loading…</div>
+      </div>
+    </div>
+
+    <!-- Leave approvals panel (admin/HOD only) -->
+    <div id="leaveApprovalsPanel" style="display:none">
+      <div id="leaveApprovalsContent">
+        <div class="empty" style="background:var(--card);border-radius:12px;border:1px solid var(--border);">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FMS ADMIN ── -->
+  <div id="page-fms" class="page">
+    <div class="page-header">
+      <div></div>
+      <button class="btn btn-primary" onclick="openAddFMS()">+ Add New FMS</button>
+    </div>
+
+    <!-- FMS List tabs (top right) -->
+    <div id="fmsListTabs" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;"></div>
+
+    <!-- FMS Detail View -->
+    <div id="fmsDetailView" style="display:none">
+      <!-- Sheet info bar -->
+      <div id="fmsSheetInfoBar" style="background:var(--card);border-radius:12px;border:1px solid var(--border);padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.4px">Sheet Info</div>
+          <div id="fmsSheetInfoText" style="font-size:13px;color:var(--foreground);margin-top:2px"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="openNewRecord(fmsActiveId)">➕ New Record</button>
+          <button class="btn btn-outline btn-sm" onclick="openFMSSummary(fmsActiveId)" style="color:var(--chart-1);border-color:color-mix(in srgb,var(--chart-1) 22%,transparent)">📊 Summary</button>
+          <button class="btn btn-outline btn-sm" onclick="openIntakeForm()" style="color:var(--chart-5);border-color:color-mix(in srgb,var(--chart-5) 25%,transparent)">📝 Intake Form</button>
+          <button class="btn btn-outline btn-sm" onclick="openEditFMS()" style="color:var(--primary)">✏️ Edit FMS</button>
+          <button class="btn btn-outline btn-sm" onclick="syncFMSData()" style="color:var(--success)">🔄 Sync Data</button>
+          <button class="btn btn-outline btn-sm" onclick="deleteFMSSheet(fmsActiveId)" style="color:var(--destructive);border-color:color-mix(in srgb,var(--destructive) 22%,transparent)">🗑 Delete</button>
+        </div>
+      </div>
+      <!-- Step tabs -->
+      <div id="fmsStepTabs" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;align-items:center;overflow-x:auto;padding-bottom:4px"></div>
+      <!-- Step content -->
+      <div id="fmsStepContent" style="background:var(--card);border-radius:12px;border:1px solid var(--border);padding:20px;"></div>
+      <!-- Sync result -->
+      <div id="fmsSyncResult" style="display:none;background:color-mix(in srgb,var(--success) 10%,transparent);border:1px solid color-mix(in srgb,var(--success) 22%,transparent);border-radius:12px;padding:16px;margin-top:14px"></div>
+    </div>
+
+    <div id="fmsEmpty" class="empty" style="background:var(--card);border-radius:12px;border:1px solid var(--border);">
+      No FMS created yet. Click "+ Add New FMS" to get started.
+    </div>
+  </div>
+
+  <!-- ── FMS TASKS ── -->
+  <div id="page-fms-tasks" class="page">
+    <div class="page-header">
+      <div></div>
+      <div id="fmsTasksRefreshBtn" style="display:none">
+        <button class="btn btn-outline btn-sm" onclick="loadFMSTasks()">🔄 Refresh</button>
+      </div>
+    </div>
+
+    <!-- FMS Selector Dropdown -->
+    <div style="background:var(--card);border-radius:12px;border:1px solid var(--border);padding:16px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="font-size:13px;font-weight:600;color:var(--foreground);white-space:nowrap">Select FMS:</div>
+      <select id="fmsTasksSelect" onchange="onFMSTasksSelect()"
+        style="flex:1;min-width:200px;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;outline:none;color:var(--foreground);background:var(--card)">
+        <option value="">-- Select an FMS --</option>
+      </select>
+      <button id="fmsNewRecordBtn" class="btn btn-primary btn-sm" style="display:none;white-space:nowrap" onclick="openNewRecord()">➕ New Record</button>
+      <button id="fmsEditRecordBtn" class="btn btn-outline btn-sm" style="display:none;white-space:nowrap;color:var(--chart-1);border-color:color-mix(in srgb,var(--chart-1) 22%,transparent)" onclick="openEditRecord()">✏️ Edit Record</button>
+      <button id="fmsPlanPendingBtn" class="btn btn-outline btn-sm" style="display:none;white-space:nowrap;color:var(--warning);border-color:color-mix(in srgb,var(--warning) 26%,transparent)" onclick="openPlanPending()">⏳ Plan date pending</button>
+    </div>
+
+    <!-- Train Container -->
+    <div id="fmsTrainContainer" style="display:none;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:600;color:var(--muted-foreground);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">
+        Process Flow — Click a step to view tasks
+        <span id="fmsTrainLegend" style="margin-left:12px;font-weight:400;text-transform:none">
+          <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:linear-gradient(135deg,var(--primary),color-mix(in srgb,var(--primary) 65%,#fff));display:inline-block"></span> Your step</span>
+          <span style="margin-left:10px;display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:var(--foreground);display:inline-block;opacity:.5"></span> Other step</span>
+        </span>
+      </div>
+      <div class="fms-train-track" id="fmsTrainTrack">
+        <div id="fmsTrainInner" class="fms-train-scroll"></div>
+      </div>
+      <div class="fms-train-speed">
+        <span>🐢</span>
+        <input type="range" id="fmsTrainSpeedSlider" min="5" max="60" value="18" oninput="setTrainSpeed(this.value)"/>
+        <span>🐇</span>
+        <span style="margin-left:8px;color:var(--foreground);font-weight:600" id="fmsTrainSpeedLabel">18s</span>
+        <button class="btn btn-outline btn-sm" style="margin-left:auto" id="fmsTrainPauseBtn" onclick="toggleTrainPause()">⏸ Pause</button>
+      </div>
+    </div>
+
+    <!-- Selected Step Info + Rows -->
+    <div id="fmsTaskStepPanel" style="display:none">
+      <div style="background:var(--card);border-radius:12px;border:1px solid var(--border);padding:14px 18px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.4px">Selected Step</div>
+          <div id="fmsTaskStepName" style="font-size:16px;font-weight:700;color:var(--foreground);margin-top:2px">—</div>
+          <div id="fmsTaskStepDoers" style="font-size:12px;color:var(--muted-foreground);margin-top:2px"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="fmsTaskRowCount" style="font-size:13px;color:var(--destructive);font-weight:600"></span>
+          <button class="btn btn-outline btn-sm" onclick="openFMSUpdateModal()" id="fmsTaskUpdateBtn" style="display:none">✏️ Update Completed</button>
+          <button class="btn btn-outline btn-sm" onclick="loadFMSTaskRows()" id="fmsTaskLoadBtn">Load Tasks</button>
+        </div>
+      </div>
+
+      <!-- Rows table -->
+      <div id="fmsTaskRowsContainer">
+        <div class="empty" style="background:var(--card);border-radius:12px;border:1px solid var(--border);">
+          Click "Load Tasks" to fetch pending rows for this step
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="fmsTasksEmpty" class="empty" style="background:var(--card);border-radius:12px;border:1px solid var(--border);display:none">
+      No FMS assigned to you yet.
+    </div>
+  </div>
+
+  <!-- ── MIS REPORT ── -->
+  <div id="page-mis" class="page">
+    <div class="page-header">
+      <div></div>
+      <button id="setPlanBtn" class="btn btn-primary" onclick="openSetPlanModal()" style="display:none">📅 Set Plan</button>
+    </div>
+
+    <!-- Filters -->
+    <div style="background:var(--card);border-radius:12px;border:1px solid var(--border);padding:18px;margin-bottom:18px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--muted-foreground);margin-bottom:4px;text-transform:uppercase">Start Date</div>
+          <input type="date" id="misStart" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;"/>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--muted-foreground);margin-bottom:4px;text-transform:uppercase">End Date</div>
+          <input type="date" id="misEnd" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;"/>
+        </div>
+        <!-- Department filter: Admin only -->
+        <div id="misDeptFilterWrap" style="display:none">
+          <div style="font-size:11px;font-weight:600;color:var(--muted-foreground);margin-bottom:4px;text-transform:uppercase">Department</div>
+          <select id="misDeptFilter" onchange="filterMISDept()"
+            style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;min-width:160px;background:var(--card);color:var(--foreground);cursor:pointer;">
+            <option value="">All Departments</option>
+          </select>
+        </div>
+        <div style="align-self:flex-end">
+          <button class="btn btn-primary" onclick="generateMIS()">Generate</button>
+        </div>
+        <div style="align-self:flex-end">
+          <button class="btn btn-outline" onclick="exportMIS()">⬇ Export CSV</button>
+        </div>
+        <div style="align-self:flex-end">
+          <button id="misCombinedBtn" class="btn btn-outline" style="display:none;color:var(--chart-5);border-color:color-mix(in srgb,var(--chart-5) 25%,transparent)" onclick="downloadCombinedMIS()">📄 All-Users MIS PDF</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:14px;">
+        <div class="tab-group">
+          <div class="tab active" id="misTabDel" onclick="switchMisTab('delegation',this)">Delegation MIS</div>
+          <div class="tab" id="misTabChl" onclick="switchMisTab('checklist',this)">Checklist MIS</div>
+          <div class="tab" id="misTabFMS" onclick="switchMisTab('fms',this)">FMS MIS</div>
+          <div class="tab" id="misTabAll" onclick="switchMisTab('all',this)">All MIS</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="misResults">
+      <div class="empty" style="background:var(--card);border-radius:12px;border:1px solid var(--border);">
+        Select date range and click Generate
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       LEAVE
+  ══════════════════════════════════════ -->
+  <div id="page-leaves" class="page">
+    <div class="page-header">
+      <div></div>
+      <button class="btn btn-primary" onclick="openApplyLeave()">+ Apply Leave</button>
+    </div>
+    <div style="background:var(--accent);border:1px solid var(--accent);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--accent-foreground)">
+      Requests are approved by an admin or HOD from <strong>Approvals → Leave Requests</strong>. Tasks stay on their original due date.
+    </div>
+    <div id="leavesContent"></div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       QUERY  (sab users raise karte hain; HR/Admin answer/reject karte hain)
+  ══════════════════════════════════════ -->
+  <div id="page-query" class="page">
+    <div class="page-header">
+      <div></div>
+      <button class="btn btn-primary" onclick="openNewQuery()">+ New Query</button>
+    </div>
+    <div id="queryInfo" style="background:var(--muted);border:1px solid color-mix(in srgb,var(--chart-1) 22%,transparent);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--chart-1)"></div>
+    <div id="queryContent"></div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       EMPLOYEE RECORDS  (Admin / HOD / PC)
+  ══════════════════════════════════════ -->
+  <div id="page-records" class="page">
+    <div class="page-header">
+      <div></div>
+      <button class="btn btn-outline" onclick="exportRecords()">⬇ Export CSV</button>
+    </div>
+
+    <div style="background:var(--card);border-radius:12px;border:1px solid var(--border);padding:18px;margin-bottom:18px;">
+      <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--muted-foreground);margin-bottom:4px;text-transform:uppercase">Week Start</div>
+          <input type="date" id="recStart" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;"/>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--muted-foreground);margin-bottom:4px;text-transform:uppercase">Week End</div>
+          <input type="date" id="recEnd" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;"/>
+        </div>
+        <div id="recDeptWrap" style="display:none">
+          <div style="font-size:11px;font-weight:600;color:var(--muted-foreground);margin-bottom:4px;text-transform:uppercase">Department</div>
+          <select id="recDeptFilter" onchange="renderRecords()"
+            style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;min-width:160px;background:var(--card);color:var(--foreground);cursor:pointer;">
+            <option value="">All Departments</option>
+          </select>
+        </div>
+        <div><button class="btn btn-primary" onclick="generateRecords()">Generate</button></div>
+        <div><input type="text" id="recSearch" placeholder="🔍 Search employee…" oninput="renderRecords()"
+          style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;min-width:180px;"/></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted-foreground);margin-top:12px">
+        Each employee shows their <strong>committed plan</strong> + <strong>commit vs complete</strong>.
+        The numbers look <strong>exactly the same</strong> for Admin, HOD and PC. Click an employee to
+        see their <strong>pending tasks</strong> (Delegation + Checklist + FMS).
+      </div>
+    </div>
+
+    <div id="recordsResults">
+      <div class="empty" style="background:var(--card);border-radius:12px;border:1px solid var(--border);">
+        Select a week and click <strong>Generate</strong>
+      </div>
+    </div>
+  </div>
+
+
+</div>
+
+<!-- ══════════════════════════════════════
+     EMPLOYEE RECORD DETAIL MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="recordDetailModal">
+  <div class="modal" style="max-width:680px">
+    <h3 id="recDetailTitle">Employee Record</h3>
+    <div id="recDetailBody" style="margin-top:12px"></div>
+    <div style="margin-top:18px;text-align:right">
+      <button class="btn btn-outline" onclick="closeModal('recordDetailModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     DELEGATE TASK MODAL (Admin only)
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="delegateModal">
+  <div class="modal">
+    <h3>+ Delegate Task</h3>
+    <div class="alert error" id="delegateErr"></div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Doer (Assign To)</label>
+        <select id="dDoer"><option value="">Select Doer</option></select>
+      </div>
+      <div class="form-group">
+        <label>Due Date</label>
+        <input type="date" id="dDate"/>
+      </div>
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;margin:-8px 0 15px;text-transform:none;font-weight:500;font-size:12px;color:var(--foreground);cursor:pointer;white-space:nowrap">
+      <input type="checkbox" id="dAwaitingDueDate" onchange="onAwaitingDueDateChange()" style="accent-color:var(--primary);flex-shrink:0"/>
+      Doer-defined due date
+    </label>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Priority</label>
+        <select id="dPriority">
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Approval Required</label>
+        <select id="dApproval">
+          <option value="no">No Approval</option>
+          <option value="yes">Yes Approval</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="dDesc" placeholder="Enter task description…"></textarea>
+    </div>
+    <div class="form-group">
+      <label>URL <span style="color:var(--muted-foreground);font-weight:400;font-size:11px;text-transform:none">(optional)</span></label>
+      <input type="url" id="dUrl" placeholder="https://docs.google.com/…"/>
+    </div>
+    <div class="form-group">
+      <label>Remarks</label>
+      <textarea id="dRemarks" placeholder="Any remarks…" style="min-height:50px"></textarea>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between;align-items:center">
+      <button class="btn btn-outline" onclick="closeModal('delegateModal')">Close</button>
+      <button class="btn btn-primary" onclick="saveDelegate()">Assign</button>
+    </div>
+    <!-- Bulk Upload -->
+    <div class="bulk-section">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:11px;color:var(--muted-foreground);font-weight:600">OR BULK UPLOAD CSV</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+      <div class="file-row">
+        <input type="file" id="bulkFile" accept=".csv" style="font-size:12px;flex:1"/>
+        <button class="btn btn-green btn-sm" id="uploadCSVBtn" onclick="uploadCSV()">⬆ Upload CSV</button>
+        <button class="btn btn-outline btn-sm" onclick="downloadSample()">⬇ Sample</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted-foreground);margin-top:6px">Format: doer_email, approver_email, due_date, priority, approval, description, remarks</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     CHECKLIST TASK MODAL (Admin only)
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="checklistModal">
+  <div class="modal">
+    <h3>+ Add Checklist Task</h3>
+    <div class="alert error" id="checklistErr"></div>
+    <div class="alert success" id="checklistSuccess"></div>
+
+    <div class="form-group">
+      <label>Select Employee</label>
+      <select id="cDoer"><option value="">Select Employee</option></select>
+    </div>
+
+    <div class="form-group">
+      <label>Frequency</label>
+      <select id="cFrequency">
+        <option value="daily">Daily (365 tasks/year)</option>
+        <option value="weekly">Weekly (52 tasks/year)</option>
+        <option value="alternative_week">Alternative Week (26 tasks/year)</option>
+        <option value="monthly">Monthly (12 tasks/year)</option>
+        <option value="quarterly">Quarterly (4 tasks/year)</option>
+        <option value="yearly">Yearly (1 task/year)</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Start Date</label>
+        <input type="date" id="cDate"/>
+      </div>
+      <div class="form-group">
+        <label>End Date <span style="color:var(--muted-foreground);font-weight:400;font-size:11px;text-transform:none">(optional)</span></label>
+        <input type="date" id="cEndDate"/>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Task Name / Description</label>
+      <input type="text" id="cDesc" placeholder="Enter task name…"/>
+    </div>
+
+    <div class="form-group">
+      <label>Remarks</label>
+      <input type="text" id="cRemarks" placeholder="Any remarks…"/>
+    </div>
+
+    <!-- Preview -->
+    <div id="cPreview" style="background:var(--muted);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px;display:none">
+      <strong>Preview:</strong> <span id="cPreviewText"></span>
+    </div>
+
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-outline" onclick="closeModal('checklistModal')">Close</button>
+      <button class="btn btn-primary" onclick="saveChecklist()" id="cGenerateBtn">Generate Tasks</button>
+    </div>
+
+    <div class="bulk-section">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:11px;color:var(--muted-foreground);font-weight:600">OR BULK UPLOAD CSV</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+      <div class="file-row">
+        <input type="file" id="bulkFileC" accept=".csv" style="font-size:12px;flex:1"/>
+        <button class="btn btn-green btn-sm" id="uploadCSVCBtn" onclick="uploadCSVC()">⬆ Upload CSV</button>
+        <button class="btn btn-outline btn-sm" onclick="downloadSampleC()">⬇ Sample</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted-foreground);margin-top:6px">Format: <strong>user_email, frequency, description, due_date</strong> — frequency accepts D/W/M/F/Y/Q (or daily/weekly/monthly/fortnightly/yearly/quarterly), due_date accepts DD/MM/YYYY or YYYY-MM-DD. Tasks are auto-generated.<br/>Columns can be in any order. Extra columns (remarks, name, department) are also supported — if a <strong>name</strong> column is present, users can be matched by name instead of email.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     HOLIDAYS MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="holidayModal">
+  <div class="modal">
+    <h3>🗓 Holidays</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="hDate"/>
+      </div>
+      <div class="form-group">
+        <label>Holiday Name</label>
+        <input type="text" id="hName" placeholder="e.g. Diwali"/>
+      </div>
+    </div>
+    <button class="btn btn-primary" style="width:100%;margin-bottom:16px" onclick="addHoliday()">Add Holiday</button>
+    <div style="font-size:12px;font-weight:600;color:var(--muted-foreground);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">Holiday List</div>
+    <div id="holidayList" style="max-height:280px;overflow-y:auto"></div>
+    <div style="margin-top:16px">
+      <button class="btn btn-outline" style="width:100%" onclick="closeModal('holidayModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     FMS - INTAKE FORM BUILDER (admin) + NEW RECORD (users)
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="intakeModal">
+  <div class="modal" style="width:760px;max-width:96vw;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h3 style="margin:0">📝 Intake Form</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted-foreground);cursor:pointer">
+        <input type="checkbox" id="intakeEnabled" style="width:15px;height:15px"> Enabled
+      </label>
+    </div>
+    <p style="font-size:12px;color:var(--muted-foreground);margin:0 0 14px">Users with access will be able to create a brand-new record for this FMS.</p>
+    <div class="alert error" id="intakeErr"></div>
+
+    <!-- Who can add New Record — koi select na karo to access wale sabhi -->
+    <div style="margin-bottom:14px;border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--muted)">
+      <div style="font-size:11px;font-weight:700;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">
+        Who can add New Record
+        <span style="font-weight:400;text-transform:none;color:var(--muted-foreground)">(none selected = everyone with access · admin always can)</span>
+      </div>
+      <div id="intakeCreatorsBox" style="display:flex;flex-wrap:wrap;gap:6px;max-height:150px;overflow-y:auto">
+        <span style="color:var(--muted-foreground);font-size:12px">Loading users…</span>
+      </div>
+    </div>
+
+    <div style="font-size:11px;font-weight:700;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">
+      Target source <span style="font-weight:400;text-transform:none;color:var(--muted-foreground)">(defaults to this FMS's own sheet — override to send new entries elsewhere)</span>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+      <div style="flex:2;min-width:220px">
+        <label style="font-size:11px;font-weight:600;color:var(--muted-foreground)">Sheet ID / URL</label>
+        <input id="intakeSheetId" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>
+      </div>
+      <div style="flex:1;min-width:120px">
+        <label style="font-size:11px;font-weight:600;color:var(--muted-foreground)">Tab name</label>
+        <input id="intakeTab" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>
+      </div>
+      <div style="width:90px">
+        <label style="font-size:11px;font-weight:600;color:var(--muted-foreground)">Header row</label>
+        <input id="intakeHeaderRow" type="number" min="1" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <button class="btn btn-outline btn-sm" onclick="fetchIntakeColumns()">📥 Fetch Columns/Fields</button>
+      <span id="intakeColsStatus" style="font-size:12px;color:var(--muted-foreground)"></span>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.4px">Form fields</div>
+      <button class="btn btn-outline btn-sm" onclick="addIntakeField()">+ Add Field</button>
+    </div>
+    <div id="intakeFieldsList"></div>
+
+    <!-- Next step: submit ke baad iski Planned date bharwao (jaise Material Ready = K) -->
+    <div style="margin-top:16px;border-top:1px dashed var(--border);padding-top:12px">
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--chart-1);cursor:pointer">
+        <input type="checkbox" id="intakeNextEnabled" onchange="document.getElementById('intakeNextFields').style.display=this.checked?'flex':'none'" style="width:15px;height:15px">
+        After submit — ask for the next step's Planned date
+      </label>
+      <div id="intakeNextFields" style="display:none;gap:10px;flex-wrap:wrap;margin-top:8px">
+        <div style="width:190px">
+          <label style="font-size:10px;font-weight:700;color:var(--muted-foreground)">PLANNED COLUMN (next step)</label>
+          <select id="intakeNextCol" style="width:100%;padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:var(--card)"><option value="">-- column --</option></select>
+        </div>
+        <div style="flex:1;min-width:180px">
+          <label style="font-size:10px;font-weight:700;color:var(--muted-foreground)">LABEL (shown after submit)</label>
+          <input id="intakeNextLabel" placeholder="e.g. Material Ready Planned Date" style="width:100%;padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- Derived plan dates: next-step ki plan date set hone par ye columns apne aap
+         (main plan date ± din) bhar jaate hain. Jaise Transport = Material Ready − 1 din. -->
+    <div style="margin-top:14px;border-top:1px dashed var(--border);padding-top:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:13px;font-weight:700;color:var(--chart-1)">Derived plan dates <span style="font-weight:400;font-size:11px;color:var(--muted-foreground)">(auto from next step's plan date ± days)</span></div>
+        <button class="btn btn-outline btn-sm" onclick="addDerivedStep()">+ Add</button>
+      </div>
+      <div id="intakeDerivedList"></div>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-outline" onclick="closeModal('intakeModal')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveIntakeConfig()">Save Intake Form</button>
+    </div>
+  </div>
+</div>
+
+<!-- FMS - PLAN DATE PENDING (baad me plan date bharo) -->
+<div class="modal-overlay" id="planPendingModal">
+  <div class="modal" style="width:600px;max-width:96vw;max-height:90vh;overflow-y:auto">
+    <h3 style="margin:0 0 4px">⏳ Plan date pending</h3>
+    <p style="font-size:12px;color:var(--muted-foreground);margin:0 0 14px">Records where intake is done but the next step's planned date isn't set yet. Enter the date and Save.</p>
+    <div class="alert error" id="planPendingErr"></div>
+    <div id="planPendingList"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-outline" onclick="closeModal('planPendingModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- FMS - NEW RECORD (intake submit, users) -->
+<div class="modal-overlay" id="newRecordModal">
+  <div class="modal" style="width:560px;max-width:96vw;max-height:90vh;overflow-y:auto">
+    <h3 style="margin:0 0 4px">➕ New Record</h3>
+    <p id="newRecordSub" style="font-size:12px;color:var(--muted-foreground);margin:0 0 14px"></p>
+    <div class="alert error" id="newRecordErr"></div>
+    <div id="newRecordFields"></div>
+    <!-- Bulk upload — ek saath kaafi records (CSV), checklist jaisa -->
+    <div id="fmsBulkSection" style="display:none;margin-top:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:11px;color:var(--muted-foreground);font-weight:600">OR BULK UPLOAD (many records at once)</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="file" id="fmsBulkFile" accept=".csv" style="font-size:12px;flex:1;min-width:150px"/>
+        <button class="btn btn-green btn-sm" id="fmsBulkUploadBtn" onclick="fmsBulkUpload()">⬆ Upload CSV</button>
+        <button class="btn btn-outline btn-sm" onclick="fmsBulkSample()">⬇ Sample</button>
+      </div>
+      <div id="fmsBulkFormat" style="font-size:11px;color:var(--muted-foreground);margin-top:6px"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-outline" onclick="closeModal('newRecordModal')">Cancel</button>
+      <button id="newRecordSubmitBtn" class="btn btn-primary btn-sm" onclick="submitNewRecord()">Create Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     FMS - EDIT MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="fmsEditModal">
+  <div class="modal" style="width:780px;max-width:96vw;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <h3 style="margin:0">✏️ Edit FMS</h3>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-outline btn-sm" onclick="addFMSStep()">+ Add Step</button>
+        <button class="btn btn-outline btn-sm" id="editFmsDupModeBtn" style="color:var(--chart-5);border-color:color-mix(in srgb,var(--chart-5) 25%,transparent)" onclick="toggleFMSDupMode()">📋 Duplicate</button>
+        <button class="btn btn-sm" id="editFmsDupConfirmBtn" style="display:none;background:var(--chart-5);color:#fff" onclick="confirmFMSDup()">Duplicate Selected</button>
+      </div>
+    </div>
+
+    <!-- Sheet basics -->
+    <div style="background:var(--muted);border-radius:10px;padding:14px;margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group" style="margin:0">
+          <label>FMS Name <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(display name)</span></label>
+          <input type="text" id="editFmsFmsName" placeholder="e.g. Production Flow" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Google Sheet Tab Name</label>
+          <input type="text" id="editFmsSheetName" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Sheet ID</label>
+          <input type="text" id="editFmsSheetId" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Header Row</label>
+          <input type="number" id="editFmsHeaderRow" min="1" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step navigator -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <div id="editFmsStepNav" style="display:flex;gap:6px;flex-wrap:wrap;flex:1"></div>
+      <div style="display:flex;gap:6px">
+        <button id="editFmsDeleteModeBtn" class="btn btn-outline btn-sm" style="color:var(--destructive);border-color:color-mix(in srgb,var(--destructive) 22%,transparent)" onclick="toggleFMSDeleteMode()">🗑 Select to Delete</button>
+        <button id="fmsConfirmDeleteBtn" class="btn btn-danger btn-sm" style="display:none" onclick="confirmFMSDelete()">Delete Selected</button>
+      </div>
+    </div>
+
+    <!-- Steps container -->
+    <div id="fmsEditStepsContainer" style="display:flex;flex-direction:column;gap:16px"></div>
+
+    <div class="alert error" id="fmsEditErr" style="margin-top:12px"></div>
+
+    <div class="modal-footer" style="justify-content:space-between;margin-top:20px">
+      <button class="btn btn-outline" onclick="closeModal('fmsEditModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditFMS()">💾 Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     FMS - ADD NEW MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="fmsAddModal">
+  <div class="modal" style="max-width:480px">
+    <h3>+ Add New FMS</h3>
+    <div class="alert error" id="fmsAddErr"></div>
+    <div class="form-group">
+      <label>FMS Name <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(display name — shown in tabs & dropdown)</span></label>
+      <input type="text" id="fmsFmsName" placeholder="e.g. Production Flow, RM Purchase"/>
+    </div>
+    <div class="form-group">
+      <label>Google Sheet Tab Name <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(exact name of the sheet tab)</span></label>
+      <input type="text" id="fmsSheetName" placeholder="e.g. Sheet1, RM BOP"/>
+    </div>
+    <div class="form-group">
+      <label>Google Sheet ID</label>
+      <input type="text" id="fmsSheetId" placeholder="Google Sheet ID or full URL"/>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Header Row <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(which row the headers are in)</span></label>
+        <input type="number" id="fmsHeaderRow" value="1" min="1"/>
+      </div>
+      <div class="form-group">
+        <label>Total Number of Steps</label>
+        <input type="number" id="fmsTotalSteps" value="1" min="1" max="20"/>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-outline" onclick="closeModal('fmsAddModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="proceedToShareNotice()">Config Now →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     FMS - SHARE NOTICE (7 sec)
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="fmsShareModal">
+  <div class="modal" style="max-width:440px;text-align:center">
+    <div style="font-size:36px;margin-bottom:16px">📊</div>
+    <h3 style="margin-bottom:12px">Share Your Sheet</h3>
+    <div style="background:color-mix(in srgb,var(--success) 10%,transparent);border:1px solid color-mix(in srgb,var(--success) 22%,transparent);border-radius:10px;padding:16px;margin-bottom:20px;">
+      <p style="font-size:14px;color:var(--foreground);line-height:1.6">
+        Share your FMS Sheet with this email so the data can sync:
+      </p>
+      <div id="fmsShareEmail" style="margin-top:10px;font-size:15px;font-weight:700;color:var(--primary);background:var(--accent);padding:10px;border-radius:8px;letter-spacing:.3px;word-break:break-all;">
+      </div>
+      <button onclick="copyFMSEmail()" style="margin-top:8px;background:none;border:1px solid var(--primary);color:var(--primary);padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Copy Email</button>
+    </div>
+    <button id="fmsSkipBtn" class="btn btn-primary" style="width:100%;pointer-events:none;opacity:.6" onclick="proceedToStepsConfig()">
+      Skip (<span id="fmsCountdown">7</span>s)
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     FMS - STEPS CONFIG MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="fmsStepsModal">
+  <div class="modal" style="width:780px;max-width:96vw;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <h3 style="margin:0">Configure Steps</h3>
+      <button class="btn btn-outline btn-sm" onclick="addFMSStep()">+ Add More</button>
+    </div>
+
+    <!-- Delete mode toggle -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <button id="fmsAddDeleteModeBtn" class="btn btn-outline btn-sm" onclick="toggleFMSDeleteModeAdd()"
+        style="color:var(--destructive);border-color:color-mix(in srgb,var(--destructive) 22%,transparent)">🗑 Select to Delete</button>
+      <button id="fmsAddConfirmDeleteBtn" class="btn btn-danger btn-sm" style="display:none" onclick="confirmFMSDeleteAdd()">Delete Selected</button>
+    </div>
+
+    <div id="fmsStepsContainer" style="display:flex;flex-direction:column;gap:16px"></div>
+
+    <div class="modal-footer" style="justify-content:space-between;margin-top:20px">
+      <button class="btn btn-outline" onclick="closeModal('fmsStepsModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveFMS()">💾 Save FMS</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     REVISE DATE MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="reviseDateModal">
+  <div class="modal" style="max-width:380px">
+    <h3>🔄 Request Revision</h3>
+    <input type="hidden" id="reviseTaskId"/>
+    <input type="hidden" id="reviseTaskType"/>
+    <div class="alert error" id="reviseErr"></div>
+    <div class="form-group">
+      <label>New Due Date</label>
+      <input type="date" id="reviseDate"/>
+      <div style="font-size:12px;color:var(--muted-foreground);margin-top:4px">You cannot pick a date before today</div>
+    </div>
+    <div class="form-group">
+      <label>Reason for Revision</label>
+      <textarea id="reviseReason" placeholder="Reason for the revision..." style="min-height:70px;width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;resize:vertical"></textarea>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-outline" onclick="closeModal('reviseDateModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitRevise()">Send Request</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     EDIT TASK MODAL (Admin only)
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="editTaskModal">
+  <div class="modal">
+    <h3>✏️ Edit Task</h3>
+    <input type="hidden" id="editTId"/>
+    <input type="hidden" id="editTType"/>
+    <div class="alert error" id="editTaskErr"></div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="editTDesc" style="min-height:70px;width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;resize:vertical"></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Due Date</label>
+        <input type="date" id="editTDate"/>
+      </div>
+      <div class="form-group" id="editTPriorityWrap">
+        <label>Priority</label>
+        <select id="editTPriority">
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" id="editTApprovalWrap">
+      <label>Approval Required</label>
+      <select id="editTApproval">
+        <option value="no">No</option>
+        <option value="yes">Yes</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Remarks</label>
+      <input type="text" id="editTRemarks" placeholder="Remarks..."/>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-outline" onclick="closeModal('editTaskModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditTask()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     MIS DETAIL MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="misDetailModal">
+  <div class="modal" style="width:680px;max-width:95vw">
+    <h3 id="misDetailTitle">Task Details</h3>
+    <div id="misDetailScore" style="background:var(--muted);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:18px;"></div>
+    <div style="font-size:12px;font-weight:600;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">All Tasks in Date Range</div>
+    <div style="max-height:360px;overflow-y:auto;border-radius:8px;border:1px solid var(--border);">
+      <table>
+        <thead><tr><th>Description</th><th>Assigned By</th><th>Due Date</th><th>Status</th><th>Completed Date</th><th id="misDetailRemarkTh">Remark</th></tr></thead>
+        <tbody id="misDetailBody"></tbody>
+      </table>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('misDetailModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     COMMENT MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="commentModal">
+  <div class="modal">
+    <h3>💬 Comments</h3>
+    <input type="hidden" id="commentTaskId"/>
+    <input type="hidden" id="commentTaskType"/>
+    <div id="commentsList" style="max-height:280px;overflow-y:auto;margin-bottom:16px;"></div>
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="commentInput" placeholder="Write a comment…"
+        style="flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;"
+        onkeydown="if(event.key==='Enter')addComment()"/>
+      <button class="btn btn-primary btn-sm" onclick="addComment()">Send</button>
+    </div>
+    <div class="modal-footer" style="margin-top:12px">
+      <button class="btn btn-outline" onclick="closeModal('commentModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     ADD/EDIT USER MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="userModal">
+  <div class="modal" style="max-width:520px">
+    <h3 id="userModalTitle">Add User</h3>
+    <div class="alert error" id="userErr"></div>
+    <div class="alert success" id="userSuccess"></div>
+    <input type="hidden" id="editUserId"/>
+    <div class="form-row">
+      <div class="form-group"><label>Full Name</label><input type="text" id="uName" placeholder="Enter full name"/></div>
+      <div class="form-group"><label>Email <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(login)</span></label><input type="email" id="uEmail" placeholder="Enter login email"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Notification Email <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(real Gmail for task notifications)</span></label><input type="email" id="uNotifEmail" placeholder="real email for notifications"/></div>
+      <div class="form-group"><label>WhatsApp Number <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(weekly reminders here)</span></label><input type="tel" id="uPhone" placeholder="10-digit mobile, e.g. 9876543210"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Department</label>
+        <select id="uDepartment" onchange="handleDeptChange()"></select>
+        <input type="text" id="uDepartmentNew" placeholder="Enter new department name, press Enter to save" style="display:none;margin-top:6px"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();saveNewDepartment();}" onblur="saveNewDepartment()"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Password <span id="pwdOptional" style="color:var(--muted-foreground);font-weight:400;text-transform:none">(leave blank to keep current)</span></label>
+      <input type="password" id="uPassword" placeholder="Enter password"/>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Role</label>
+        <select id="uRole">
+          <option value="user">User</option>
+          <option value="hod">HOD</option>
+          <option value="pc">PC (View + Approve)</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Access</label>
+        <div id="uAccessWrap" style="display:flex;gap:6px;padding:3px;background:var(--muted);border-radius:var(--radius-md)">
+          <button type="button" class="tab active" id="uAccessFull" onclick="setUserViewOnly(false)"
+                  style="flex:1;text-align:center;border:none;font-family:inherit">✏️ Full</button>
+          <button type="button" class="tab" id="uAccessView" onclick="setUserViewOnly(true)"
+                  style="flex:1;text-align:center;border:none;font-family:inherit">👁 View only</button>
+        </div>
+        <input type="hidden" id="uViewOnly" value="0"/>
+        <div id="uAccessHint" style="display:none;font-size:11px;color:var(--warning);margin-top:5px;line-height:1.4">
+          This user will see everything but cannot add, edit or delete anything.
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Week Off <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(checklist will be skipped)</span></label>
+        <div id="weekOffWrap" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;border:1.5px solid var(--border);border-radius:8px;background:var(--card);min-height:40px">
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:500;cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" class="woff-cb" value="0" style="accent-color:var(--primary)"/> Sun</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:500;cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" class="woff-cb" value="1" style="accent-color:var(--primary)"/> Mon</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:500;cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" class="woff-cb" value="2" style="accent-color:var(--primary)"/> Tue</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:500;cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" class="woff-cb" value="3" style="accent-color:var(--primary)"/> Wed</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:500;cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" class="woff-cb" value="4" style="accent-color:var(--primary)"/> Thu</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:500;cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" class="woff-cb" value="5" style="accent-color:var(--primary)"/> Fri</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:500;cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" class="woff-cb" value="6" style="accent-color:var(--primary)"/> Sat</label>
+        </div>
+      </div>
+    </div>
+    <!-- Extra Off Section -->
+    <div class="form-group">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <label style="margin:0">Extra Off <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(e.g. 2nd & 4th Saturday)</span></label>
+        <button type="button" class="btn btn-outline btn-sm" onclick="addExtraOff()" style="font-size:11px;padding:3px 10px">+ Add</button>
+      </div>
+      <div id="extraOffList" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-outline" onclick="closeModal('userModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveUser()">Save</button>
+    </div>
+    <!-- Bulk Upload — sirf "Add User" me. Edit karte waqt ek hi user saamne
+         hota hai, wahan CSV se bulk add ka koi matlab nahi banta. -->
+    <div class="bulk-section" id="bulkUserSection">
+      <label style="font-size:12px;font-weight:600;color:var(--foreground);text-transform:uppercase;letter-spacing:.4px">Bulk Add Users (CSV)</label>
+      <div class="file-row">
+        <input type="file" id="bulkUserFile" accept=".csv" style="font-size:12px;"/>
+        <button class="btn btn-outline btn-sm" onclick="uploadUsersCSV()">Upload CSV</button>
+        <button class="btn btn-outline btn-sm" onclick="downloadUserSample()">Sample</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     CONFIRM / PROMPT DIALOG (native popups ki jagah)
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="confirmModal" style="z-index:1200">
+  <div class="modal" style="max-width:420px">
+    <h3 id="confirmTitle">Confirm</h3>
+    <div id="confirmMsg" style="font-size:13px;color:var(--foreground);line-height:1.6;white-space:pre-line;margin-bottom:16px"></div>
+    <div class="form-group" id="confirmInputWrap" style="display:none">
+      <input type="text" id="confirmInput" placeholder="Type here…" onkeydown="if(event.key==='Enter')_confirmResolve(true)"/>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end">
+      <button class="btn btn-outline" onclick="_confirmResolve(false)">Cancel</button>
+      <button class="btn btn-primary" id="confirmOkBtn" onclick="_confirmResolve(true)">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     PROOF PHOTO VIEW MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="proofViewModal">
+  <div class="modal" style="max-width:640px">
+    <h3>Proof of Work</h3>
+    <div id="proofViewMeta" style="font-size:12px;color:var(--muted-foreground);margin-bottom:12px"></div>
+    <div style="background:var(--muted);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center;min-height:120px">
+      <img id="proofViewImg" alt="Proof of work" style="max-width:100%;max-height:60vh;border-radius:6px;display:none"/>
+      <div id="proofViewLoading" style="color:var(--muted-foreground);font-size:13px;padding:30px">Loading…</div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-outline" onclick="closeModal('proofViewModal')">Close</button>
+      <a id="proofViewDownload" class="btn btn-primary" download="proof.jpg" style="text-decoration:none">⬇ Download</a>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     PROOF VIDEO VIEW MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="proofVideoModal">
+  <div class="modal" style="max-width:640px">
+    <h3>Proof Video</h3>
+    <div id="proofVideoMeta" style="font-size:12px;color:var(--muted-foreground);margin-bottom:12px"></div>
+    <!-- Video Drive se hi chalti hai (Apps Script use link-viewable bana deti hai),
+         isliye yahan Drive ka apna player embed karte hain — app server par koi
+         streaming load nahi padta. -->
+    <div style="background:var(--foreground);border:1px solid var(--border);border-radius:10px;padding:6px;min-height:120px">
+      <iframe id="proofVideoFrame" allow="autoplay" allowfullscreen style="width:100%;height:56vh;border:0;border-radius:6px;display:none"></iframe>
+      <div id="proofVideoStatus" style="color:var(--muted-foreground);font-size:13px;padding:30px;text-align:center">Loading…</div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-outline" onclick="closeModal('proofVideoModal')">Close</button>
+      <a id="proofVideoDownload" class="btn btn-primary" target="_blank" rel="noopener" style="text-decoration:none;display:none">⬇ Download</a>
+    </div>
+  </div>
+</div>
+
+<!-- ── REMARK VIEW MODAL — doer ka "kyun nahi hua" remark. Edit/Delete sirf admin ko. ── -->
+<div class="modal-overlay" id="remarkModal">
+  <div class="modal" style="max-width:520px">
+    <h3>📝 Remark</h3>
+    <div id="remarkModalBody" style="background:var(--muted);border:1px solid var(--border);border-radius:10px;padding:16px;font-size:14px;color:var(--foreground);white-space:pre-wrap;word-break:break-word;margin:8px 0 4px"></div>
+    <div style="font-size:11px;color:var(--muted-foreground);margin-bottom:14px">Added by the assigned employee. It cannot be changed by them once saved.</div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-outline" onclick="closeModal('remarkModal')">Close</button>
+      <div id="remarkAdminActions" style="display:none;gap:8px">
+        <button class="btn btn-outline" id="remarkEditBtn">✏️ Edit</button>
+        <button class="btn" id="remarkDeleteBtn" style="background:color-mix(in srgb,var(--destructive) 10%,transparent);color:var(--destructive);border:1px solid color-mix(in srgb,var(--destructive) 22%,transparent)">🗑 Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     APPLY LEAVE MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="applyLeaveModal">
+  <div class="modal" style="max-width:460px">
+    <h3>+ Apply Leave</h3>
+    <div class="alert error" id="leaveErr"></div>
+    <div class="form-group">
+      <label>Leave Type</label>
+      <select id="lvType">
+        <option value="full_day">Full Day</option>
+        <option value="half_day">Half Day</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>From Date</label>
+        <input type="date" id="lvFrom" onchange="if(!document.getElementById('lvTo').value)document.getElementById('lvTo').value=this.value"/>
+      </div>
+      <div class="form-group">
+        <label>To Date</label>
+        <input type="date" id="lvTo"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Reason</label>
+      <textarea id="lvReason" placeholder="Write the reason for leave…" style="min-height:60px"></textarea>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-outline" onclick="closeModal('applyLeaveModal')">Cancel</button>
+      <button class="btn btn-primary" id="lvSubmitBtn" onclick="submitLeave()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     SET PASSWORD MODAL (Admin only)
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="setPasswordModal">
+  <div class="modal" style="max-width:400px">
+    <h3>Set Password</h3>
+    <div class="alert error" id="setPasswordErr"></div>
+    <input type="hidden" id="setPasswordUserId"/>
+    <p style="font-size:13px;color:var(--muted-foreground);margin-bottom:16px" id="setPasswordUserName"></p>
+    <div class="form-group">
+      <label>New Password</label>
+      <div style="position:relative">
+        <input type="password" id="setPasswordValue" placeholder="Enter new password" style="padding-right:42px"
+               onkeydown="if(event.key==='Enter')saveSetPassword()"/>
+        <button type="button" id="setPasswordToggle" onclick="toggleSetPassword()" class="pw-toggle-btn" aria-label="Show password">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <p style="font-size:11px;color:var(--muted-foreground);margin-top:-8px;margin-bottom:14px">User is automatically logged out of all sessions once this is saved.</p>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-outline" onclick="closeModal('setPasswordModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSetPassword()">Save Password</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     FMS DONE MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="fmsDoneModal">
+  <div class="modal" style="max-width:500px">
+    <h3>✅ Mark as Done</h3>
+    <input type="hidden" id="fmsDoneFmsId"/>
+    <input type="hidden" id="fmsDoneStepId"/>
+    <input type="hidden" id="fmsDoneRowNum"/>
+    <input type="hidden" id="fmsDonePlanVal"/>
+    <div class="alert error" id="fmsDoneErr"></div>
+    <!-- Row data preview -->
+    <div id="fmsDoneRowPreview" style="background:var(--muted);border-radius:10px;padding:14px;margin-bottom:16px;font-size:13px;border:1px solid var(--border);max-height:160px;overflow-y:auto"></div>
+    <!-- Plan time -->
+    <div style="display:flex;gap:12px;margin-bottom:14px">
+      <div style="flex:1">
+        <div style="font-size:11px;font-weight:600;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Plan Value</div>
+        <div id="fmsDonePlanDisplay" style="font-size:15px;font-weight:700;color:var(--primary);background:var(--accent);padding:10px 14px;border-radius:8px"></div>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:11px;font-weight:600;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Actual (Now)</div>
+        <div id="fmsDoneActualDisplay" style="font-size:15px;font-weight:700;color:var(--success);background:color-mix(in srgb,var(--success) 10%,transparent);padding:10px 14px;border-radius:8px"></div>
+      </div>
+    </div>
+    <!-- Remark — hamesha dikhta hai; auto-detect "Remarks" column me jaata hai. Late par required. -->
+    <div id="fmsDoneDelaySection" style="display:none">
+      <div id="fmsDoneRemarkBox" style="background:var(--muted);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px">
+        <div id="fmsDoneRemarkLabel" style="font-size:13px;font-weight:600;color:var(--foreground);margin-bottom:8px">📝 Remark <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(optional)</span></div>
+        <input type="text" id="fmsDoneDelayReason" placeholder="Add a remark…" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:var(--card)"/>
+      </div>
+    </div>
+    <!-- Extra input fields (shown when step has extraRows configured) -->
+    <div id="fmsDoneExtraSection" style="display:none;margin-bottom:16px">
+      <div style="font-size:13px;font-weight:600;color:var(--foreground);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">📝 Additional Fields</div>
+      <div id="fmsDoneExtraFields"></div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-outline" onclick="closeModal('fmsDoneModal')">Cancel</button>
+      <button class="btn btn-green" onclick="saveFMSDone()" id="fmsDoneSaveBtn">💾 Save to Sheet</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     FMS - UPDATE COMPLETED ROWS (Done ke baad extra-input fields edit)
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="fmsUpdateModal">
+  <div class="modal" style="width:720px;max-width:96vw;max-height:90vh;overflow-y:auto">
+    <div style="margin-bottom:4px;padding-right:34px">
+      <h3 style="margin:0">✏️ Update Completed Rows</h3>
+    </div>
+    <div id="fmsUpdateStepName" style="font-size:12px;color:var(--muted-foreground);margin-bottom:12px"></div>
+    <div class="alert error" id="fmsUpdateErr" style="display:none"></div>
+    <div id="fmsUpdateSearchWrap" style="display:none;margin-bottom:12px">
+      <input type="text" id="fmsUpdateSearch" placeholder="Search (order no, vendor…)" oninput="renderFMSUpdateRows()"
+        style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>
+    </div>
+    <div id="fmsUpdateList"><div class="empty">Loading…</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     FMS SUMMARY (admin) — KPIs + stage breakdown + per-order table + order-no search
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="fmsSummaryModal">
+  <div class="modal" style="width:1060px;max-width:96vw;max-height:92vh;overflow-y:auto" role="dialog" aria-modal="true" aria-labelledby="fmsSummaryTitle">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;padding-right:34px">
+      <h3 id="fmsSummaryTitle" style="margin:0">📊 FMS Summary</h3>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="fmsSummaryPicker" onchange="loadFMSSummaryData(this.value)" aria-label="Select FMS"
+          style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;background:var(--card);max-width:240px"></select>
+      </div>
+    </div>
+    <div class="alert error" id="fmsSummaryErr" style="display:none"></div>
+    <div id="fmsSummaryBody"><div class="empty">Loading…</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     PASSWORD GATE (re-auth for protected actions, e.g. Intake Form config)
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="pwGateModal">
+  <div class="modal" style="max-width:390px">
+    <h3 id="pwGateTitle" style="margin-top:0">🔒 Enter your password</h3>
+    <div class="alert error" id="pwGateErr" style="display:none"></div>
+    <input type="password" id="pwGateInput" placeholder="Your login password" autocomplete="current-password"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();submitPwGate();}"
+      style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'Inter',sans-serif;outline:none;box-sizing:border-box"/>
+    <div class="modal-footer" style="justify-content:space-between;margin-top:14px">
+      <button class="btn btn-outline" onclick="closeModal('pwGateModal')">Cancel</button>
+      <button class="btn btn-primary" id="pwGateBtn" onclick="submitPwGate()">🔓 Unlock</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     FMS EDIT RECORD (Order No se dhoondo -> intake fields edit)
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="editRecordModal">
+  <div class="modal" style="max-width:520px">
+    <h3 style="margin-top:0">✏️ Edit Record</h3>
+    <div class="alert error" id="editRecordErr" style="display:none"></div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input type="text" id="editRecordSearch" placeholder="Enter Order No…" onkeydown="if(event.key==='Enter'){event.preventDefault();findEditRecord();}" style="flex:1;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>
+      <button class="btn btn-primary btn-sm" onclick="findEditRecord()">🔍 Find</button>
+    </div>
+    <div id="editRecordFields"><div style="color:var(--muted-foreground);font-size:12px;padding:10px;text-align:center">Enter an Order No and click Find</div></div>
+    <div class="modal-footer" style="justify-content:space-between;margin-top:6px">
+      <button class="btn btn-outline" onclick="closeModal('editRecordModal')">Cancel</button>
+      <button class="btn btn-primary btn-sm" id="editRecordSaveBtn" onclick="saveEditRecord()" style="display:none">💾 Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     FMS PENDING POP-UP (login/dashboard par doer ko uske pending steps dikhao)
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="fmsPendingPopup">
+  <div class="modal" style="max-width:470px">
+    <h3 style="margin-top:0">⏰ <span id="fmsPendingPopupCount">0</span> FMS step(s) pending</h3>
+    <p style="font-size:13px;color:var(--muted-foreground);margin:0 0 12px">These steps are still waiting for you — please complete them.</p>
+    <div id="fmsPendingPopupList" style="max-height:320px;overflow-y:auto;margin-bottom:14px"></div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-outline" onclick="closeModal('fmsPendingPopup')">Later</button>
+      <button class="btn btn-primary" onclick="closeFmsPendingPopupGo()">Go to FMS Tasks →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     BULK DELETE MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="bulkDeleteModal">
+  <div class="modal" style="max-width:600px">
+    <h3>🗑 Bulk Delete Tasks</h3>
+    <div class="alert error" id="bulkDeleteErr"></div>
+
+    <!-- STEP 1: From User (admin/HOD only) -->
+    <div id="bdStep1" style="display:none">
+      <div class="form-group">
+        <label>Select Doer (whose tasks to delete)</label>
+        <select id="bdFromUser" onchange="onBdFromChange()"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:var(--card)">
+          <option value="">-- Select user --</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- STEP 2: Date -->
+    <div id="bdStep2" style="display:none">
+      <div class="form-group">
+        <label>Select Date</label>
+        <input type="date" id="bdDate" onchange="onBdDateChange()"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>
+      </div>
+    </div>
+
+    <!-- STEP 3: Tasks list -->
+    <div id="bdStep3" style="display:none">
+      <div style="font-size:11px;font-weight:600;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">
+        Tasks on — <span id="bdDateLabel" style="color:var(--destructive)"></span>
+      </div>
+      <div id="bdTasksList" style="background:var(--muted);border:1px solid var(--border);border-radius:8px;max-height:260px;overflow-y:auto;margin-bottom:14px"></div>
+
+      <div style="background:color-mix(in srgb,var(--destructive) 10%,transparent);border:1px solid color-mix(in srgb,var(--destructive) 22%,transparent);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--destructive);margin-bottom:12px">
+        ⚠️ Delete is permanent — this cannot be undone!
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" onclick="closeModal('bulkDeleteModal')">Cancel</button>
+        <button class="btn btn-outline btn-sm" style="border-color:var(--destructive);color:var(--destructive)" onclick="bulkDeleteSelected()">🗑 Delete Selected</button>
+        <button class="btn btn-danger btn-sm" onclick="bulkDeleteAll()">🗑 Delete All</button>
+      </div>
+    </div>
+
+    <!-- 12-month checklist delete (admin only) -->
+    <div id="bdYearSection" style="display:none;margin-top:18px;border-top:1.5px dashed color-mix(in srgb,var(--destructive) 22%,transparent);padding-top:16px">
+      <div style="font-size:13px;font-weight:700;color:var(--destructive);margin-bottom:10px">🗓 Delete Checklist Tasks (Bulk)</div>
+      <div style="font-size:11px;color:var(--muted-foreground);margin-bottom:10px;line-height:1.5">
+        ℹ️ Pick a frequency category first (daily/weekly/monthly), then the employee. Only <b>pending</b> and <b>revised</b> tasks are deleted — completed tasks stay safe.
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div style="min-width:160px">
+          <label style="font-size:12px;font-weight:600;color:var(--muted-foreground);display:block;margin-bottom:4px">Frequency Category <span style="color:var(--destructive)">*</span></label>
+          <select id="bdYearFreq" onchange="onBdYearFreqChange()" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:var(--card)">
+            <option value="">-- Select category --</option>
+            <option value="all">All categories (everything)</option>
+            <option value="daily">Daily only</option>
+            <option value="weekly">Weekly only</option>
+            <option value="alternative_week">Alternative Week only</option>
+            <option value="monthly">Monthly only</option>
+            <option value="quarterly">Quarterly only</option>
+            <option value="yearly">Yearly only</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:180px">
+          <label style="font-size:12px;font-weight:600;color:var(--muted-foreground);display:block;margin-bottom:4px">Employee <span style="color:var(--destructive)">*</span></label>
+          <select id="bdYearUser" onchange="onBdYearUserChange()" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:var(--card)" disabled>
+            <option value="">-- Select Employee --</option>
+          </select>
+          <div id="bdYearUserEmail" style="display:none;margin-top:5px;padding:5px 10px;background:var(--accent);border:1px solid var(--accent);border-radius:6px;font-size:12px;color:var(--accent-foreground);font-weight:600">📧 <span id="bdYearUserEmailText"></span></div>
+        </div>
+        <div style="flex:1;min-width:200px">
+          <label style="font-size:12px;font-weight:600;color:var(--muted-foreground);display:block;margin-bottom:4px">Specific Tasks <span style="color:var(--muted-foreground);font-weight:400">(optional — tick one or more)</span></label>
+          <div id="bdYearTaskBox" style="width:100%;max-height:120px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;background:var(--card);color:var(--muted-foreground)">All tasks in this category</div>
+        </div>
+        <button class="btn btn-danger btn-sm" style="white-space:nowrap;margin-bottom:1px" onclick="openDelete12MonthsConfirm()">🗑 Delete Checklist</button>
+      </div>
+    </div>
+
+    <!-- Cancel before step 3 -->
+    <div id="bdCancelBtn" style="margin-top:12px;text-align:right">
+      <button class="btn btn-outline" onclick="closeModal('bulkDeleteModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ BULK EDIT (admin only) — checklist tasks ka naam / priority / due-date ek saath ══ -->
+<div class="modal-overlay" id="bulkEditModal">
+  <div class="modal" style="max-width:620px">
+    <h3>✏️ Bulk Edit Checklist Tasks</h3>
+    <div class="alert error" id="bulkEditErr"></div>
+    <div style="font-size:11px;color:var(--muted-foreground);margin-bottom:14px;line-height:1.5">
+      ℹ️ Pick a frequency category and employee first. Only <b>pending</b> and <b>revised</b> tasks change — completed tasks stay safe. The task <b>name</b> can be changed only when a <b>specific task</b> is selected.
+    </div>
+
+    <!-- Selection -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div style="min-width:160px;flex:1">
+        <label style="font-size:12px;font-weight:600;color:var(--muted-foreground);display:block;margin-bottom:4px">Frequency Category <span style="color:var(--destructive)">*</span></label>
+        <select id="beFreq" onchange="onBeFreqChange()" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:var(--card)">
+          <option value="">-- Select category --</option>
+          <option value="all">All categories (everything)</option>
+          <option value="daily">Daily only</option>
+          <option value="weekly">Weekly only</option>
+          <option value="alternative_week">Alternative Week only</option>
+          <option value="monthly">Monthly only</option>
+          <option value="quarterly">Quarterly only</option>
+          <option value="yearly">Yearly only</option>
+        </select>
+      </div>
+      <div style="flex:1;min-width:180px">
+        <label style="font-size:12px;font-weight:600;color:var(--muted-foreground);display:block;margin-bottom:4px">Employee <span style="color:var(--destructive)">*</span></label>
+        <select id="beUser" onchange="onBeUserChange()" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:var(--card)" disabled>
+          <option value="">-- Select Employee --</option>
+        </select>
+        <div id="beUserEmail" style="display:none;margin-top:5px;padding:5px 10px;background:var(--muted);border:1px solid color-mix(in srgb,var(--chart-1) 22%,transparent);border-radius:6px;font-size:12px;color:var(--chart-1);font-weight:600">📧 <span id="beUserEmailText"></span></div>
+      </div>
+      <div style="flex:1;min-width:200px">
+        <label style="font-size:12px;font-weight:600;color:var(--muted-foreground);display:block;margin-bottom:4px">Specific Task <span style="color:var(--muted-foreground);font-weight:400">(optional)</span></label>
+        <select id="beTask" onchange="onBeTaskChange()" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:var(--card)" disabled>
+          <option value="">All tasks in this category</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Changes -->
+    <div style="margin-top:18px;border-top:1.5px dashed color-mix(in srgb,var(--chart-1) 22%,transparent);padding-top:16px">
+      <div style="font-size:13px;font-weight:700;color:var(--chart-1);margin-bottom:12px">What to change <span style="font-size:11px;font-weight:400;color:var(--muted-foreground)">(leave blank to keep unchanged)</span></div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:150px">
+          <label style="font-size:12px;font-weight:600;color:var(--muted-foreground);display:block;margin-bottom:4px">New Priority</label>
+          <select id="bePriority" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:var(--card)">
+            <option value="">— No change —</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        <div style="flex:2;min-width:220px">
+          <label style="font-size:12px;font-weight:600;color:var(--muted-foreground);display:block;margin-bottom:4px">New Task Name <span id="beNameHint" style="color:var(--muted-foreground);font-weight:400">(select a specific task first)</span></label>
+          <input type="text" id="beName" placeholder="Rename this task…" disabled
+            style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:var(--muted)"/>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label style="font-size:12px;font-weight:600;color:var(--muted-foreground);display:block;margin-bottom:4px">Due Date</label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <select id="beDueMode" onchange="onBeDueModeChange()" style="min-width:170px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:var(--card)">
+            <option value="">— No change —</option>
+            <option value="shift">Shift by days</option>
+            <option value="set">Set to a date</option>
+          </select>
+          <div id="beShiftWrap" style="display:none;align-items:center;gap:6px">
+            <input type="number" id="beShiftDays" placeholder="e.g. 7 or -3" step="1"
+              style="width:130px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>
+            <span style="font-size:12px;color:var(--muted-foreground)">days (+ forward / − back)</span>
+          </div>
+          <input type="date" id="beNewDate" style="display:none;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:var(--muted);border:1px solid color-mix(in srgb,var(--chart-1) 22%,transparent);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--chart-1);margin-top:14px">
+      ℹ️ This change will be applied to all matching pending/revised tasks at once.
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-outline" onclick="closeModal('bulkEditModal')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="applyBulkEdit()">✓ Apply Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ NEW QUERY (koi bhi user) ══ -->
+<div class="modal-overlay" id="newQueryModal">
+  <div class="modal" style="max-width:520px">
+    <h3 id="newQueryTitle">❓ New Query</h3>
+    <div class="alert error" id="newQueryErr"></div>
+    <div class="form-group">
+      <label>Your query</label>
+      <textarea id="newQueryText" rows="5" maxlength="5000" placeholder="Type your question or request here…"
+        style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;resize:vertical"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+      <button class="btn btn-outline" onclick="closeModal('newQueryModal')">Cancel</button>
+      <button id="sendQueryBtn" class="btn btn-primary btn-sm" onclick="submitNewQuery()">Send Query</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ RESOLVE QUERY (HR/Admin) — answer ya reject ══ -->
+<div class="modal-overlay" id="resolveQueryModal">
+  <div class="modal" style="max-width:560px">
+    <h3>💬 Answer Query</h3>
+    <div class="alert error" id="resolveQueryErr"></div>
+    <div style="background:var(--muted);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">
+        <span id="rqUser"></span> · <span id="rqTime" style="color:var(--muted-foreground)"></span>
+      </div>
+      <div id="rqMessage" style="font-size:13px;color:var(--foreground);white-space:pre-wrap;line-height:1.5"></div>
+    </div>
+    <div class="form-group">
+      <label>Your answer <span style="color:var(--muted-foreground);font-weight:400">(optional reason if rejecting)</span></label>
+      <textarea id="rqAnswer" rows="4" maxlength="5000" placeholder="Type your answer…"
+        style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;resize:vertical"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+      <button class="btn btn-outline" onclick="closeModal('resolveQueryModal')">Cancel</button>
+      <button class="btn btn-outline btn-sm" style="border-color:var(--destructive);color:var(--destructive)" onclick="rejectQuery()">✗ Reject</button>
+      <button class="btn btn-primary btn-sm" onclick="answerQuery()">✓ Send Answer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="transferModal">
+  <div class="modal" style="max-width:600px">
+    <h3>🔀 Transfer Tasks</h3>
+    <div class="alert error" id="transferErr"></div>
+
+    <!-- STEP 1: From User (admin/HOD only) -->
+    <div id="transferStep1" style="display:none">
+      <div class="form-group">
+        <label id="transferFromLabel">Select Doer (whose tasks to transfer)</label>
+        <select id="transferFromUser" onchange="onTransferFromChange()"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:var(--card)">
+          <option value="">-- Select user --</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- STEP 2: Date selection -->
+    <div id="transferStep2" style="display:none">
+      <div class="form-group">
+        <label>Select Date</label>
+        <input type="date" id="transferDate" onchange="onTransferDateChange()"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>
+      </div>
+    </div>
+
+    <!-- STEP 3: Tasks list -->
+    <div id="transferStep3" style="display:none">
+      <div style="font-size:11px;font-weight:600;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">
+        Tasks on selected date — <span id="transferDateLabel" style="color:var(--chart-5)"></span>
+      </div>
+      <div id="transferTasksListNew" style="background:var(--muted);border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;margin-bottom:12px"></div>
+
+      <!-- To User -->
+      <div class="form-group">
+        <label>Transfer To <span style="color:var(--destructive)">*</span></label>
+        <select id="transferToUser"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:var(--card)">
+          <option value="">-- Select user --</option>
+        </select>
+      </div>
+
+      <div style="background:color-mix(in srgb,var(--chart-5) 12%,transparent);border:1px solid color-mix(in srgb,var(--chart-5) 25%,transparent);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--chart-5);margin-bottom:12px">
+        ℹ️ The task will be transferred once approved
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" onclick="closeModal('transferModal')">Cancel</button>
+        <button class="btn btn-outline" style="border-color:var(--chart-5);color:var(--chart-5)" onclick="submitTransferSelected()">✅ Transfer Selected</button>
+        <button class="btn btn-sm" style="background:var(--chart-5);color:#fff;padding:8px 16px;border-radius:8px;font-family:'Inter',sans-serif;font-weight:600;cursor:pointer;border:none" onclick="submitTransferAll()">🔀 Transfer All</button>
+      </div>
+    </div>
+
+    <!-- Cancel before step 3 -->
+    <div id="transferCancelBtn" style="margin-top:12px;text-align:right">
+      <button class="btn btn-outline" onclick="closeModal('transferModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── SET PLAN MODAL ── -->
+<div class="modal-overlay" id="setPlanModal">
+  <div class="modal" style="max-width:440px">
+    <h3 style="margin-bottom:18px">📅 Set Next Week Plan</h3>
+    <div class="alert error" id="setPlanErr"></div>
+    <div class="form-group">
+      <label>Select Employee <span style="color:var(--destructive)">*</span></label>
+      <select id="planEmpSelect" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:var(--card)">
+        <option value="">Select Employee</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Start Date of Week <span style="color:var(--destructive)">*</span></label>
+      <input type="date" id="planStartDate" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:6px">
+        Improvement Target (%)
+        <span style="font-size:11px;color:var(--muted-foreground);font-weight:400">— optional, goal set in the meeting</span>
+      </label>
+      <div style="position:relative">
+        <input type="number" id="planImprovementPct" min="-100" max="100" placeholder="e.g. -30 (meaning bring it down by 30%)"
+          style="width:100%;padding:9px 12px 9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;box-sizing:border-box"/>
+      </div>
+      <div id="planPctPreview" style="margin-top:6px;font-size:12px;color:var(--muted-foreground);min-height:18px"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:20px">
+      <button class="btn btn-primary" style="background:linear-gradient(135deg,var(--chart-5),var(--primary));border:none" onclick="saveWeekPlan()">Save Plan</button>
+      <button class="btn btn-outline" onclick="closeModal('setPlanModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── DELEGATE BY ME MODAL ─────────────────────────────────────── -->
+<div class="modal-overlay" id="delegateByMeModal">
+  <div class="modal" style="max-width:900px;max-height:90vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h3 style="margin:0">📤 Tasks Delegated by Me</h3>
+      <button class="btn btn-outline" onclick="closeModal('delegateByMeModal')" style="padding:5px 12px;font-size:12px">✕ Close</button>
+    </div>
+    <!-- Sub-tabs: Pending / Completed -->
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <div class="tab-group">
+        <div class="tab active" id="dbmTabPending" onclick="filterDbmStatus('pending',this)">Pending</div>
+        <div class="tab" id="dbmTabCompleted" onclick="filterDbmStatus('completed',this)">Completed</div>
+      </div>
+      <div style="position:relative;margin-left:auto">
+        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted-foreground)">🔍</span>
+        <input type="text" id="dbmSearch" placeholder="Search…" oninput="renderDbmTable()"
+          style="padding:7px 12px 7px 30px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none;width:220px"/>
+      </div>
+    </div>
+    <div style="flex:1;overflow:auto" id="dbmContent">
+      <div class="empty">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>

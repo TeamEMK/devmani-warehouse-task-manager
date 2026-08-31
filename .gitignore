@@ -1,0 +1,21 @@
+# Ignore credentials and environment files
+credentials.json
+.env
+.env.local
+.env.*
+# .env.example me sirf placeholders hain (koi secret nahi) — ye commit hona
+# chahiye taaki deploy ke liye zaroori env vars documented rahein.
+!.env.example
+node_modules
+# DB dumps repo me nahi jaate — unme asli data hota hai
+*.sql
+# ...par migrations code ka hissa hain, inhe jaana chahiye. Inke bina naye
+# environment par database khada hi nahi hota.
+# `**` zaroori hai: migrations data/migrations/postgres/ aur data/migrations/mysql/
+# me hain, yaani do level gehri — ek-level wala pattern inhe pakadta hi nahi.
+!data/migrations/**/*.sql
+.vercel
+apps_script_proof_upload.gs
+# Local editor / AI tooling ka config — machine ke saath badalta hai, repo me
+# jaane ki zarurat nahi.
+.claude/

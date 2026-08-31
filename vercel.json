@@ -1,0 +1,1 @@
+{"$schema":"https://openapi.vercel.sh/vercel.json","functions":{"api/index.js":{"memory":1024,"maxDuration":60,"includeFiles":"**"}},"rewrites":[{"source":"/(.*)","destination":"/api/index.js"}],"crons":[{"path":"/api/cron/reminders","schedule":"30 6 * * *"},{"path":"/api/cron/whatsapp","schedule":"0 4 * * *"}]}

@@ -1,0 +1,601 @@
+/* ══════════════════════════════════════════════════════
+   TASK MANAGER — app styles
+   ══════════════════════════════════════════════════════
+   Ye pehle app.html ke andar <style> me tha. Alag file hone ka ek aur
+   fayda: browser ise cache kar leta hai, jabki app.html har baar poora
+   aata hai.
+
+   Neeche do marker-blocks hain jinke beech ke tokens "New Client Copy"
+   client ke rang se dobara likhta hai. Pehla block light theme ka, doosra
+   dark ka — kram badalna mat.
+   (Marker ka naam yahan jaan-boojh kar nahi likha: use likh dene se ye
+    comment khud ek jhootha marker ban jaata.)
+*/
+
+/* ══════════════════════════════════════════════════════════════
+   DESIGN TOKENS — Analytics Dashboard design system
+   Light + dark. Brand primary red rakha hai (logo se match).
+   Blue chahiye to sirf --primary / --ring / --sidebar-primary badlo.
+══════════════════════════════════════════════════════════════ */
+:root{
+  --background:#fdfdfd;   --foreground:#0a0a0a;
+  --card:#ffffff;         --card-foreground:#0a0a0a;
+  --popover:#ffffff;      --popover-foreground:#0a0a0a;
+  --secondary:#f5f5f5;    --secondary-foreground:#171717;
+  --muted:#f5f5f5;        --muted-foreground:#737373;
+  --destructive:#e40014;  --destructive-foreground:#fafafa;
+  --success:#00a151;      --warning:#f0a133;  --info:#3061ef;
+  --border:#e5e5e5;       --input:#e5e5e5;
+
+  --chart-1:#3b6df4; --chart-2:#00a16f; --chart-3:#ed990e;
+  --chart-4:#ec305a; --chart-5:#009fc2;
+
+  --sidebar:#0e0f12;          --sidebar-foreground:#fafafa;
+  --sidebar-muted:#8c8f95;    --sidebar-border:rgba(255,255,255,.10);
+  --sidebar-accent:rgba(255,255,255,.06);
+
+  /* brand-color:start
+     brand.json ke "color" (logo ka rang) se nikle hue tokens — lib/brand-palette.js.
+     Shades contrast se chune jaate hain, fix nahi: bahut se logo ke rang seedha
+     text ke liye kaafi gehre nahi hote, aur --primary yahan 33 jagah TEXT ki
+     tarah use hota hai. "New Client Copy" is block ko client ke logo ke rang se
+     dobara likhta hai — isliye markers hataana mat. */
+  --primary:#2968c2;          --primary-foreground:#fafafa;
+  --accent:#e1ebf9;           --accent-foreground:#2258a4;
+  --ring:#2968c2;
+  --sidebar-primary:#74a1e2;  --sidebar-primary-bg:rgba(9,23,43,.20);
+  --brand-rgb:9,23,43;      --brand-deep:#2968c2;
+  /* brand-color:end */
+
+  --radius:.75rem;
+  --radius-sm:calc(var(--radius) - 4px);
+  --radius-md:calc(var(--radius) - 2px);
+  --radius-lg:var(--radius);
+
+  --shadow-xs:0 1px 2px rgba(10,10,10,.05);
+  --shadow-sm:0 1px 3px rgba(10,10,10,.07),0 1px 2px -1px rgba(10,10,10,.07);
+  --shadow-md:0 4px 12px -2px rgba(10,10,10,.09),0 2px 6px -2px rgba(10,10,10,.06);
+  --shadow-lg:0 12px 32px -8px rgba(10,10,10,.16);
+  --shadow-xl:0 24px 64px -12px rgba(10,10,10,.22);
+}
+[data-theme="dark"]{
+  --background:#07080a;   --foreground:#fafafa;
+  --card:#131416;         --card-foreground:#fafafa;
+  --popover:#131416;      --popover-foreground:#fafafa;
+  --secondary:#1f2227;    --secondary-foreground:#fafafa;
+  --muted:#1f2227;        --muted-foreground:#8c8f95;
+  --destructive:#ff6568;  --destructive-foreground:#0a0a0a;
+  --success:#2cbb67;      --warning:#faab3f;  --info:#5486ff;
+  --border:rgba(255,255,255,.10); --input:rgba(255,255,255,.15);
+
+  --chart-1:#5386ff; --chart-2:#00bb87; --chart-3:#f7a224;
+  --chart-4:#ff4e6d; --chart-5:#09b7dc;
+
+  --sidebar:#0e0f12;          --sidebar-foreground:#fafafa;
+  --sidebar-muted:#8c8f95;    --sidebar-border:rgba(255,255,255,.10);
+  --sidebar-accent:rgba(255,255,255,.06);
+
+  /* brand-color:start — dark theme (upar wale light block jaisa hi niyam) */
+  --primary:#417fd7;          --primary-foreground:#0a0a0a;
+  --accent:#0e1c2f;           --accent-foreground:#78a4e3;
+  --ring:#417fd7;
+  --sidebar-primary:#74a1e2;  --sidebar-primary-bg:rgba(9,23,43,.20);
+  --brand-rgb:9,23,43;      --brand-deep:#2968c2;
+  /* brand-color:end */
+
+  --shadow-xs:0 1px 2px rgba(0,0,0,.5);
+  --shadow-sm:0 1px 3px rgba(0,0,0,.55),0 1px 2px -1px rgba(0,0,0,.5);
+  --shadow-md:0 4px 12px -2px rgba(0,0,0,.6),0 2px 6px -2px rgba(0,0,0,.5);
+  --shadow-lg:0 12px 32px -8px rgba(0,0,0,.7);
+  --shadow-xl:0 24px 64px -12px rgba(0,0,0,.8);
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+html{color-scheme:light;}
+[data-theme="dark"]{color-scheme:dark;}
+body{
+  font-family:'Inter',system-ui,-apple-system,sans-serif;
+  background:var(--background);color:var(--foreground);min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+  font-feature-settings:"cv11","ss01";
+  font-variant-numeric:tabular-nums;
+  transition:background .2s ease,color .2s ease;
+}
+::selection{background:color-mix(in srgb,var(--primary) 22%,transparent);}
+
+/* Focus ring — keyboard users ko clear dikhe */
+:where(a,button,input,select,textarea,[tabindex]):focus-visible{
+  outline:2px solid var(--ring);outline-offset:2px;border-radius:var(--radius-sm);
+}
+
+/* Scrollbars theme ke saath */
+*{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted-foreground) 40%,transparent) transparent;}
+*::-webkit-scrollbar{width:10px;height:10px;}
+*::-webkit-scrollbar-track{background:transparent;}
+*::-webkit-scrollbar-thumb{
+  background:color-mix(in srgb,var(--muted-foreground) 35%,transparent);
+  border-radius:99px;border:2px solid transparent;background-clip:content-box;
+}
+*::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--muted-foreground) 60%,transparent);background-clip:content-box;}
+
+/* ══════════════════════════════════════
+   SIDEBAR — Collapsed by default
+══════════════════════════════════════ */
+.sidebar{
+  width:60px;background:var(--sidebar);position:fixed;top:0;left:0;bottom:0;
+  z-index:100;display:flex;flex-direction:column;
+  transition:width .25s cubic-bezier(.4,0,.2,1);overflow:hidden;
+  border-right:1px solid var(--sidebar-border);
+}
+.sidebar:hover{ width:230px;box-shadow:var(--shadow-xl); }
+/* Sidebar khulte hi content bhi utna hi right shift ho jaata hai, taaki
+   dashboard sidebar ke neeche na dabe. Dono ki timing same rakhi hai
+   isliye wo ek saath sarakte hain. */
+.sidebar:hover ~ .main{ margin-left:230px; }
+
+/* ── PINNED: sidebar khula hi rehta hai, hover ki zaroorat nahi ──
+   Pinned me shadow nahi — tab sidebar layout ka hissa hai, floating panel nahi. */
+.sidebar-pinned .sidebar{ width:230px;box-shadow:none; }
+.sidebar-pinned .main{ margin-left:230px; }
+.sidebar-pinned .logo-text,
+.sidebar-pinned .nav-label-text,
+.sidebar-pinned .su-info,
+.sidebar-pinned .logout-label{ opacity:1; }
+
+.sidebar-pin{
+  margin-left:auto;flex-shrink:0;
+  width:26px;height:26px;display:grid;place-items:center;
+  background:none;border:none;border-radius:var(--radius-sm);cursor:pointer;
+  color:var(--sidebar-muted);
+  opacity:0;pointer-events:none;transition:opacity .2s .1s,color .15s,background .15s;
+}
+.sidebar:hover .sidebar-pin,
+.sidebar-pinned .sidebar-pin{ opacity:1;pointer-events:auto; }
+.sidebar-pin:hover{ color:var(--sidebar-foreground);background:var(--sidebar-accent); }
+.sidebar-pin svg{ width:16px;height:16px;transition:transform .2s; }
+/* Pin lagne par icon seedha khada — visually "lock" ho gaya */
+.sidebar-pinned .sidebar-pin{ color:var(--sidebar-primary); }
+.sidebar-pinned .sidebar-pin svg{ transform:rotate(45deg); }
+
+.sidebar-logo{
+  padding:16px 12px;border-bottom:1px solid var(--sidebar-border);
+  display:flex;align-items:center;gap:10px;min-height:60px;
+  white-space:nowrap;overflow:hidden;
+}
+.logo-icon{
+  width:34px;height:34px;background:var(--primary);
+  border-radius:var(--radius-sm);display:grid;place-items:center;color:var(--primary-foreground);
+  font-weight:700;font-size:15px;flex-shrink:0;
+}
+.logo-text{font-size:14px;font-weight:600;color:var(--sidebar-foreground);letter-spacing:-.01em;opacity:0;transition:opacity .2s .1s;white-space:nowrap;}
+.sidebar:hover .logo-text{opacity:1;}
+
+.nav{padding:10px 8px;flex:1;overflow:hidden;}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 11px;border-radius:var(--radius-md);cursor:pointer;
+  font-size:13px;font-weight:500;color:var(--sidebar-muted);
+  transition:background .15s,color .15s;margin-bottom:2px;user-select:none;
+  white-space:nowrap;overflow:hidden;
+}
+.nav-item svg{width:18px;height:18px;flex-shrink:0;}
+.nav-label-text{opacity:0;transition:opacity .2s .1s;}
+.sidebar:hover .nav-label-text{opacity:1;}
+.nav-item:hover{background:var(--sidebar-accent);color:var(--sidebar-foreground);}
+.nav-item.active{background:var(--sidebar-primary-bg);color:var(--sidebar-primary);font-weight:600;}
+.nav-divider{border-top:1px solid var(--sidebar-border);margin:8px 0;}
+
+.sidebar-user{
+  padding:12px;border-top:1px solid var(--sidebar-border);
+  display:flex;align-items:center;gap:10px;overflow:hidden;white-space:nowrap;
+}
+.su-avatar{
+  width:32px;height:32px;border-radius:50%;background:var(--primary);
+  display:grid;place-items:center;font-size:11px;font-weight:700;
+  color:var(--primary-foreground);flex-shrink:0;
+}
+.su-info{opacity:0;transition:opacity .2s .1s;}
+.sidebar:hover .su-info{opacity:1;}
+.su-name{font-size:12px;font-weight:600;color:var(--sidebar-foreground);}
+.su-role{font-size:11px;color:var(--sidebar-muted);}
+
+.sidebar-bottom{padding:10px 8px;overflow:hidden;}
+.logout-btn{
+  display:flex;align-items:center;gap:10px;padding:9px 11px;
+  border-radius:var(--radius-md);cursor:pointer;font-size:13px;font-weight:500;
+  color:#ff8a8a;transition:background .15s,color .15s;width:100%;white-space:nowrap;
+  background:none;border:none;font-family:inherit;
+}
+.logout-btn:hover{background:rgba(255,101,104,.12);color:#ffa5a5;}
+.logout-label{opacity:0;transition:opacity .2s .1s;}
+.sidebar:hover .logout-label{opacity:1;}
+
+/* ══════════════════════════════════════
+   MAIN
+══════════════════════════════════════ */
+.main{margin-left:60px;min-height:100vh;transition:margin-left .25s cubic-bezier(.4,0,.2,1);}
+/* Chhoti screen par content ko dhakelne se wo bahut patla ho jaata hai,
+   isliye wahan sidebar purane tareeke se upar hi khulta hai. */
+@media (max-width:900px){
+  .sidebar:hover ~ .main,
+  .sidebar-pinned .main{ margin-left:60px; }
+}
+.topbar{
+  background:color-mix(in srgb,var(--background) 82%,transparent);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  padding:0 24px;height:60px;display:flex;align-items:center;
+  justify-content:space-between;position:sticky;top:0;z-index:90;
+}
+.topbar-title{font-size:16px;font-weight:600;color:var(--foreground);letter-spacing:-.015em;}
+.topbar-right{display:flex;align-items:center;gap:8px;}
+
+/* Theme toggle */
+.theme-toggle{
+  width:34px;height:34px;display:grid;place-items:center;flex-shrink:0;
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);
+  color:var(--muted-foreground);cursor:pointer;transition:color .15s,background .15s,border-color .15s;
+}
+.theme-toggle:hover{color:var(--foreground);background:var(--secondary);border-color:var(--muted-foreground);}
+.theme-toggle svg{width:17px;height:17px;}
+.theme-toggle .icon-sun{display:none;}
+.theme-toggle .icon-moon{display:block;}
+[data-theme="dark"] .theme-toggle .icon-sun{display:block;}
+[data-theme="dark"] .theme-toggle .icon-moon{display:none;}
+
+/* ══════════════════════════════════════
+   BUTTONS
+══════════════════════════════════════ */
+.btn{
+  padding:8px 14px;border-radius:var(--radius-md);font-size:13px;font-weight:500;
+  font-family:inherit;cursor:pointer;border:1px solid transparent;
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  transition:background .15s,color .15s,border-color .15s,box-shadow .15s,transform .1s;
+}
+.btn:active{transform:translateY(.5px);}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.btn-primary{background:var(--primary);color:var(--primary-foreground);box-shadow:var(--shadow-xs);}
+.btn-primary:hover{background:color-mix(in srgb,var(--primary) 88%,#000);}
+.btn-outline{background:var(--card);color:var(--foreground);border-color:var(--border);box-shadow:var(--shadow-xs);}
+.btn-outline:hover{background:var(--secondary);border-color:var(--muted-foreground);}
+.btn-danger{background:var(--destructive);color:var(--destructive-foreground);box-shadow:var(--shadow-xs);}
+.btn-danger:hover{background:color-mix(in srgb,var(--destructive) 88%,#000);}
+.btn-green{background:var(--success);color:#fff;box-shadow:var(--shadow-xs);}
+.btn-green:hover{background:color-mix(in srgb,var(--success) 88%,#000);}
+.btn-yellow{background:var(--warning);color:#3d2600;box-shadow:var(--shadow-xs);}
+.btn-yellow:hover{background:color-mix(in srgb,var(--warning) 88%,#000);}
+.btn-sm{padding:5px 10px;font-size:12px;}
+
+/* ══════════════════════════════════════
+   PAGES
+══════════════════════════════════════ */
+.page{display:none;padding:22px 24px;}
+.page.active{display:block;}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+.page-header h2{font-size:20px;font-weight:600;letter-spacing:-.02em;}
+
+/* ══════════════════════════════════════
+   DASHBOARD
+══════════════════════════════════════ */
+.dash-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+.dash-topbar h2{font-size:20px;font-weight:600;letter-spacing:-.02em;}
+.dash-topbar-btns{display:flex;gap:8px;}
+
+.overview-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:20px;}
+.ov-card{
+  background:var(--card);border-radius:var(--radius-lg);padding:18px 20px;
+  border:1px solid var(--border);box-shadow:var(--shadow-xs);
+}
+.ov-card.clickable{cursor:pointer;transition:box-shadow .15s ease,border-color .15s ease,transform .12s ease;}
+.ov-card.clickable:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);border-color:color-mix(in srgb,var(--muted-foreground) 40%,transparent);}
+.ov-card.clickable:active{transform:translateY(0);}
+.ov-card.selected{box-shadow:var(--shadow-sm),0 0 0 2px var(--ov-accent,var(--foreground)) inset;border-color:var(--ov-accent,var(--foreground));}
+.ov-card.total{--ov-accent:var(--foreground);}
+.ov-card.upcoming{--ov-accent:var(--chart-1);}
+.ov-card.pending{--ov-accent:var(--destructive);}
+.ov-card.revised{--ov-accent:var(--warning);}
+.ov-card.completed{--ov-accent:var(--success);}
+.ov-card .label{font-size:12px;font-weight:500;color:var(--muted-foreground);margin-bottom:6px;}
+.ov-card .number{font-size:32px;font-weight:600;letter-spacing:-.03em;line-height:1.1;color:var(--ov-accent,var(--foreground));}
+
+.dash-bottom{display:grid;grid-template-columns:1fr 320px;gap:18px;}
+.task-table-card{background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow-xs);}
+/* Dashboard ka task table jitni jagah screen par bachi hai utni le leta hai */
+.dash-table-scroll{max-height:calc(100vh - 330px);min-height:340px;}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.card-head-title{font-size:14px;font-weight:600;letter-spacing:-.01em;}
+.tab-group{display:flex;gap:4px;background:var(--muted);padding:3px;border-radius:var(--radius-md);}
+.tab{padding:5px 12px;border-radius:var(--radius-sm);font-size:12px;font-weight:500;cursor:pointer;color:var(--muted-foreground);transition:background .15s,color .15s;}
+.tab:hover{color:var(--foreground);}
+.tab.active{background:var(--card);color:var(--foreground);font-weight:600;box-shadow:var(--shadow-xs);}
+/* Tab par pending count — sidebar ka total badge ye nahi batata ki request
+   kis tab me padi hai, isliye har tab apna number khud dikhata hai. */
+.tab-count{
+  display:none;margin-left:6px;min-width:17px;height:17px;padding:0 5px;
+  border-radius:99px;font-size:10px;font-weight:700;line-height:17px;
+  text-align:center;vertical-align:middle;
+  background:var(--destructive);color:var(--destructive-foreground);
+}
+.tab-count.show{display:inline-block;}
+
+/* ══════════════════════════════════════
+   TABLES
+══════════════════════════════════════ */
+table{width:100%;border-collapse:collapse;}
+thead th{
+  font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted-foreground);padding:10px 14px;text-align:left;
+  border-bottom:1px solid var(--border);background:var(--muted);
+}
+tbody tr{transition:background .12s;}
+tbody tr:hover{background:var(--secondary);}
+tbody td{padding:11px 14px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--foreground);}
+tbody tr:last-child td{border-bottom:none;}
+
+/* ══════════════════════════════════════
+   BADGES — tinted from tokens, dono theme mein kaam karta hai
+══════════════════════════════════════ */
+.status-badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:99px;display:inline-block;border:1px solid transparent;}
+.status-badge.pending{background:color-mix(in srgb,var(--destructive) 12%,transparent);color:var(--destructive);border-color:color-mix(in srgb,var(--destructive) 22%,transparent);}
+.status-badge.completed{background:color-mix(in srgb,var(--success) 12%,transparent);color:var(--success);border-color:color-mix(in srgb,var(--success) 22%,transparent);}
+.status-badge.revised{background:color-mix(in srgb,var(--warning) 14%,transparent);color:color-mix(in srgb,var(--warning) 80%,var(--foreground));border-color:color-mix(in srgb,var(--warning) 25%,transparent);}
+
+.chart-card{background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);padding:18px;box-shadow:var(--shadow-xs);}
+.chart-card h3{font-size:14px;font-weight:600;margin-bottom:14px;letter-spacing:-.01em;}
+.chart-wrap{position:relative;height:200px;}
+
+/* ══════════════════════════════════════
+   ALL TASKS
+══════════════════════════════════════ */
+.user-task-block{background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow-xs);}
+.utb-header{padding:13px 18px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;transition:background .15s;}
+.utb-header:hover{background:var(--secondary);}
+.utb-name{font-size:14px;font-weight:600;}
+.utb-count{font-size:13px;color:var(--muted-foreground);}
+.utb-actions{display:flex;gap:6px;}
+.utb-body{border-top:1px solid var(--border);display:none;}
+.utb-body.open{display:block;}
+
+.users-grid{background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow-xs);}
+
+/* ══════════════════════════════════════
+   PROFILE
+══════════════════════════════════════ */
+.profile-card{background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);padding:28px;max-width:500px;box-shadow:var(--shadow-xs);}
+.profile-avatar-big{width:64px;height:64px;border-radius:50%;background:var(--primary);display:grid;place-items:center;font-size:22px;font-weight:700;color:var(--primary-foreground);margin-bottom:18px;}
+.section-title{font-size:14px;font-weight:600;margin-bottom:14px;padding-top:8px;border-top:1px solid var(--border);margin-top:4px;}
+
+/* ══════════════════════════════════════
+   MODALS
+══════════════════════════════════════ */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:1000;display:none;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{
+  position:relative;background:var(--popover);color:var(--popover-foreground);
+  border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;
+  width:480px;max-width:95vw;max-height:92vh;overflow-y:auto;box-shadow:var(--shadow-xl);
+}
+.modal h3{font-size:16px;font-weight:600;margin-bottom:18px;letter-spacing:-.015em;}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:14px;border-top:1px solid var(--border);}
+.modal-close-x{
+  position:absolute;top:14px;right:14px;width:28px;height:28px;border:none;
+  background:var(--secondary);border-radius:var(--radius-sm);color:var(--muted-foreground);
+  font-size:15px;line-height:1;cursor:pointer;display:grid;place-items:center;transition:background .15s,color .15s;
+}
+.modal-close-x:hover{background:color-mix(in srgb,var(--destructive) 14%,transparent);color:var(--destructive);}
+
+.pw-toggle-btn{
+  position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  width:28px;height:28px;padding:0;border:none;background:none;cursor:pointer;
+  display:grid;place-items:center;color:var(--muted-foreground);border-radius:var(--radius-sm);transition:color .15s,background .15s;
+}
+.pw-toggle-btn:hover{color:var(--foreground);background:var(--secondary);}
+.pw-toggle-btn svg{width:18px;height:18px;}
+
+/* ══════════════════════════════════════
+   FORMS
+══════════════════════════════════════ */
+.form-group{margin-bottom:15px;}
+.form-group label{font-size:11px;font-weight:600;color:var(--muted-foreground);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em;}
+.form-group input,.form-group select,.form-group textarea{
+  width:100%;padding:9px 12px;border:1px solid var(--input);border-radius:var(--radius-md);
+  font-size:13px;font-family:inherit;outline:none;
+  transition:border-color .15s,box-shadow .15s;color:var(--foreground);background:var(--card);
+}
+.form-group input::placeholder,.form-group textarea::placeholder{color:var(--muted-foreground);}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{
+  border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in srgb,var(--ring) 18%,transparent);
+}
+.form-group textarea{resize:vertical;min-height:70px;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+input[type=date],input[type=time],input[type=datetime-local]{color-scheme:inherit;}
+
+/* ══════════════════════════════════════
+   MISC
+══════════════════════════════════════ */
+.alert{padding:9px 12px;border-radius:var(--radius-md);font-size:13px;margin-bottom:12px;display:none;border:1px solid transparent;}
+.alert.success{background:color-mix(in srgb,var(--success) 12%,transparent);border-color:color-mix(in srgb,var(--success) 28%,transparent);color:var(--success);}
+.alert.error{background:color-mix(in srgb,var(--destructive) 12%,transparent);border-color:color-mix(in srgb,var(--destructive) 28%,transparent);color:var(--destructive);}
+.empty{text-align:center;padding:36px;color:var(--muted-foreground);font-size:13px;}
+
+.action-btn{padding:4px 10px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;cursor:pointer;border:1px solid transparent;font-family:inherit;transition:background .15s,color .15s;}
+.action-btn.done{background:color-mix(in srgb,var(--success) 14%,transparent);color:var(--success);border-color:color-mix(in srgb,var(--success) 26%,transparent);}
+.action-btn.done:hover{background:color-mix(in srgb,var(--success) 24%,transparent);}
+.action-btn.revise{background:color-mix(in srgb,var(--warning) 16%,transparent);color:color-mix(in srgb,var(--warning) 80%,var(--foreground));border-color:color-mix(in srgb,var(--warning) 28%,transparent);}
+.action-btn.revise:hover{background:color-mix(in srgb,var(--warning) 26%,transparent);}
+.action-btn.edit{background:var(--accent);color:var(--accent-foreground);border-color:color-mix(in srgb,var(--primary) 22%,transparent);}
+.action-btn.edit:hover{background:color-mix(in srgb,var(--primary) 20%,transparent);}
+.action-btn.delete{background:color-mix(in srgb,var(--destructive) 12%,transparent);color:var(--destructive);border-color:color-mix(in srgb,var(--destructive) 24%,transparent);}
+.action-btn.delete:hover{background:color-mix(in srgb,var(--destructive) 22%,transparent);}
+
+.role-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;border:1px solid transparent;}
+.role-badge.admin{background:var(--accent);color:var(--accent-foreground);border-color:color-mix(in srgb,var(--primary) 22%,transparent);}
+.role-badge.pc{background:color-mix(in srgb,var(--chart-5) 14%,transparent);color:var(--chart-5);border-color:color-mix(in srgb,var(--chart-5) 26%,transparent);}
+.role-badge.hod{background:color-mix(in srgb,var(--chart-1) 14%,transparent);color:var(--chart-1);border-color:color-mix(in srgb,var(--chart-1) 26%,transparent);}
+.role-badge.user{background:color-mix(in srgb,var(--success) 13%,transparent);color:var(--success);border-color:color-mix(in srgb,var(--success) 25%,transparent);}
+
+.priority-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;text-transform:uppercase;letter-spacing:.03em;border:1px solid transparent;}
+.priority-badge.low{background:color-mix(in srgb,var(--success) 13%,transparent);color:var(--success);border-color:color-mix(in srgb,var(--success) 25%,transparent);}
+.priority-badge.medium{background:color-mix(in srgb,var(--chart-1) 13%,transparent);color:var(--chart-1);border-color:color-mix(in srgb,var(--chart-1) 25%,transparent);}
+.priority-badge.high{background:color-mix(in srgb,var(--warning) 16%,transparent);color:color-mix(in srgb,var(--warning) 80%,var(--foreground));border-color:color-mix(in srgb,var(--warning) 28%,transparent);}
+.priority-badge.urgent{background:color-mix(in srgb,var(--destructive) 13%,transparent);color:var(--destructive);border-color:color-mix(in srgb,var(--destructive) 26%,transparent);}
+
+/* Holiday list */
+.holiday-item{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.holiday-item:last-child{border-bottom:none;}
+
+/* MIS Report */
+.mis-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
+/* overflow:clip use kiya, hidden nahi — hidden wrapper ko scroll container
+   bana deta hai aur andar ka sticky header kaam karna band kar deta hai.
+   clip se border-radius ki clipping bhi milti hai aur sticky bhi chalta hai. */
+.mis-table-wrap{background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);overflow:clip;box-shadow:var(--shadow-xs);}
+/* Header row scroll par upar chipka rehta hai. top:60px kyunki topbar
+   60px ka sticky hai — 0 rakhte to header uske peeche chala jaata. */
+.mis-table-wrap > table thead th{
+  position:sticky;top:60px;z-index:5;
+  box-shadow:0 1px 0 var(--border);
+}
+/* Jin tables ko horizontal scroll chahiye, unka wrapper khud scroll container
+   ban jaata hai — wahan header window ke bajaye wrapper ke top par chipkta hai,
+   isliye unhe apni max-height deni padti hai. */
+.mis-table-wrap.mis-scroll-x{overflow:auto;max-height:72vh;}
+.mis-table-wrap.mis-scroll-x > table thead th{top:0;}
+.mis-score-bar{height:6px;border-radius:99px;background:var(--muted);margin-top:4px;overflow:hidden;}
+.mis-score-fill{height:100%;border-radius:99px;transition:width .5s ease;}
+.score-positive{color:var(--success);font-weight:600;}
+.score-negative{color:var(--destructive);font-weight:600;}
+.score-zero{color:var(--muted-foreground);font-weight:600;}
+
+/* Comments */
+.comment-item{padding:10px 0;border-bottom:1px solid var(--border);}
+.comment-item:last-child{border-bottom:none;}
+.comment-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.comment-author{font-size:12px;font-weight:600;color:var(--foreground);}
+.comment-time{font-size:11px;color:var(--muted-foreground);}
+.comment-text{font-size:13px;color:var(--foreground);}
+.comment-empty{text-align:center;padding:20px;color:var(--muted-foreground);font-size:13px;}
+
+/* ══════════════════════════════════════
+   FMS
+══════════════════════════════════════ */
+.fms-name-tab{padding:7px 15px;border-radius:99px;background:var(--card);border:1px solid var(--border);font-size:13px;font-weight:500;cursor:pointer;color:var(--foreground);transition:background .15s,color .15s,border-color .15s;}
+.fms-name-tab.active{background:var(--primary);color:var(--primary-foreground);border-color:var(--primary);font-weight:600;}
+.fms-name-tab:hover:not(.active){border-color:var(--primary);color:var(--primary);}
+.fms-step-tab{padding:6px 16px;border-radius:var(--radius-md);background:var(--secondary);border:1px solid var(--border);font-size:12px;font-weight:500;cursor:pointer;color:var(--foreground);transition:background .15s,color .15s,border-color .15s;white-space:nowrap;}
+.fms-step-tab:hover:not(.active){border-color:var(--primary);color:var(--primary);}
+.fms-step-tab.active{background:var(--primary);color:var(--primary-foreground);border-color:var(--primary);font-weight:600;}
+.fms-step-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;position:relative;transition:box-shadow .2s,border-color .2s;box-shadow:var(--shadow-xs);}
+.fms-step-box.drag-over{border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 20%,transparent);}
+.fms-step-box.selected{border-color:var(--destructive);background:color-mix(in srgb,var(--destructive) 6%,var(--card));}
+.fms-step-num{font-size:11px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;}
+.multi-select-wrap{position:relative;}
+.multi-select-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--popover);border:1px solid var(--border);border-radius:var(--radius-md);max-height:180px;overflow-y:auto;z-index:9999;box-shadow:var(--shadow-lg);display:none;}
+.multi-select-dropdown.open{display:block;}
+.multi-select-item{padding:8px 12px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;transition:background .15s;color:var(--popover-foreground);}
+.multi-select-item:hover{background:var(--secondary);}
+.multi-select-item input[type=checkbox]{cursor:pointer;width:14px;height:14px;accent-color:var(--primary);}
+.multi-select-search{position:sticky;top:0;background:var(--popover);padding:8px;border-bottom:1px solid var(--border);z-index:1;}
+.multi-select-search input{width:100%;padding:6px 10px;border:1px solid var(--input);border-radius:var(--radius-sm);font-size:12px;font-family:inherit;outline:none;box-sizing:border-box;background:var(--card);color:var(--foreground);}
+.multi-select-search input:focus{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in srgb,var(--ring) 18%,transparent);}
+.selected-tags{display:flex;flex-wrap:wrap;gap:4px;min-height:38px;padding:5px 10px;border:1px solid var(--input);border-radius:var(--radius-md);cursor:pointer;background:var(--card);align-items:center;transition:border-color .15s;}
+.selected-tags:hover{border-color:var(--primary);}
+.tag-badge{background:var(--accent);color:var(--accent-foreground);font-size:11px;padding:2px 8px;border-radius:99px;font-weight:600;}
+.extra-row-item{display:flex;align-items:center;gap:8px;margin-top:8px;}
+.drag-handle{cursor:grab;color:var(--muted-foreground);font-size:16px;padding:0 4px;}
+.drag-handle:active{cursor:grabbing;}
+
+/* FMS Tasks Train */
+.fms-train-track{background:#0e0f12;border:1px solid var(--sidebar-border);border-radius:var(--radius-lg);padding:24px 0 36px;overflow:hidden;position:relative;margin-bottom:16px;}
+.fms-train-track::before{content:'';position:absolute;bottom:28px;left:0;right:0;height:5px;background:linear-gradient(90deg,#1f2227 0%,#3a3f47 20%,#1f2227 40%,#3a3f47 60%,#1f2227 80%,#3a3f47 100%);border-radius:3px;}
+.fms-train-track::after{content:'';position:absolute;bottom:24px;left:0;right:0;height:12px;background:repeating-linear-gradient(90deg,#2b2f36 0,#2b2f36 30px,transparent 30px,transparent 50px);opacity:.5;}
+.fms-train-scroll{display:flex;align-items:flex-end;gap:6px;padding:0 30px 14px;width:max-content;animation:trainScroll var(--train-dur,18s) linear infinite;}
+.fms-train-scroll:hover{animation-play-state:paused;}
+@keyframes trainScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.fms-train-engine{flex-shrink:0;background:linear-gradient(135deg,#1f2227,#3a3f47);border:2px solid var(--primary);border-radius:10px 4px 4px 10px;padding:14px 18px;color:#fff;min-width:80px;text-align:center;font-size:24px;display:flex;flex-direction:column;align-items:center;position:relative;}
+.fms-train-engine::before,.fms-coach::before{content:'⬤';position:absolute;bottom:-14px;left:12px;color:#5a5f68;font-size:9px;}
+.fms-train-engine::after,.fms-coach::after{content:'⬤';position:absolute;bottom:-14px;right:12px;color:#5a5f68;font-size:9px;}
+.fms-coach{flex-shrink:0;border-radius:var(--radius-md);padding:12px 14px;color:#fff;min-width:160px;max-width:200px;cursor:pointer;position:relative;transition:transform .2s,box-shadow .2s;border:2px solid transparent;display:flex;flex-direction:column;gap:4px;background:#242a35;}
+.fms-coach:hover{transform:translateY(-5px);box-shadow:0 10px 25px rgba(0,0,0,.5);}
+.fms-coach.active{border-color:var(--warning);box-shadow:0 0 0 3px color-mix(in srgb,var(--warning) 30%,transparent);transform:translateY(-6px);}
+.fms-coach.not-mine{background:#1f2227;opacity:.55;cursor:not-allowed;pointer-events:none;}
+/* Coach hamesha dark surface par hai aur uska text #fff hai, isliye yahan theme
+   token nahi chalta (dark mode me --primary bright amber ho jaata hai aur white
+   text usme dub jaata). Brand ka gehra amber, jis par white AA pass karta hai. */
+.fms-coach.mine{background:linear-gradient(135deg,var(--brand-deep),color-mix(in srgb,var(--brand-deep) 86%,#fff));}
+.fms-coach-num{font-size:10px;font-weight:700;opacity:.7;text-transform:uppercase;letter-spacing:.05em;}
+.fms-coach-name{font-size:12px;font-weight:700;line-height:1.3;word-break:break-word;}
+.fms-coach-doers{font-size:10px;opacity:.75;margin-top:2px;}
+.fms-coach-connector{width:20px;height:8px;background:#3a3f47;border-radius:2px;flex-shrink:0;align-self:flex-end;margin-bottom:14px;}
+.fms-train-speed{display:flex;align-items:center;gap:12px;padding:10px 20px;background:var(--secondary);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius-lg) var(--radius-lg);font-size:12px;color:var(--muted-foreground);}
+.fms-train-speed input[type=range]{flex:1;accent-color:var(--primary);}
+.fms-step-rows-table{background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);overflow:hidden;margin-top:4px;box-shadow:var(--shadow-xs);}
+.fms-step-rows-scroll{max-height:65vh;overflow:auto;}
+.fms-step-rows-table table{width:100%;border-collapse:separate;border-spacing:0;}
+.fms-step-rows-table table th{
+  font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted-foreground);
+  padding:12px 14px;background:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;
+  position:sticky;top:0;z-index:3;box-shadow:0 1px 0 var(--border);
+}
+.fms-step-rows-table table td{padding:10px 14px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle;}
+.fms-done-btn{background:var(--success);color:#fff;border:none;border-radius:var(--radius-md);padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;transition:background .15s,transform .1s;font-family:inherit;}
+.fms-done-btn:hover{background:color-mix(in srgb,var(--success) 88%,#000);transform:translateY(-1px);}
+.fms-status-badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:color-mix(in srgb,var(--warning) 16%,transparent);color:color-mix(in srgb,var(--warning) 80%,var(--foreground));border:1px solid color-mix(in srgb,var(--warning) 28%,transparent);}
+.fms-search-bar{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);padding:8px 12px;margin-bottom:10px;box-shadow:var(--shadow-xs);}
+.fms-search-bar:focus-within{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in srgb,var(--ring) 18%,transparent);}
+.fms-search-bar input{flex:1;border:none;outline:none;font-size:13px;font-family:inherit;color:var(--foreground);background:transparent;}
+.fms-search-bar input::placeholder{color:var(--muted-foreground);}
+.fms-search-bar .fms-search-clear{background:var(--secondary);color:var(--muted-foreground);border:none;border-radius:var(--radius-sm);padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;transition:background .15s,color .15s;}
+.fms-search-bar .fms-search-clear:hover{background:var(--muted);color:var(--foreground);}
+.fms-search-bar .fms-search-count{font-size:12px;color:var(--muted-foreground);font-weight:500;white-space:nowrap;}
+
+/* Header select dropdowns in step config */
+.header-select{width:100%;padding:8px 10px;border:1px solid var(--input);border-radius:var(--radius-md);font-size:13px;font-family:inherit;outline:none;background:var(--card);color:var(--foreground);transition:border-color .15s,box-shadow .15s;}
+.header-select:focus{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in srgb,var(--ring) 18%,transparent);}
+.multi-select-headers{display:flex;flex-wrap:wrap;gap:6px;padding:8px;border:1px solid var(--input);border-radius:var(--radius-md);min-height:42px;cursor:text;background:var(--card);}
+.multi-select-headers .hdr-tag{background:var(--accent);color:var(--accent-foreground);font-size:11px;padding:3px 8px;border-radius:var(--radius-sm);font-weight:600;display:flex;align-items:center;gap:4px;cursor:pointer;}
+.multi-select-headers .hdr-tag .rm{color:color-mix(in srgb,var(--accent-foreground) 60%,transparent);font-size:10px;margin-left:2px;}
+
+/* Flat tasks table (used in All Tasks page) */
+.flat-tasks-table{background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);overflow-x:auto;box-shadow:var(--shadow-xs);}
+.bulk-section{margin-top:20px;padding-top:16px;border-top:1px solid var(--border);}
+.file-row{display:flex;align-items:center;gap:8px;margin-top:6px;}
+
+/* ══════════════════════════════════════
+   VIEW ONLY
+   Asli rok server par hai (requireAuth me har non-GET block hota hai).
+   Yahan sirf UI se wo buttons hataye jaate hain jinka koi matlab nahi —
+   warna user click karta rahega aur har baar error toast milega.
+══════════════════════════════════════ */
+.viewonly-pill{
+  display:none;align-items:center;gap:5px;margin-left:10px;
+  font-size:11px;font-weight:600;letter-spacing:.02em;padding:3px 9px;border-radius:99px;
+  vertical-align:middle;
+  background:color-mix(in srgb,var(--warning) 14%,transparent);
+  color:color-mix(in srgb,var(--warning) 80%,var(--foreground));
+  border:1px solid color-mix(in srgb,var(--warning) 28%,transparent);
+}
+html.view-only .viewonly-pill{ display:inline-flex; }
+
+html.view-only .action-btn,
+html.view-only #dashBtns,
+html.view-only #bulkEditBtn,
+html.view-only #bulkDeleteBtn,
+html.view-only #setPlanBtn,
+html.view-only .fms-done-btn,
+html.view-only [onclick*="openDelegate"],
+html.view-only [onclick*="openChecklist"],
+html.view-only [onclick*="openHoliday"],
+html.view-only [onclick*="openAddUser"],
+html.view-only [onclick*="openBulk"],
+html.view-only [onclick*="openSetPlan"],
+html.view-only [onclick*="openEditUser"],
+html.view-only [onclick*="openSetPassword"],
+html.view-only [onclick*="deleteUser"],
+html.view-only [onclick*="markDone"],
+html.view-only [onclick*="approve"],
+html.view-only [onclick*="reject"]{ display:none!important; }
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;}
+}
