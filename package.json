@@ -4,7 +4,7 @@
   "description": "Devmani Warehouse — Task Manager (MySQL 8+)",
   "main": "backend/server.js",
   "scripts": {
-    "start": "node backend/server.js",
+    "start": "node backend/start.js",
     "dev": "nodemon backend/server.js",
     "db:migrate": "node data/scripts/migrate.js",
     "db:seed-admin": "node data/scripts/seed-admin.js"
