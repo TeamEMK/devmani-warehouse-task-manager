@@ -12,6 +12,8 @@
 // INSERT IGNORE se hai, to jo pehle se hain wo chhoot jaate hain aur naye ban
 // jaate hain. Production DB tak seedha pahunch nahi hai, isliye naye users
 // deploy ke saath hi pahunchte hain.
+// Aur seed-checklist.sql (Google Sheet ka checklist ledger) sirf tab chalti hai
+// jab checklist_tasks khali ho — pehli deploy par tasks pahunchane ke liye.
 const fs = require('fs');
 const path = require('path');
 // Seedha CLI se chalane par .env yahin se aata hai (server me start.js/server.js
@@ -22,6 +24,12 @@ const db = require('../db');
 const MIGR = path.join(__dirname, '..', 'migrations', 'mysql');
 const BOOTSTRAP = path.join(MIGR, 'bootstrap.sql');
 const SEED_USERS = path.join(MIGR, 'seed-users.sql');
+// Checklist ledger (Google Sheet se) — sirf tab jab table bilkul khali ho.
+const SEED_CHECKLIST = path.join(MIGR, 'seed-checklist.sql');
+// Michelin Ops (DSR order app) — tables har boot par (CREATE TABLE IF NOT
+// EXISTS), aur sheet ka data sirf tab jab ops_items khali ho.
+const OPS_SCHEMA = path.join(MIGR, '005_ops.sql');
+const SEED_OPS = path.join(MIGR, 'seed-ops.sql');
 
 function splitStatements(file) {
   return fs.readFileSync(file, 'utf8')
@@ -59,6 +67,36 @@ async function ensureSchema() {
     await runFile(SEED_USERS, 'seed-users');
     const [[after]] = await db.query('SELECT COUNT(*) AS n FROM users');
     if (after.n > before.n) console.log(`   ${after.n - before.n} naye user bane`);
+  }
+
+  // Checklist seed — ek baar, sirf khali table par. INSERT IGNORE se idempotent
+  // nahi ban sakta (koi unique key nahi), isliye count se guard hai.
+  if (fs.existsSync(SEED_CHECKLIST)) {
+    const [[c]] = await db.query('SELECT COUNT(*) AS n FROM checklist_tasks');
+    if (c.n === 0) {
+      console.log('⚠️  checklist_tasks khali hai — seed-checklist.sql chala rahe hain…');
+      await runFile(SEED_CHECKLIST, 'seed-checklist');
+      const [[after]] = await db.query('SELECT COUNT(*) AS n FROM checklist_tasks');
+      console.log(`   ${after.n} checklist tasks bane`);
+    }
+  }
+
+  // Michelin Ops tables — purane database par bhi. Sab IF NOT EXISTS hain,
+  // isliye har boot par chalana sasta aur safe hai.
+  if (fs.existsSync(OPS_SCHEMA)) {
+    let ran = 0;
+    for (const st of splitStatements(OPS_SCHEMA)) {
+      try { await db.query(st); ran++; } catch (err) { console.log('   ops schema skip:', err.message.slice(0, 120)); }
+    }
+    if (fs.existsSync(SEED_OPS)) {
+      const [[c]] = await db.query('SELECT COUNT(*) AS n FROM ops_items');
+      if (c.n === 0) {
+        console.log('⚠️  ops_items khali hai — seed-ops.sql (MICHELIN OPS sheet ka data) chala rahe hain…');
+        await runFile(SEED_OPS, 'seed-ops');
+        const [[after]] = await db.query('SELECT COUNT(*) AS n FROM ops_items');
+        console.log(`   ${after.n} ops items bane`);
+      }
+    }
   }
   return created;
 }

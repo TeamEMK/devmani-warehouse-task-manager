@@ -7,7 +7,10 @@
     "start": "node backend/start.js",
     "dev": "nodemon backend/server.js",
     "db:migrate": "node data/scripts/migrate.js",
-    "db:seed-admin": "node data/scripts/seed-admin.js"
+    "db:seed-admin": "node data/scripts/seed-admin.js",
+    "db:import-checklist": "node data/scripts/import-checklist.js",
+    "db:import-checklist-sheet": "node data/scripts/import-checklist-sheet.js",
+    "db:import-ops-sheet": "node data/scripts/import-ops-sheet.js"
   },
   "engines": {
     "node": ">=20"

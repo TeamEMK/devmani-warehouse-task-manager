@@ -4124,6 +4124,15 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, '..', 'frontend', '
 // requireAuth here prevents app.html from loading if cookie has any timing/domain issue
 app.get('/app', (req, res) => res.sendFile(path.join(__dirname, '..', 'frontend', 'app.html')));
 
+// ══════════════════════════════════════════════════════
+// MICHELIN OPS — DSR order app (alag login: mobile number, cookie ops_token)
+// ══════════════════════════════════════════════════════
+// Google Sheet + Apps Script wala "MICHELIN OPS" system yahan utara gaya hai.
+// Routes: /api/ops/* (backend/routes/ops.js), page: /ops (frontend/ops.html).
+// Iska apna auth hai — upar wale requireAuth se koi lena-dena nahi.
+app.get('/ops', (req, res) => res.sendFile(path.join(__dirname, '..', 'frontend', 'ops.html')));
+require('./routes/ops')(app, { db, JWT_SECRET, IS_SERVERLESS });
+
 // Unmatched API routes — generic JSON 404 (no Express default HTML/path disclosure)
 app.use('/api', (req, res) => {
   res.status(404).json({ error: 'Not found' });

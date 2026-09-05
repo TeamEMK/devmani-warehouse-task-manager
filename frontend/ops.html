@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Michelin Ops | Bansal Oil Distributors</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+:root{--navy:#0D2137;--navy2:#16325a;--gold:#C9A84C;--gold2:#a8862f;--bg:#f3f5f9;--card:#fff;--bdr:#dfe4ee;--txt:#111827;--t2:#4b5563;--t3:#8a94a6;
+--green:#15803d;--gbg:#ecfdf3;--red:#b91c1c;--rbg:#fef2f2;--amber:#b45309;--abg:#fffbeb;--blue:#1d4ed8;--bbg:#eff6ff;--vio:#5b21b6;--vbg:#f5f3ff;--app-h:100vh;}
+html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--txt);background:var(--bg);}
+button{font-family:inherit;cursor:pointer;}
+input,select,textarea{font-family:inherit;font-size:15px;}
+.app{height:var(--app-h);display:flex;flex-direction:column;max-width:560px;margin:0 auto;background:var(--bg);position:relative;}
+.hdr{background:var(--navy);color:#fff;padding:12px 16px;display:flex;align-items:center;flex-shrink:0;}
+.hdr .logo{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;color:var(--gold);line-height:1;}
+.hdr .sub{font-size:10px;color:rgba(255,255,255,.55);letter-spacing:.5px;}
+.hdr .who{margin-left:auto;text-align:right;font-size:11px;color:rgba(255,255,255,.75);}
+.hdr .who b{display:block;font-size:13px;color:#fff;}
+.main{flex:1;overflow-y:auto;padding:14px 14px 20px;-webkit-overflow-scrolling:touch;}
+.bnav{background:#fff;border-top:1px solid var(--bdr);display:flex;flex-shrink:0;padding-bottom:env(safe-area-inset-bottom);}
+.bnav button{flex:1;border:none;background:none;padding:8px 2px 6px;font-size:10.5px;font-weight:600;color:var(--t3);display:flex;flex-direction:column;align-items:center;}
+.bnav button .ic{font-size:20px;line-height:1;margin-bottom:3px;}
+.bnav button.on{color:var(--navy);}
+.bnav button.on .ic{transform:scale(1.1);}
+.pg{display:none;}.pg.on{display:block;animation:fi .18s ease;}
+@keyframes fi{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.card{background:var(--card);border:1px solid var(--bdr);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(13,33,55,.06);}
+.h{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.8px;color:var(--navy);margin-bottom:10px;}
+.h small{font-family:'DM Sans',sans-serif;font-size:11px;letter-spacing:0;color:var(--t3);font-weight:500;margin-left:6px;}
+.grid2{display:flex;flex-wrap:wrap;margin:0 -5px;}
+.grid2>div{width:50%;padding:0 5px;margin-bottom:10px;}
+.kpi{background:#fff;border:1px solid var(--bdr);border-radius:12px;padding:12px;position:relative;overflow:hidden;}
+.kpi:before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--navy);}
+.kpi.g:before{background:var(--gold);}.kpi.r:before{background:var(--red);}.kpi.gr:before{background:var(--green);}.kpi.b:before{background:var(--blue);}
+.kpi .v{font-family:'Bebas Neue',sans-serif;font-size:30px;line-height:1;color:var(--navy);}
+.kpi .l{font-size:11px;color:var(--t2);margin-top:4px;}
+.btn{display:block;width:100%;border:none;border-radius:11px;padding:13px;font-size:15px;font-weight:700;color:#fff;background:var(--navy);}
+.btn.gold{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#fff;}
+.btn.ghost{background:#fff;color:var(--navy);border:1.5px solid var(--bdr);}
+.btn.sm{padding:8px 12px;font-size:12.5px;border-radius:8px;width:auto;display:inline-block;}
+.btn:disabled{opacity:.45;}
+.btn:active{transform:scale(.985);}
+.inp{width:100%;border:1.5px solid var(--bdr);border-radius:10px;padding:11px 12px;background:#fff;outline:none;}
+.inp:focus{border-color:var(--navy);}
+label.l{display:block;font-size:11px;font-weight:700;color:var(--t2);margin:10px 0 5px;text-transform:uppercase;letter-spacing:.4px;}
+.chip{display:inline-block;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;letter-spacing:.3px;}
+.c-SC{background:var(--bbg);color:var(--blue);}.c-MC{background:var(--rbg);color:var(--red);}.c-RE{background:var(--vbg);color:var(--vio);}.c-PC{background:var(--gbg);color:var(--green);}.c-OT{background:#f1f5f9;color:var(--t2);}.c-VK{background:#fff1e6;color:#c2410c;}
+.bchip{display:inline-block;font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:.2px;background:var(--navy);color:#fff;margin-right:4px;}
+.st{display:inline-block;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:20px;}
+.st-PENDING{background:var(--abg);color:var(--amber);}.st-CONFIRMED{background:var(--vbg);color:var(--vio);}.st-BILLED{background:var(--vbg);color:var(--vio);}.st-DISPATCHED{background:var(--bbg);color:var(--blue);}.st-DELIVERED{background:var(--gbg);color:var(--green);}.st-CANCELLED{background:var(--rbg);color:var(--red);}
+.row{display:flex;align-items:center;}
+.row>*{margin-right:8px;}.row>*:last-child{margin-right:0;}
+.item{display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--bdr);}
+.item:last-child{border-bottom:none;}
+.item .nm{flex:1;min-width:0;}
+.item .nm b{display:block;font-size:14px;}
+.item .nm span{font-size:11px;color:var(--t3);}
+.item .q{font-family:'Bebas Neue',sans-serif;font-size:24px;line-height:1;text-align:right;min-width:52px;}
+.q.z{color:var(--red);}.q.lo{color:var(--amber);}.q.ok{color:var(--navy);}
+.seg-tabs{display:flex;overflow-x:auto;padding-bottom:4px;margin-bottom:8px;}
+.seg-tabs button{flex-shrink:0;border:1.5px solid var(--bdr);background:#fff;border-radius:20px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--t2);margin-right:6px;}
+.seg-tabs button.on{background:var(--navy);color:#fff;border-color:var(--navy);}
+.res{border:1px solid var(--bdr);border-radius:10px;background:#fff;max-height:240px;overflow-y:auto;display:none;margin-top:6px;}
+.res div{padding:10px 12px;border-bottom:1px solid var(--bdr);font-size:13px;}
+.res div:active{background:var(--bbg);}
+.cart{border:1.5px solid var(--gold);border-radius:12px;overflow:hidden;background:#fff;margin-top:10px;}
+.cl{display:flex;align-items:center;padding:9px 10px;border-bottom:1px solid var(--bdr);}
+.cl .nm{flex:1;font-size:12.5px;font-weight:600;min-width:0;}
+.cl .nm span{display:block;font-size:10.5px;color:var(--t3);font-weight:500;}
+.cl input{width:62px;text-align:center;font-weight:800;font-size:17px;border:1.5px solid var(--gold);border-radius:8px;padding:6px 4px;margin:0 8px;}
+.cl .x{width:28px;height:28px;border:none;border-radius:7px;background:var(--rbg);color:var(--red);font-size:14px;font-weight:800;}
+.tot{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#fbf7ec;}
+.tot b{font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--navy);}
+.slab{border:1.5px solid var(--gold);border-radius:12px;background:linear-gradient(135deg,#fffdf6,#fff);padding:12px;margin-top:10px;}
+.slab .sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.slab .sh b{font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--navy);letter-spacing:.4px;}
+.slab .cn{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--gold2);}
+.slab .bar{height:7px;background:var(--bdr);border-radius:20px;overflow:hidden;margin:8px 0 6px;}
+.slab .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:20px;}
+.slab .hint{font-size:11.5px;color:var(--t2);line-height:1.4;}
+.slab .hint b{color:var(--navy);}
+.ocard{background:#fff;border:1px solid var(--bdr);border-radius:12px;padding:12px;margin-bottom:10px;}
+.ocard .top{display:flex;align-items:flex-start;}
+.ocard .top .t{flex:1;min-width:0;}
+.ocard .top b{font-size:14px;display:block;}
+.ocard .top span{font-size:11px;color:var(--t3);}
+.ocard .lines{font-size:12px;color:var(--t2);margin:8px 0;padding:8px 10px;background:var(--bg);border-radius:8px;line-height:1.5;}
+.acts{display:flex;flex-wrap:wrap;margin-top:8px;}
+.acts button{margin:0 6px 6px 0;}
+.empty{text-align:center;padding:28px 10px;color:var(--t3);font-size:13px;}
+.toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%;text-align:center;}
+.toast.on{opacity:1;}.toast.err{background:var(--red);}.toast.ok{background:var(--green);}
+.ov{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(13,33,55,.5);z-index:500;display:none;align-items:flex-end;justify-content:center;}
+.ov.on{display:flex;}
+.sheet{background:#fff;width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:16px 16px 24px;max-height:88vh;overflow-y:auto;}
+.sheet .hh{display:flex;align-items:center;margin-bottom:10px;}
+.sheet .hh .h{flex:1;margin:0;}
+.sheet .hh button{border:none;background:var(--bg);width:30px;height:30px;border-radius:8px;font-size:15px;}
+.load{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,.7);z-index:900;display:none;align-items:center;justify-content:center;flex-direction:column;}
+.load.on{display:flex;}
+.spin{width:34px;height:34px;border:3px solid var(--bdr);border-top-color:var(--navy);border-radius:50%;animation:sp .7s linear infinite;}
+@keyframes sp{to{transform:rotate(360deg)}}
+.login{height:var(--app-h);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:linear-gradient(160deg,var(--navy),#0a1a2c);}
+.login .box{background:#fff;border-radius:18px;padding:26px 22px;width:100%;max-width:380px;}
+.login .logo{font-family:'Bebas Neue',sans-serif;font-size:34px;color:var(--navy);letter-spacing:1px;line-height:1;}
+.login .tag{font-size:11px;color:var(--gold2);font-weight:700;letter-spacing:1px;margin-bottom:18px;}
+.hint{font-size:11px;color:var(--t3);margin-top:6px;line-height:1.5;}
+.warn{background:var(--abg);border:1px solid #fcd34d;color:var(--amber);border-radius:10px;padding:9px 12px;font-size:12px;font-weight:600;margin-top:8px;}
+.outs{font-size:11px;font-weight:700;color:var(--red);}
+.kyc{display:flex;flex-wrap:wrap;margin:0 -4px;}
+.kf{width:50%;padding:0 4px;margin-bottom:8px;position:relative;}
+.kf span{display:block;border:1.5px dashed var(--bdr);border-radius:10px;padding:14px 10px 14px 12px;font-size:12px;font-weight:700;color:var(--t2);background:#fff;}
+.kf input{position:absolute;top:0;left:4px;right:4px;bottom:8px;width:calc(100% - 8px);opacity:0;}
+.kf b{position:absolute;right:14px;top:12px;font-size:18px;color:var(--gold2);pointer-events:none;}
+.kf.ok span{border-style:solid;border-color:var(--green);background:var(--gbg);color:var(--green);}
+.kf.ok b{color:var(--green);}
+.kyc-st{font-size:10px;font-weight:800;padding:2px 7px;border-radius:20px;background:var(--abg);color:var(--amber);}
+.kyc-st.done{background:var(--gbg);color:var(--green);}
+.doclink{font-size:10.5px;color:var(--blue);margin-right:6px;text-decoration:none;font-weight:700;}
+.logrow{font-size:11.5px;padding:7px 0;border-bottom:1px solid var(--bdr);color:var(--t2);line-height:1.4;}
+.logrow:last-child{border-bottom:none;}
+.logrow b{color:var(--txt);}
+</style>
+</head>
+<body>
+
+<div id="loginView" class="login" style="display:none">
+  <div class="box">
+    <div class="logo">MICHELIN OPS</div>
+    <div class="tag">BANSAL OIL DISTRIBUTORS · HISAR</div>
+    <label class="l">Apna mobile number</label>
+    <input class="inp" id="lg-mob" type="tel" maxlength="10" placeholder="10-digit number" style="font-size:20px;letter-spacing:2px;text-align:center;">
+    <div style="height:12px"></div>
+    <button class="btn gold" id="lg-btn">Login &rarr;</button>
+    <div class="hint" id="lg-err"></div>
+  </div>
+</div>
+
+<div id="appView" class="app" style="display:none">
+  <div class="hdr">
+    <div><div class="logo">MICHELIN OPS</div><div class="sub">BANSAL OIL DISTRIBUTORS · v1.4</div></div>
+    <div class="who" id="who"></div>
+  </div>
+  <div class="main" id="main">
+
+    <!-- HOME -->
+    <div class="pg" id="pg-home">
+      <div class="grid2" id="kpis"></div>
+      <div class="card" id="home-low"></div>
+      <div class="card" id="rm-card" style="display:none">
+        <div class="h">RM ko Report Bhejo</div>
+        <button class="btn ghost" id="rm-open">Sale / Reorder Report Bhejo &rarr;</button>
+      </div>
+      <div class="card" id="busy-card" style="display:none">
+        <div class="h">Busy Import <small>Stock Status / Amount Receivable (.xlsx)</small></div>
+        <input type="file" id="busy-file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="font-size:13px;width:100%">
+        <div class="hint">Busy se export ki hui xlsx chuno — stock ya outstanding apne aap update hoga. Outstanding kam hua to payment WhatsApp dealer + DSR ko jayega.</div>
+        <div id="busy-log" style="margin-top:8px"></div>
+      </div>
+      <div class="card" id="home-recent"></div>
+      <button class="btn ghost sm" id="logoutBtn" style="margin-top:4px">Logout</button>
+    </div>
+
+    <!-- NEW ORDER -->
+    <div class="pg" id="pg-order">
+      <div class="card">
+        <div class="h">1. Dealer</div>
+        <input class="inp" id="dl-search" placeholder="Dealer ka naam / mobile likho..." autocomplete="off">
+        <div class="res" id="dl-res"></div>
+        <div id="dl-sel" style="display:none;margin-top:8px;background:var(--bbg);border:1.5px solid #bfdbfe;border-radius:10px;padding:10px 12px;font-size:13px;"></div>
+        <button class="btn ghost sm" id="dl-new" style="margin-top:10px">+ Naya dealer add karo</button>
+      </div>
+      <div class="card">
+        <div class="h">2. Items <small>Brand + size / pattern se search karo</small></div>
+        <div class="seg-tabs" id="brand-tabs"></div>
+        <input class="inp" id="it-search" placeholder="Size ya pattern likho — 90/90-12, city extra..." autocomplete="off">
+        <div class="res" id="it-res"></div>
+        <div class="cart" id="cart-wrap" style="display:none">
+          <div id="cart"></div>
+          <div class="tot"><span id="cart-qty" style="font-size:12px;color:var(--t2)"></span><b id="cart-amt"></b></div>
+        </div>
+        <div id="slab-wrap" style="display:none"></div>
+      </div>
+      <div class="card">
+        <label class="l" style="margin-top:0">Note (optional)</label>
+        <input class="inp" id="or-note" placeholder="Delivery instruction, urgency...">
+        <div style="height:12px"></div>
+        <button class="btn gold" id="or-submit">Order Submit Karo &rarr;</button>
+      </div>
+    </div>
+
+    <!-- ORDERS -->
+    <div class="pg" id="pg-orders">
+      <div class="seg-tabs" id="st-tabs"></div>
+      <div id="orders-list"></div>
+    </div>
+
+    <!-- STOCK -->
+    <div class="pg" id="pg-stock">
+      <input class="inp" id="sk-search" placeholder="Search size / pattern..." style="margin-bottom:8px">
+      <div class="seg-tabs" id="sk-tabs"></div>
+      <div class="card" id="stock-list"></div>
+    </div>
+
+    <!-- DEALERS (admin) -->
+    <div class="pg" id="pg-dealers">
+      <input class="inp" id="de-search" placeholder="Search dealer..." style="margin-bottom:8px">
+      <div class="card" id="dealer-list"></div>
+    </div>
+
+  </div>
+  <div class="bnav" id="bnav"></div>
+</div>
+
+<!-- NEW DEALER SHEET -->
+<div class="ov" id="ov-dealer"><div class="sheet">
+  <div class="hh"><div class="h">Naya Dealer</div><button data-close="ov-dealer">&#10005;</button></div>
+  <label class="l">Dealer / Shop naam *</label><input class="inp" id="nd-name">
+  <label class="l">Mobile *</label><input class="inp" id="nd-mob" type="tel" maxlength="10">
+  <label class="l">City / Area</label><input class="inp" id="nd-city" placeholder="Hisar">
+  <label class="l">Address</label><input class="inp" id="nd-addr">
+  <div class="h" style="margin-top:16px">KYC Documents <small>photo khincho ya PDF chuno</small></div>
+  <div class="kyc" id="kyc-wrap">
+    <div class="kf" data-k="gst"><span>GST Certificate</span><input type="file" accept="image/*,application/pdf" data-kf="gst"><b>+</b></div>
+    <div class="kf" data-k="pan"><span>PAN Card</span><input type="file" accept="image/*,application/pdf" data-kf="pan"><b>+</b></div>
+    <div class="kf" data-k="aadhaar"><span>Aadhaar</span><input type="file" accept="image/*,application/pdf" data-kf="aadhaar"><b>+</b></div>
+    <div class="kf" data-k="cheque"><span>Security Cheque</span><input type="file" accept="image/*,application/pdf" data-kf="cheque"><b>+</b></div>
+  </div>
+  <div class="grid2" style="margin-top:8px"><div><label class="l" style="margin-top:0">GST No</label><input class="inp" id="nd-gst" style="text-transform:uppercase" maxlength="15"></div><div><label class="l" style="margin-top:0">PAN</label><input class="inp" id="nd-pan" style="text-transform:uppercase" maxlength="10"></div></div>
+  <div class="hint">Documents abhi nahi hain toh bhi dealer save ho jayega — baad mein Dealers list se upload kar sakte ho.</div>
+  <div style="height:14px"></div>
+  <button class="btn gold" id="nd-save">Save Dealer</button>
+</div></div>
+
+<!-- STOCK MOVE SHEET (admin) -->
+<div class="ov" id="ov-stock"><div class="sheet">
+  <div class="hh"><div class="h" id="sm-title">Stock</div><button data-close="ov-stock">&#10005;</button></div>
+  <div id="sm-info" style="font-size:13px;background:var(--bg);border-radius:10px;padding:10px 12px;"></div>
+  <div class="seg-tabs" style="margin-top:10px"><button class="on" data-smtype="IN">Stock IN (+)</button><button data-smtype="SET">Exact count set</button></div>
+  <label class="l" id="sm-qlbl">Kitna aaya (pcs)</label><input class="inp" id="sm-qty" type="number" min="0" style="font-size:24px;text-align:center;font-weight:800">
+  <label class="l">Note</label><input class="inp" id="sm-note" placeholder="Michelin invoice no / physical count...">
+  <div style="height:14px"></div>
+  <button class="btn gold" id="sm-save">Update Stock</button>
+</div></div>
+
+<!-- STATUS SHEET (admin) -->
+<div class="ov" id="ov-status"><div class="sheet">
+  <div class="hh"><div class="h" id="su-title">Order</div><button data-close="ov-status">&#10005;</button></div>
+  <div id="su-info" style="font-size:13px;background:var(--bg);border-radius:10px;padding:10px 12px;line-height:1.5"></div>
+  <label class="l">Invoice No (Busy)</label><input class="inp" id="su-inv">
+  <label class="l">Vehicle / Transport / Delivery by</label><input class="inp" id="su-veh">
+  <label class="l">Driver Mobile (dispatch pe WhatsApp jayega)</label><input class="inp" id="su-driver" type="tel" maxlength="10" placeholder="10-digit, optional">
+  <div style="height:12px"></div>
+  <div class="acts" id="su-acts"></div>
+  <div class="hint">DISPATCHED karte hi stock automatic minus hoga. Cancel karne par wapas aa jayega.</div>
+</div></div>
+
+<!-- CRM CONFIRM SHEET (admin) -->
+<div class="ov" id="ov-crm"><div class="sheet">
+  <div class="hh"><div class="h" id="crm-title">Confirm Order</div><button data-close="ov-crm">&#10005;</button></div>
+  <div id="crm-info" style="font-size:13px;background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:8px;"></div>
+  <div class="h" style="font-size:15px">Items — dealer se call pe confirm kiya</div>
+  <div id="crm-items"></div>
+  <div class="tot" style="border-radius:10px;margin-top:8px"><span style="font-size:12px;color:var(--t2)">Total</span><b id="crm-amt"></b></div>
+  <label class="l">Payment Terms</label>
+  <input class="inp" id="crm-terms" placeholder="e.g. 15 din credit, ya Advance">
+  <div class="hint">Confirm karte hi dealer ko poori detail ka WhatsApp jayega.</div>
+  <div style="height:14px"></div>
+  <button class="btn gold" id="crm-confirm-btn">Confirm Karo &rarr;</button>
+</div></div>
+
+<!-- RM REPORT SHEET (admin) -->
+<div class="ov" id="ov-rm"><div class="sheet">
+  <div class="hh"><div class="h">RM Report</div><button data-close="ov-rm">&#10005;</button></div>
+  <label class="l" style="margin-top:0">RM chuno</label>
+  <select class="inp" id="rm-select"></select>
+  <label class="l">Report type</label>
+  <div class="seg-tabs"><button class="on" data-rmtype="SALE">Aaj ki Sale</button><button data-rmtype="REORDER">Reorder (low/out stock)</button></div>
+  <div class="hint">Sale: aaj ke orders ka summary us company ke items ka.<br>Reorder: abhi low/out-of-stock items ki list.</div>
+  <div style="height:14px"></div>
+  <button class="btn gold" id="rm-send">Report Bhejo &rarr;</button>
+</div></div>
+
+<div class="load" id="load"><div class="spin"></div><div id="load-msg" style="margin-top:10px;font-weight:700;color:var(--navy);font-size:13px"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══ viewport fix for WhatsApp browser ═══ */
+function setH(){ document.documentElement.style.setProperty('--app-h', window.innerHeight+'px'); }
+setH(); window.addEventListener('resize',setH); window.addEventListener('orientationchange',setH);
+
+/* ═══ Server call — Apps Script ke google.script.run ki jagah ═══
+   Har function POST /api/ops/<fn> hai; body {arg} (ya {args:[...]}); jawab
+   pehle jaisa JSON string hi hai, isliye baaki code waise ka waisa chalta hai. */
+var API='/api/ops/';
+function gas(fn,arg,cb){
+  fetch(API+fn,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(Array.isArray(arg)&&arg.__args?{args:arg}:{arg:arg})})
+    .then(function(r){ return r.text(); })
+    .then(function(t){ try{ var d=JSON.parse(t); if(d&&d.ok===false&&d.error==='Login nahi hai'&&fn!=='login'){ hideLoad(); showLogin(); return; } }catch(e){} cb(t); })
+    .catch(function(e){ hideLoad(); toast('Error: '+e.message,'err'); });
+}
+function gasArgs(fn,args,cb){ args.__args=true; gas(fn,args,cb); }
+function $(id){ return document.getElementById(id); }
+function V(id){ return ($(id).value||'').trim(); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmt(n){ return '₹'+Number(n||0).toLocaleString('en-IN'); }
+var _tt; function toast(m,c){ var t=$('toast'); t.textContent=m; t.className='toast on '+(c||''); clearTimeout(_tt); _tt=setTimeout(function(){t.className='toast';},2800); }
+function showLoad(m){ $('load-msg').textContent=m||''; $('load').className='load on'; }
+function hideLoad(){ $('load').className='load'; }
+function openOv(id){ $(id).className='ov on'; }
+function closeOv(id){ $(id).className='ov'; }
+
+var USER=null, ITEMS=[], DEALERS=[], ORDERS=[], CART=[], SEL_DEALER=null, SEG='', SK_SEG='', ST_F='OPEN', DASH=null, IT_BRAND='';
+var SEGN={SC:'Scooter',MC:'Motorcycle',RE:'Royal Enfield',PC:'Car',OT:'Other',VK:'VK Tyre'};
+function isAdmin(){ return USER && USER.role!=='DSR'; }
+function iName(it){ return it.size+(it.pos?' '+it.pos:'')+' '+it.pattern+' '+it.tltt; }
+function qCls(q){ return q===0?'z':q<=10?'lo':'ok'; }
+function isMichelin2W(seg){ return seg==='SC'||seg==='MC'; }
+
+/* ═══ LOGIN ═══ */
+function showLogin(){ USER=null; $('appView').style.display='none'; $('loginView').style.display='flex'; }
+function doLogin(){
+  var m=V('lg-mob').replace(/\D/g,'');
+  if(m.length!==10){ $('lg-err').textContent='10-digit number daalo'; return; }
+  showLoad('Login...');
+  gas('login',m,function(r){
+    hideLoad(); var d=JSON.parse(r);
+    if(!d.ok){ $('lg-err').textContent=d.error; return; }
+    USER=d.user;
+    startApp();
+  });
+}
+$('lg-btn').onclick=doLogin;
+$('lg-mob').addEventListener('keyup',function(e){ if(e.keyCode===13) doLogin(); });
+$('logoutBtn').onclick=function(){ fetch(API+'logout',{method:'POST',credentials:'same-origin'}).then(function(){ location.href='/ops'; }); };
+
+function startApp(){
+  $('loginView').style.display='none'; $('appView').style.display='flex';
+  $('who').innerHTML=esc(USER.role==='DSR'?'DSR':USER.role)+'<b>'+esc(USER.name)+'</b>';
+  var nav=[['home','⌂','Home'],['order','➕','Order'],['orders','☰','Orders'],['stock','▣','Stock']];
+  if(isAdmin()) nav.push(['dealers','☺','Dealers']);
+  $('bnav').innerHTML=nav.map(function(n){ return '<button data-pg="'+n[0]+'"><span class="ic">'+n[1]+'</span>'+n[2]+'</button>'; }).join('');
+  go('home');
+}
+function go(p){
+  var b=$('bnav').children; for(var i=0;i<b.length;i++) b[i].className=(b[i].getAttribute('data-pg')===p?'on':'');
+  var pg=document.querySelectorAll('.pg'); for(var j=0;j<pg.length;j++) pg[j].className='pg';
+  $('pg-'+p).className='pg on'; $('main').scrollTop=0;
+  ({home:loadHome,order:loadOrderPg,orders:loadOrders,stock:loadStock,dealers:loadDealersPg})[p]();
+}
+$('bnav').addEventListener('click',function(e){ var b=e.target.closest('button'); if(b) go(b.getAttribute('data-pg')); });
+
+/* ═══ HOME ═══ */
+function loadHome(){
+  $('rm-card').style.display = isAdmin() ? 'block' : 'none';
+  $('busy-card').style.display = isAdmin() ? 'block' : 'none';
+  if(isAdmin()) loadImportLog();
+  $('kpis').innerHTML='<div style="width:100%"><div class="empty"><div class="spin" style="margin:0 auto"></div></div></div>';
+  gas('getDashboard',USER.mob,function(r){
+    var d=JSON.parse(r); if(!d.ok){toast(d.error,'err');return;}
+    var s=d.s; DASH=s;
+    var k=[['g',s.todayOrders,'Aaj ke orders'],['b',s.pending,'Pending orders'],['',s.dispatched,'Dispatched (in transit)'],['gr',s.totalStock.toLocaleString('en-IN'),'Total stock (pcs)']];
+    if(isAdmin()) k.push(['r',s.outOfStock+' / '+s.lowStock,'Out / Low stock items'],['',fmt(s.monthAmt),'Is month ka order value']);
+    $('kpis').innerHTML=k.map(function(x){ return '<div><div class="kpi '+x[0]+'"><div class="v">'+x[1]+'</div><div class="l">'+x[2]+'</div></div></div>'; }).join('');
+    var lo=$('home-low');
+    if(s.low.length){ lo.style.display='block'; lo.innerHTML='<div class="h">Low / Out of stock</div>'+s.low.map(function(it){ return '<div class="item"><div class="nm"><b>'+esc(iName(it))+'</b><span class="bchip">'+esc(it.brand)+'</span><span class="chip c-'+it.seg+'">'+it.seg+'</span></div><div class="q '+qCls(it.stock)+'">'+it.stock+'</div></div>'; }).join(''); }
+    else lo.style.display='none';
+  });
+  gas('getOrders',USER.mob,function(r){
+    ORDERS=JSON.parse(r);
+    var rc=$('home-recent'), o=ORDERS.slice(0,5);
+    rc.innerHTML='<div class="h">Recent orders</div>'+(o.length?o.map(orderCard).join(''):'<div class="empty">Abhi koi order nahi. "Order" tab se pehla order daalo.</div>');
+  });
+}
+
+/* ═══ BUSY IMPORT (admin) — Drive folder ki jagah yahan se upload ═══ */
+function loadImportLog(){
+  gas('getImportLog',null,function(r){
+    var rows=[]; try{rows=JSON.parse(r);}catch(e){}
+    if(!Array.isArray(rows)) rows=[];
+    $('busy-log').innerHTML=rows.length?('<div class="h" style="font-size:14px;margin:6px 0 4px">Pichle imports</div>'+rows.slice(0,6).map(function(x){ return '<div class="logrow"><b>'+esc(x.time)+'</b> · '+esc(x.file)+'<br>'+esc(x.result)+(x.notes?'<br><span style="color:var(--amber)">'+esc(x.notes)+'</span>':'')+'</div>'; }).join('')):'';
+  });
+}
+$('busy-file').addEventListener('change',function(){
+  var f=this.files[0]; if(!f) return;
+  if(f.size>15*1024*1024){ toast('File 15MB se chhoti rakho','err'); this.value=''; return; }
+  var inp=this, rd=new FileReader();
+  rd.onload=function(){
+    showLoad('Busy file import ho rahi hai...');
+    gas('importBusy',JSON.stringify({name:f.name,b64:rd.result.split(',')[1]}),function(r){
+      hideLoad(); inp.value=''; var d=JSON.parse(r);
+      if(!d.ok){toast(d.error,'err');return;}
+      toast(d.result,/^(ERROR|SKIP)/.test(d.result)?'err':'ok');
+      loadImportLog(); ITEMS=[];
+    });
+  };
+  rd.readAsDataURL(f);
+});
+
+/* ═══ NEW ORDER ═══ */
+function loadOrderPg(){
+  if(!ITEMS.length) gas('getItems',null,function(r){ITEMS=JSON.parse(r); renderBrandTabs();});
+  else renderBrandTabs();
+  gas('getDealers',null,function(r){DEALERS=JSON.parse(r);});
+  renderCart();
+}
+function renderBrandTabs(){
+  var brands={}; ITEMS.forEach(function(it){ if(it.brand) brands[it.brand]=1; });
+  var list=Object.keys(brands).sort();
+  $('brand-tabs').innerHTML=['<button data-brand=""'+(IT_BRAND===''?' class="on"':'')+'>Sab Brands</button>']
+    .concat(list.map(function(b){return '<button data-brand="'+esc(b)+'"'+(IT_BRAND===b?' class="on"':'')+'>'+esc(b)+'</button>';})).join('');
+}
+$('brand-tabs').addEventListener('click',function(e){ var b=e.target.closest('[data-brand]'); if(!b)return; IT_BRAND=b.getAttribute('data-brand'); renderBrandTabs(); $('it-search').dispatchEvent(new Event('input')); });
+$('dl-search').addEventListener('input',function(){
+  var q=V('dl-search').toLowerCase(), box=$('dl-res');
+  if(q.length<1){box.style.display='none';return;}
+  var h=DEALERS.filter(function(d){return (d.name+' '+d.mob+' '+d.city).toLowerCase().indexOf(q)>=0;}).slice(0,10);
+  if(!h.length){ box.style.display='block'; box.innerHTML='<div style="color:var(--t3)">Koi dealer nahi mila — neeche "Naya dealer" se add karo</div>'; return; }
+  box.style.display='block';
+  box.innerHTML=h.map(function(d){ return '<div data-did="'+esc(d.did)+'"><b>'+esc(d.name)+'</b> <span style="color:var(--t3);font-size:11px">'+esc(d.city)+' · '+esc(d.mob)+'</span>'+(d.outstanding?' <span class="outs">Outstanding '+fmt(d.outstanding.amount)+'</span>':'')+'</div>'; }).join('');
+});
+$('dl-res').addEventListener('click',function(e){
+  var el=e.target.closest('[data-did]'); if(!el) return;
+  var did=el.getAttribute('data-did'); SEL_DEALER=null;
+  for(var i=0;i<DEALERS.length;i++) if(DEALERS[i].did===did) SEL_DEALER=DEALERS[i];
+  $('dl-res').style.display='none'; $('dl-search').value='';
+  var s=$('dl-sel'); s.style.display='block';
+  s.innerHTML='<b>'+esc(SEL_DEALER.name)+'</b> · '+esc(SEL_DEALER.city)+' · '+esc(SEL_DEALER.mob)+(SEL_DEALER.outstanding?'<div class="outs" style="margin-top:4px">Outstanding: '+fmt(SEL_DEALER.outstanding.amount)+' (as on '+esc(SEL_DEALER.outstanding.asOn)+')</div>':'')+'<div style="margin-top:6px">KYC: <span class="kyc-st'+(SEL_DEALER.kyc==='COMPLETE'?' done':'')+'">'+esc(SEL_DEALER.kyc||'0/4')+'</span>'+(SEL_DEALER.kyc!=='COMPLETE'?' <button class="btn sm ghost" data-kyc="'+esc(SEL_DEALER.did)+'" style="padding:4px 10px;font-size:11px">Upload KYC</button>':'')+'</div><div id="dl-hist" style="margin-top:6px;font-size:11.5px;color:var(--t2)">Loading history...</div>';
+  refreshSlab();
+  gas('getDealerHistory',SEL_DEALER.did,function(r){
+    var d=JSON.parse(r); if(!d.ok) return;
+    var h='';
+    if(d.lastOrder) h+='<div>Last order: '+esc(d.lastOrder.date)+' — '+d.lastOrder.qty+' pcs, '+fmt(d.lastOrder.amount)+'</div>';
+    else h+='<div>Pehla order hai is dealer ka</div>';
+    if(d.lastPayment) h+='<div>Last payment: '+fmt(d.lastPayment.amount)+' ('+esc(d.lastPayment.date)+')</div>';
+    $('dl-hist').innerHTML=h;
+  });
+});
+var KYC={}, KYC_DID=null;
+function resetKyc(){ KYC={}; var k=document.querySelectorAll('.kf'); for(var i=0;i<k.length;i++){ k[i].className='kf'; k[i].querySelector('input').value=''; } }
+$('dl-new').onclick=function(){ KYC_DID=null; $('nd-name').value=''; $('nd-mob').value=''; $('nd-city').value='Hisar'; $('nd-addr').value=''; $('nd-gst').value=''; $('nd-pan').value=''; resetKyc(); setDealerFormMode(false); openOv('ov-dealer'); };
+function setDealerFormMode(kycOnly){ var ids=['nd-name','nd-mob','nd-city','nd-addr']; for(var i=0;i<ids.length;i++) $(ids[i]).disabled=kycOnly; $('nd-save').textContent=kycOnly?'Upload KYC':'Save Dealer'; }
+function openKycFor(d){ KYC_DID=d.did; $('nd-name').value=d.name; $('nd-mob').value=d.mob; $('nd-city').value=d.city; $('nd-addr').value=d.address||''; $('nd-gst').value=d.gstNo||''; $('nd-pan').value=d.pan||''; resetKyc(); setDealerFormMode(true); openOv('ov-dealer'); }
+$('kyc-wrap').addEventListener('change',function(e){
+  var inp=e.target; if(!inp.hasAttribute('data-kf')) return;
+  var key=inp.getAttribute('data-kf'), f=inp.files[0]; if(!f) return;
+  var box=inp.parentNode;
+  if(f.type==='application/pdf'){ if(f.size>8*1024*1024){toast('PDF 8MB se chhota rakho','err');return;} var rd=new FileReader(); rd.onload=function(){ KYC[key]={name:f.name,mime:'application/pdf',b64:rd.result.split(',')[1]}; box.className='kf ok'; }; rd.readAsDataURL(f); return; }
+  var img=new Image(), url=URL.createObjectURL(f);
+  img.onload=function(){ var mx=1400, w=img.width, hh=img.height, s=Math.min(1,mx/Math.max(w,hh)); var c=document.createElement('canvas'); c.width=Math.round(w*s); c.height=Math.round(hh*s); c.getContext('2d').drawImage(img,0,0,c.width,c.height); var du=c.toDataURL('image/jpeg',0.82); KYC[key]={name:f.name,mime:'image/jpeg',b64:du.split(',')[1]}; box.className='kf ok'; URL.revokeObjectURL(url); };
+  img.onerror=function(){ toast('Image padh nahi paya','err'); };
+  img.src=url;
+});
+function uploadKycNow(did,after){
+  var files=[]; for(var k in KYC) files.push({key:k,name:KYC[k].name,mime:KYC[k].mime,b64:KYC[k].b64});
+  if(!files.length && !V('nd-gst') && !V('nd-pan')){ after(); return; }
+  showLoad('KYC upload ho raha hai ('+files.length+' file)...');
+  gas('uploadKyc',JSON.stringify({by:USER.mob,did:did,gstNo:V('nd-gst'),pan:V('nd-pan'),files:files}),function(r){
+    hideLoad(); var d=JSON.parse(r); if(!d.ok){toast('KYC upload fail: '+d.error,'err');} else toast('KYC '+d.kyc,'ok');
+    after();
+  });
+}
+$('nd-save').onclick=function(){
+  if(KYC_DID){ uploadKycNow(KYC_DID,function(){ closeOv('ov-dealer'); gas('getDealers',null,function(r2){ DEALERS=JSON.parse(r2); loadDealersPg(); }); }); return; }
+  showLoad('Location le rahe hain...');
+  var doSave = function(lat,lng){
+    showLoad('Dealer save...');
+    gas('addDealer',JSON.stringify({by:USER.mob,name:V('nd-name'),mob:V('nd-mob'),city:V('nd-city'),address:V('nd-addr'),lat:lat,lng:lng}),function(r){
+      hideLoad(); var d=JSON.parse(r); if(!d.ok){toast(d.error,'err');return;}
+      toast('Dealer add ho gaya: '+d.did,'ok');
+      uploadKycNow(d.did,function(){
+        closeOv('ov-dealer');
+        gas('getDealers',null,function(r2){ DEALERS=JSON.parse(r2); $('dl-search').value=V('nd-name'); $('dl-search').dispatchEvent(new Event('input')); loadDealersPg(); });
+      });
+    });
+  };
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      function(pos){ doSave(pos.coords.latitude, pos.coords.longitude); },
+      function(){ toast('Location nahi mili, bina GPS ke save kar rahe hain','err'); doSave('',''); },
+      {timeout:8000}
+    );
+  } else { doSave('',''); }
+};
+$('it-search').addEventListener('input',function(){
+  var q=V('it-search').toLowerCase().replace(/\s+/g,' '), box=$('it-res');
+  if(q.length<2){box.style.display='none';return;}
+  var h=ITEMS.filter(function(it){
+    if(it.seg==='OT') return false;
+    if(IT_BRAND && it.brand!==IT_BRAND) return false;
+    return (it.brand+' '+it.seg+' '+iName(it)+' '+it.cat).toLowerCase().indexOf(q)>=0;
+  }).slice(0,14);
+  if(!h.length){box.style.display='none';return;}
+  box.style.display='block';
+  box.innerHTML=h.map(function(it){ return '<div data-code="'+it.code+'" class="row"><span style="flex:1"><b>'+esc(iName(it))+'</b><br><span class="bchip">'+esc(it.brand)+'</span><span class="chip c-'+it.seg+'">'+it.seg+'</span> <span style="font-size:11px;color:var(--t3)">'+fmt(it.price)+'</span></span><span class="q '+qCls(it.stock)+'" style="font-family:\'Bebas Neue\';font-size:22px">'+it.stock+'</span></div>'; }).join('');
+});
+$('it-res').addEventListener('click',function(e){
+  var el=e.target.closest('[data-code]'); if(!el) return;
+  var code=el.getAttribute('data-code'), it=null;
+  for(var i=0;i<ITEMS.length;i++) if(ITEMS[i].code===code) it=ITEMS[i];
+  var ex=false; for(var j=0;j<CART.length;j++) if(CART[j].code===code) ex=true;
+  if(ex) toast('Already list mein hai');
+  else CART.push({code:it.code,name:iName(it),brand:it.brand,seg:it.seg,price:it.price,stock:it.stock,qty:2});
+  $('it-res').style.display='none'; $('it-search').value=''; renderCart();
+});
+function renderCart(){
+  var w=$('cart-wrap');
+  if(!CART.length){ w.style.display='none'; $('slab-wrap').style.display='none'; return; }
+  w.style.display='block';
+  $('cart').innerHTML=CART.map(function(c,i){
+    var rateField = c.price>0
+      ? fmt(c.price)+' · stock '+c.stock
+      : '<span style="color:var(--amber)">Rate daalo:</span> <input type="number" min="0" value="'+(c.manualRate||'')+'" data-r="'+i+'" style="width:70px;border:1px solid var(--gold);border-radius:6px;padding:2px 4px;margin-left:4px;" placeholder="rate">';
+    return '<div class="cl"><div class="nm"><span class="bchip">'+esc(c.brand)+'</span>'+esc(c.name)+'<span>'+rateField+'</span></div><input type="number" min="1" value="'+c.qty+'" data-i="'+i+'"><button class="x" data-x="'+i+'">&#10005;</button></div>';
+  }).join('');
+  updTot();
+  refreshSlab();
+}
+$('cart').addEventListener('input',function(e){
+  if(e.target.hasAttribute('data-i')){ CART[+e.target.getAttribute('data-i')].qty=parseInt(e.target.value)||0; updTot(); refreshSlab(); }
+  if(e.target.hasAttribute('data-r')){ CART[+e.target.getAttribute('data-r')].manualRate=parseFloat(e.target.value)||0; updTot(); }
+});
+$('cart').addEventListener('click',function(e){ var b=e.target.closest('[data-x]'); if(b){ CART.splice(+b.getAttribute('data-x'),1); renderCart(); } });
+function updTot(){ var q=0,a=0,w=[]; CART.forEach(function(c){var effRate=c.price>0?c.price:(c.manualRate||0); q+=c.qty;a+=c.qty*effRate; if(c.qty>c.stock && c.price>0) w.push(c.name);}); $('cart-qty').innerHTML=q+' pcs'+(w.length?'<br><span class="outs">Stock se zyada: '+esc(w.join(', '))+'</span>':''); $('cart-amt').textContent=fmt(a); }
+
+/* ── Michelin 2W monthly slab widget ── */
+function refreshSlab(){
+  var mQty=0; CART.forEach(function(c){ if(isMichelin2W(c.seg)) mQty+=(c.qty||0); });
+  var sw=$('slab-wrap');
+  if(!mQty || !SEL_DEALER){ sw.style.display='none'; return; }
+  gasArgs('getDealerMichelinSlab',[SEL_DEALER.did, mQty],function(r){
+    var d=JSON.parse(r); if(!d.ok){ sw.style.display='none'; return; }
+    sw.style.display='block';
+    var pct = d.slab.nextMin ? Math.min(100, Math.round((d.projected/d.slab.nextMin)*100)) : 100;
+    var nextLine = d.slab.nextMin
+      ? '<b>'+d.slab.moreForNext+' tyre aur</b> add karo, agla slab mil jayega — <b>₹'+d.slab.nextCn+'/tyre</b> ho jayega.'
+      : 'Aap sabse upar wale slab mein ho — ₹'+d.slab.cn+'/tyre.';
+    sw.innerHTML='<div class="slab"><div class="sh"><b>Michelin 2W Slab (is mahine)</b><span class="cn">₹'+d.slab.cn+'/tyre</span></div>'+
+      '<div class="bar"><i style="width:'+pct+'%"></i></div>'+
+      '<div class="hint">Is mahine ab tak: <b>'+d.monthQty+'</b> tyre + is order ke <b>'+d.extraQty+'</b> = <b>'+d.projected+'</b> total.<br>'+nextLine+'</div></div>';
+  });
+}
+
+$('or-submit').onclick=function(){
+  if(!SEL_DEALER){toast('Pehle dealer select karo','err');return;}
+  if(!CART.length){toast('Kam se kam 1 item add karo','err');return;}
+  for(var i=0;i<CART.length;i++){
+    if(!CART[i].qty||CART[i].qty<1){toast('Har item ki qty daalo','err');return;}
+    if(CART[i].price<=0 && (!CART[i].manualRate || CART[i].manualRate<=0)){toast(CART[i].name+' ke liye rate daalo','err');return;}
+  }
+  showLoad('Order submit ho raha hai...');
+  gas('placeOrder',JSON.stringify({by:USER.mob,did:SEL_DEALER.did,note:V('or-note'),items:CART.map(function(c){return{code:c.code,qty:c.qty,rate:(c.price>0?undefined:c.manualRate)};})}),function(r){
+    hideLoad(); var d=JSON.parse(r); if(!d.ok){toast(d.error,'err');return;}
+    toast('Order '+d.oid+' submit! '+d.qty+' pcs · '+fmt(d.amount),'ok');
+    CART=[]; SEL_DEALER=null; $('dl-sel').style.display='none'; $('or-note').value=''; renderCart(); ITEMS=[];
+    go('orders');
+  });
+};
+
+/* ═══ ORDERS ═══ */
+function loadOrders(){
+  var tabs=[['OPEN','Open'],['PENDING','Pending'],['CONFIRMED','Confirmed'],['BILLED','Billed'],['DISPATCHED','Dispatched'],['DELIVERED','Delivered'],['ALL','All']];
+  $('st-tabs').innerHTML=tabs.map(function(t){return '<button data-stf="'+t[0]+'"'+(ST_F===t[0]?' class="on"':'')+'>'+t[1]+'</button>';}).join('');
+  $('orders-list').innerHTML='<div class="empty"><div class="spin" style="margin:0 auto"></div></div>';
+  gas('getOrders',USER.mob,function(r){ ORDERS=JSON.parse(r); renderOrders(); });
+}
+$('st-tabs').addEventListener('click',function(e){ var b=e.target.closest('[data-stf]'); if(!b)return; ST_F=b.getAttribute('data-stf'); loadOrders(); });
+function renderOrders(){
+  var l=ORDERS.filter(function(o){ if(ST_F==='ALL')return true; if(ST_F==='OPEN')return o.status==='PENDING'||o.status==='CONFIRMED'||o.status==='BILLED'||o.status==='DISPATCHED'; return o.status===ST_F; });
+  $('orders-list').innerHTML=l.length?l.map(orderCard).join(''):'<div class="empty">Koi order nahi</div>';
+}
+function orderCard(o){
+  var lines=o.items.map(function(l){return esc(l.name)+' × <b>'+l.qty+'</b>';}).join('<br>');
+  var act='';
+  if(isAdmin() && o.status==='PENDING') act='<div class="acts"><button class="btn sm gold" data-crm="'+o.oid+'">CRM Confirm &rarr;</button> <button class="btn sm ghost" data-su="'+o.oid+'">Status update</button></div>';
+  else if(isAdmin() && (o.status==='CONFIRMED'||o.status==='BILLED'||o.status==='DISPATCHED')) act='<div class="acts"><button class="btn sm gold" data-su="'+o.oid+'">Status update &rarr;</button></div>';
+  return '<div class="ocard"><div class="top"><div class="t"><b>'+esc(o.dname)+' <span style="font-weight:500;color:var(--t3)">· '+esc(o.city)+'</span></b><span>'+esc(o.oid)+' · '+esc(o.date)+' · by '+esc(o.dsr)+'</span></div><span class="st st-'+o.status+'">'+o.status+'</span></div><div class="lines">'+lines+'</div><div class="row" style="font-size:12px;color:var(--t2)"><span>'+o.qty+' pcs · <b>'+fmt(o.amount)+'</b></span>'+(o.inv?'<span>Inv: '+esc(o.inv)+'</span>':'')+(o.vehicle?'<span>'+esc(o.vehicle)+'</span>':'')+'</div>'+(o.terms?'<div class="hint">Payment terms: '+esc(o.terms)+'</div>':'')+(o.note?'<div class="hint">Note: '+esc(o.note)+'</div>':'')+act+'</div>';
+}
+var SU_O=null;
+$('orders-list').addEventListener('click',onSU); $('home-recent').addEventListener('click',onSU);
+function onSU(e){
+  var b=e.target.closest('[data-su]'); if(!b) return;
+  var oid=b.getAttribute('data-su'); SU_O=null; for(var i=0;i<ORDERS.length;i++) if(ORDERS[i].oid===oid) SU_O=ORDERS[i];
+  $('su-title').textContent=SU_O.oid;
+  $('su-info').innerHTML='<b>'+esc(SU_O.dname)+'</b> · '+esc(SU_O.city)+'<br>'+SU_O.items.map(function(l){return esc(l.name)+' × '+l.qty;}).join('<br>')+'<br>Abhi: <span class="st st-'+SU_O.status+'">'+SU_O.status+'</span>';
+  $('su-inv').value=SU_O.inv; $('su-veh').value=SU_O.vehicle; $('su-driver').value='';
+  var next={PENDING:[['CONFIRMED','Confirmed (bina CRM edit)'],['BILLED','Billed (Busy mein bill ban gaya)'],['CANCELLED','Cancel']],CONFIRMED:[['BILLED','Billed (Busy mein bill ban gaya)'],['PENDING','Wapas Pending'],['CANCELLED','Cancel']],BILLED:[['DISPATCHED','Dispatched (maal nikal gaya)'],['CONFIRMED','Wapas Confirmed'],['CANCELLED','Cancel']],DISPATCHED:[['DELIVERED','Delivered ✓'],['BILLED','Wapas Billed (undo)'],['CANCELLED','Cancel']]}[SU_O.status]||[];
+  $('su-acts').innerHTML=next.map(function(n){ return '<button class="btn sm '+(n[0]==='CANCELLED'?'ghost':(n[0]==='DELIVERED'?'':'gold'))+'" data-st="'+n[0]+'">'+n[1]+'</button>'; }).join('');
+  openOv('ov-status');
+}
+$('su-acts').addEventListener('click',function(e){
+  var b=e.target.closest('[data-st]'); if(!b) return;
+  var st=b.getAttribute('data-st');
+  if(st==='CANCELLED' && !confirm('Order cancel karna hai?')) return;
+  showLoad('Status update...');
+  gas('updateOrderStatus',JSON.stringify({by:USER.mob,oid:SU_O.oid,status:st,inv:V('su-inv'),vehicle:V('su-veh'),driverMob:V('su-driver')}),function(r){
+    hideLoad(); var d=JSON.parse(r); if(!d.ok){toast(d.error,'err');return;}
+    closeOv('ov-status'); toast(SU_O.oid+' → '+d.status,'ok'); ITEMS=[]; loadOrders();
+  });
+});
+
+/* ═══ STOCK ═══ */
+function loadStock(){
+  var segs=[['','All'],['SC','Scooter'],['MC','Motorcycle'],['RE','Royal Enfield'],['PC','Car'],['VK','VK Tyre']]; if(isAdmin()) segs.push(['OT','Other']);
+  $('sk-tabs').innerHTML=segs.map(function(s){return '<button data-seg="'+s[0]+'"'+(SK_SEG===s[0]?' class="on"':'')+'>'+s[1]+'</button>';}).join('');
+  $('stock-list').innerHTML='<div class="empty"><div class="spin" style="margin:0 auto"></div></div>';
+  gas('getItems',null,function(r){ ITEMS=JSON.parse(r); renderStock(); });
+}
+$('sk-tabs').addEventListener('click',function(e){ var b=e.target.closest('[data-seg]'); if(!b)return; SK_SEG=b.getAttribute('data-seg'); loadStock(); });
+$('sk-search').addEventListener('input',renderStock);
+function renderStock(){
+  var q=V('sk-search').toLowerCase();
+  var l=ITEMS.filter(function(it){ if(SK_SEG&&it.seg!==SK_SEG)return false; if(!SK_SEG&&it.seg==='OT'&&!isAdmin())return false; return !q||(it.brand+' '+it.seg+' '+iName(it)).toLowerCase().indexOf(q)>=0; });
+  var tot=0; l.forEach(function(it){tot+=it.stock;});
+  $('stock-list').innerHTML='<div class="h">'+l.length+' items <small>'+tot.toLocaleString('en-IN')+' pcs</small></div>'+(l.length?l.map(function(it){ return '<div class="item"'+(isAdmin()?' data-sm="'+it.code+'"':'')+'><div class="nm"><b>'+esc(iName(it))+'</b><span class="bchip">'+esc(it.brand)+'</span><span class="chip c-'+it.seg+'">'+it.seg+'</span> <span>'+fmt(it.price)+'</span></div><div class="q '+qCls(it.stock)+'">'+it.stock+'</div></div>'; }).join(''):'<div class="empty">Kuch nahi mila</div>')+(isAdmin()?'<div class="hint" style="margin-top:8px">Item par tap karo → Stock IN / count set</div>':'');
+}
+var SM_IT=null, SM_TYPE='IN';
+$('stock-list').addEventListener('click',function(e){
+  if(!isAdmin()) return; var el=e.target.closest('[data-sm]'); if(!el) return;
+  var code=el.getAttribute('data-sm'); SM_IT=null; for(var i=0;i<ITEMS.length;i++) if(ITEMS[i].code===code) SM_IT=ITEMS[i];
+  $('sm-title').textContent=SM_IT.code; $('sm-info').innerHTML='<b>'+esc(iName(SM_IT))+'</b><br>Abhi stock: <b>'+SM_IT.stock+' pcs</b>';
+  $('sm-qty').value=''; $('sm-note').value=''; setSmType('IN'); openOv('ov-stock');
+});
+function setSmType(t){ SM_TYPE=t; var b=document.querySelectorAll('[data-smtype]'); for(var i=0;i<b.length;i++) b[i].className=(b[i].getAttribute('data-smtype')===t?'on':''); $('sm-qlbl').textContent=t==='IN'?'Kitna aaya (pcs)':'Sahi count kitna hai (pcs)'; }
+document.addEventListener('click',function(e){ var kb=e.target.closest('[data-kyc]'); if(kb){ var did=kb.getAttribute('data-kyc'); for(var q=0;q<DEALERS.length;q++) if(DEALERS[q].did===did) openKycFor(DEALERS[q]); return; } var b=e.target.closest('[data-smtype]'); if(b) setSmType(b.getAttribute('data-smtype')); var c=e.target.closest('[data-close]'); if(c) closeOv(c.getAttribute('data-close')); });
+$('sm-save').onclick=function(){
+  var q=V('sm-qty'); if(q===''){toast('Qty daalo','err');return;}
+  showLoad('Stock update...');
+  gas('stockMove',JSON.stringify({by:USER.mob,code:SM_IT.code,type:SM_TYPE,qty:parseInt(q),note:V('sm-note')}),function(r){
+    hideLoad(); var d=JSON.parse(r); if(!d.ok){toast(d.error,'err');return;}
+    closeOv('ov-stock'); toast('Stock ab '+d.after+' pcs','ok'); loadStock();
+  });
+};
+
+/* ═══ DEALERS (admin) ═══ */
+function loadDealersPg(){
+  if(!isAdmin()) return;
+  $('dealer-list').innerHTML='<div class="empty"><div class="spin" style="margin:0 auto"></div></div>';
+  gas('getDealers',null,function(r){ DEALERS=JSON.parse(r); renderDealers(); });
+}
+$('de-search').addEventListener('input',renderDealers);
+var DOCN={gst:'GST',pan:'PAN',aadhaar:'Aadhaar',cheque:'Cheque'};
+function docLinks(d){
+  var s=''; (d.docs||[]).forEach(function(k){ s+='<a class="doclink" href="'+API+'kyc/'+esc(d.did)+'/'+k+'" target="_blank">'+DOCN[k]+' &#8599;</a>'; });
+  if(d.folder) s+='<a href="'+esc(d.folder)+'" target="_blank" class="doclink">Drive &#8599;</a>';
+  return s;
+}
+function renderDealers(){
+  var q=V('de-search').toLowerCase();
+  var l=DEALERS.filter(function(d){return !q||(d.name+' '+d.city+' '+d.mob+' '+d.dsr).toLowerCase().indexOf(q)>=0;});
+  $('dealer-list').innerHTML='<div class="h">'+l.length+' dealers</div>'+(l.length?l.map(function(d){ return '<div class="item"><div class="nm"><b>'+esc(d.name)+'</b><span>'+esc(d.city)+' · '+esc(d.mob)+' · by '+esc(d.dsr)+'</span><div style="margin-top:4px">KYC <span class="kyc-st'+(d.kyc==='COMPLETE'?' done':'')+'">'+esc(d.kyc||'0/4')+'</span> '+(d.kyc!=='COMPLETE'?'<button class="btn sm ghost" data-kyc="'+esc(d.did)+'" style="padding:3px 9px;font-size:10.5px">Upload</button> ':'')+docLinks(d)+(d.busy?'':' <span style="font-size:10px;color:var(--amber)">Busy naam set nahi</span>')+'</div></div><div style="text-align:right;font-size:12px">'+(d.outstanding?'<span class="outs">'+fmt(d.outstanding.amount)+'</span><br><span style="font-size:10px;color:var(--t3)">'+esc(d.outstanding.asOn)+'</span>':'<span style="color:var(--t3)">—</span>')+'</div></div>'; }).join(''):'<div class="empty">Koi dealer nahi</div>')+'<div class="hint" style="margin-top:8px">Outstanding Busy import se aata hai. Dealer ka "Busy Name" set karo taaki match ho.</div>';
+}
+
+/* ═══ CRM CONFIRM (admin) ═══ */
+var CRM_O=null, CRM_ITEMS=[];
+$('orders-list').addEventListener('click',onCRM); $('home-recent').addEventListener('click',onCRM);
+function onCRM(e){
+  var b=e.target.closest('[data-crm]'); if(!b) return;
+  var oid=b.getAttribute('data-crm'); CRM_O=null; for(var i=0;i<ORDERS.length;i++) if(ORDERS[i].oid===oid) CRM_O=ORDERS[i];
+  if(!CRM_O) return;
+  $('crm-title').textContent='Confirm '+CRM_O.oid;
+  $('crm-info').innerHTML='<b>'+esc(CRM_O.dname)+'</b> · '+esc(CRM_O.city)+' · '+esc(CRM_O.dmob)+'<br>DSR: '+esc(CRM_O.dsr);
+  CRM_ITEMS = CRM_O.items.map(function(l){ return {code:l.code, name:l.name, qty:l.qty, rate:l.rate}; });
+  $('crm-terms').value=CRM_O.terms||'';
+  renderCrmItems();
+  openOv('ov-crm');
+}
+function renderCrmItems(){
+  $('crm-items').innerHTML=CRM_ITEMS.map(function(c,i){
+    return '<div class="cl"><div class="nm">'+esc(c.name)+'<span>rate ₹<input type="number" min="0" value="'+c.rate+'" data-crmr="'+i+'" style="width:70px;border:1px solid var(--bdr);border-radius:6px;padding:2px 4px;margin:0 2px;"></span></div><input type="number" min="1" value="'+c.qty+'" data-crmq="'+i+'"></div>';
+  }).join('');
+  updCrmTot();
+}
+$('crm-items').addEventListener('input',function(e){
+  if(e.target.hasAttribute('data-crmq')) CRM_ITEMS[+e.target.getAttribute('data-crmq')].qty=parseInt(e.target.value)||0;
+  if(e.target.hasAttribute('data-crmr')) CRM_ITEMS[+e.target.getAttribute('data-crmr')].rate=parseFloat(e.target.value)||0;
+  updCrmTot();
+});
+function updCrmTot(){ var a=0; CRM_ITEMS.forEach(function(c){a+=(c.qty||0)*(c.rate||0);}); $('crm-amt').textContent=fmt(a); }
+$('crm-confirm-btn').onclick=function(){
+  if(!CRM_O) return;
+  for(var i=0;i<CRM_ITEMS.length;i++) if(!CRM_ITEMS[i].qty||CRM_ITEMS[i].qty<1){toast('Har item ki qty daalo','err');return;}
+  showLoad('Confirm ho raha hai...');
+  gas('confirmOrderCRM',JSON.stringify({by:USER.mob,oid:CRM_O.oid,paymentTerms:V('crm-terms'),items:CRM_ITEMS.map(function(c){return{code:c.code,qty:c.qty,rate:c.rate};})}),function(r){
+    hideLoad(); var d=JSON.parse(r); if(!d.ok){toast(d.error,'err');return;}
+    closeOv('ov-crm'); toast(d.oid+' confirm ho gaya! Dealer ko WhatsApp gaya.','ok'); loadOrders();
+  });
+};
+
+/* ═══ RM REPORTS (admin) ═══ */
+var RMS=[], RM_TYPE='SALE';
+$('rm-open').onclick=function(){
+  $('rm-select').innerHTML='<option>Loading...</option>';
+  openOv('ov-rm');
+  gas('getRMs',null,function(r){
+    RMS=JSON.parse(r);
+    if(!RMS.length){ $('rm-select').innerHTML='<option value="">Koi RM nahi mila</option>'; return; }
+    $('rm-select').innerHTML=RMS.map(function(rm){ return '<option value="'+esc(rm.mob)+'">'+esc(rm.name)+' — '+esc(rm.company)+' ('+esc(rm.role)+')</option>'; }).join('');
+  });
+};
+document.querySelectorAll('[data-rmtype]').forEach(function(b){
+  b.addEventListener('click',function(){ RM_TYPE=b.getAttribute('data-rmtype'); var all=document.querySelectorAll('[data-rmtype]'); for(var i=0;i<all.length;i++) all[i].className=(all[i]===b?'on':''); });
+});
+$('rm-send').onclick=function(){
+  var mob=V('rm-select'); if(!mob){toast('RM select karo','err');return;}
+  showLoad('Report bhej raha hai...');
+  gas('sendRMReport',JSON.stringify({by:USER.mob,rmMob:mob,type:RM_TYPE}),function(r){
+    hideLoad(); var d=JSON.parse(r); if(!d.ok){toast(d.error,'err');return;}
+    closeOv('ov-rm'); toast('Report bhej diya '+d.sentTo+' ko','ok');
+  });
+};
+
+/* ═══ AUTO LOGIN — cookie se; ?m=<mobile> link se bhi (WhatsApp shortcut) ═══ */
+(function(){
+  var p=new URLSearchParams(location.search).get('m');
+  if(p && p.replace(/\D/g,'').length===10){ $('lg-mob').value=p.replace(/\D/g,''); showLogin(); doLogin(); return; }
+  fetch(API+'me',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+    if(d&&d.ok){ USER=d.user; startApp(); } else showLogin();
+  }).catch(showLogin);
+})();
+</script>
+</body>
+</html>
