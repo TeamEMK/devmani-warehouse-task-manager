@@ -235,6 +235,7 @@ async function init() {
       document.getElementById('nav-users').style.display = 'flex';
       document.getElementById('nav-mis').style.display = 'flex';
       document.getElementById('nav-fms').style.display = 'flex';
+      document.getElementById('nav-ops').style.display = 'flex';
       document.getElementById('bulkDeleteBtn').style.display = 'inline-flex';
       document.getElementById('bulkEditBtn').style.display = 'inline-flex';
       document.getElementById('misCombinedBtn').style.display = 'inline-flex';
