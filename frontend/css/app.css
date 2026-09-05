@@ -599,3 +599,9 @@ html.view-only [onclick*="reject"]{ display:none!important; }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;}
 }
+
+/* ── Michelin Ops (iframe page) ───────────────────────
+   Alag app (frontend/ops.html) Task Manager ke andar hi dikhta hai.
+   Padding zero, taaki iframe topbar ke neeche poori jagah le. */
+.page.page-ops{padding:0;}
+.ops-frame{display:block;width:100%;height:calc(100vh - 60px);border:0;background:#f3f5f9;}

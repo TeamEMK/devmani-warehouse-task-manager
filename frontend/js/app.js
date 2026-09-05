@@ -379,7 +379,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',alltasks:'All Tasks',approvals:'Approvals',leaves:'Leave',query:'Query',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',newcopy:'New Client Copy',updateclient:'Update Client'};
+const pageTitles = {dashboard:'Dashboard',alltasks:'All Tasks',approvals:'Approvals',leaves:'Leave',query:'Query',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',ops:'Michelin Ops',newcopy:'New Client Copy',updateclient:'Update Client'};
 
 // Sidebar par cursor jaate hi (jab wo expand hone lagta hai) koi bhi khula dropdown
 // band kar do — warna native select popup sidebar ke upar overlap dikhta hai.
@@ -456,6 +456,9 @@ function navigate(page, el) {
   if (page==='leaves') loadLeaves();
   if (page==='query') loadQueries();
   if (page==='records') loadRecords();
+  // Michelin Ops iframe pehli baar khulne par hi load — baad me wahi rehta hai,
+  // taaki tab badalne par uska cart/login state na jaye.
+  if (page==='ops') { const f = document.getElementById('opsFrame'); if (f && !f.src) f.src = f.dataset.src; }
   // navigate() core app ka hissa hai, yaani client ki copy me bhi jaata hai —
   // par ncLoadLog generator ke markers ke andar hai aur wahan hota hi nahi.
   // Isliye seedha bulane ke bajaye pehle dekh lete hain ki function hai ya nahi.
