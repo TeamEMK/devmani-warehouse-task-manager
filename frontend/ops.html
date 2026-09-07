@@ -292,7 +292,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
       <div class="card" id="home-day" style="display:none"></div>
       <div class="grid2" id="kpis"></div>
       <!-- Quick actions: role ke hisaab se buttons (JS bharta hai) -->
-      <div class="qa" id="home-qa"></div>
+      <!-- (Quick action buttons hataye — navigation sidebar/tabs se; Busy Import aur RM Report ab Stock aur Reports page par hain) -->
+      <div class="qa" id="home-qa" style="display:none"></div>
       <!-- Admin: reports ka saar (delivery/payment pending, outstanding, DSR performance) -->
       <div id="home-reports" style="display:none"></div>
       <div class="cols2">
@@ -347,7 +348,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
 
     <!-- STOCK -->
     <div class="pg" id="pg-stock">
-      <input class="inp" id="sk-search" placeholder="Search size / pattern..." style="margin-bottom:8px">
+      <div class="row" style="gap:8px;margin-bottom:8px;align-items:stretch"><input class="inp" id="sk-search" placeholder="Search size / pattern..." style="flex:1"><button class="btn sm ghost" id="sk-busy" style="display:none;white-space:nowrap">⇪ Busy Import</button><button class="btn sm ghost" id="sk-rm" style="display:none;white-space:nowrap">✉ RM Report</button></div>
       <div class="seg-tabs" id="sk-tabs"></div>
       <div class="card" id="stock-list"></div>
     </div>
@@ -360,7 +361,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
 
     <!-- REPORTS (admin) -->
     <div class="pg" id="pg-reports">
-      <div class="seg-tabs" id="rp-tabs"></div>
+      <div class="row" style="gap:8px;align-items:flex-start"><div class="seg-tabs" id="rp-tabs" style="flex:1"></div><button class="btn sm ghost" id="rp-busy" style="white-space:nowrap">⇪ Busy Import</button><button class="btn sm ghost" id="rp-rm" style="white-space:nowrap">✉ RM Report</button></div>
       <div id="rp-body"></div>
     </div>
 
@@ -664,7 +665,7 @@ function loadHome(){
     $('kpis').innerHTML=k.map(function(x){ return '<div><div class="kpi '+x[0]+'"><div class="v">'+x[1]+'</div><div class="l">'+x[2]+'</div></div></div>'; }).join('');
     renderQA(s.pending);
     var lo=$('home-low'), low=s.low.slice(0,8);
-    lo.innerHTML='<div class="h">Low / Out of stock <small>'+s.outOfStock+' out · '+s.lowStock+' low</small></div>'+(low.length?low.map(function(it){ return '<div class="item"><div class="nm"><b>'+esc(iName(it))+'</b><span class="bchip">'+esc(it.brand)+'</span><span class="chip c-'+it.seg+'">'+it.seg+'</span></div><div class="q '+qCls(it.stock)+'">'+it.stock+'</div></div>'; }).join(''):'<div class="empty">Sab stock theek hai</div>')+'<div class="acts" style="margin-top:10px"><button class="btn sm ghost" onclick="go(\'stock\')">Poora stock dekho &rarr;</button></div>';
+    lo.innerHTML='<div class="h">Low / Out of stock <small>'+s.outOfStock+' out · '+s.lowStock+' low</small></div>'+(low.length?low.map(function(it){ return '<div class="item"><div class="nm"><b>'+esc(iName(it))+'</b><span class="bchip">'+esc(it.brand)+'</span><span class="chip c-'+it.seg+'">'+it.seg+'</span></div><div class="q '+qCls(it.stock)+'">'+it.stock+'</div></div>'; }).join(''):'<div class="empty">Sab stock theek hai</div>')+'<div class="acts" style="margin-top:10px"><button class="btn sm ghost" onclick="go(\'stock\')">Poora stock dekho &rarr;</button>'+(isAdmin()?'<button class="btn sm ghost" onclick="openRM()">✉ RM ko reorder report</button>':'')+'</div>';
   });
   gas('getOrders',USER.mob,function(r){
     ORDERS=JSON.parse(r);
@@ -673,13 +674,10 @@ function loadHome(){
   });
 }
 // Quick action buttons — role ke hisaab se
-function renderQA(pending){
-  var q=[['order','➕','Naya Order']];
-  if(isAdmin()) q.push(['crm','☎','CRM Calls',pending],['reports','▤','Reports'],['busy','⇪','Busy Import'],['rm','✉','RM Report'],['track','◎','DSR Tracking']);
-  else q.push(['day','☀','Aaj ka Din'],['route','➜','Route Plan'],['exp','₹','Expense']);
-  $('home-qa').innerHTML=q.map(function(x){ return '<button data-qa="'+x[0]+'"><span class="ic">'+x[1]+'</span><span>'+x[2]+(x[3]?' <span class="n">'+x[3]+'</span>':'')+'</span></button>'; }).join('');
-}
-$('home-qa').addEventListener('click',function(e){ var b=e.target.closest('[data-qa]'); if(!b) return; var k=b.getAttribute('data-qa'); if(k==='busy'){ openOv('ov-busy'); loadImportLog(); } else if(k==='rm'){ openRM(); } else go(k); });
+function renderQA(){ /* quick actions hata diye — sidebar/tabs se navigation */ }
+function openBusy(){ openOv('ov-busy'); loadImportLog(); }
+$('sk-busy').onclick=$('rp-busy').onclick=openBusy;
+$('sk-rm').onclick=$('rp-rm').onclick=function(){ openRM(); };
 // DSR ke home par aaj ka din: start/end + plan progress
 function loadHomeDay(){
   var c=$('home-day'); c.style.display='block'; c.innerHTML='<div class="h">Aaj ka din</div><div class="empty"><div class="spin" style="margin:0 auto"></div></div>';
@@ -960,6 +958,7 @@ $('su-acts').addEventListener('click',function(e){
 function loadStock(){
   var segs=[['','All'],['SC','Scooter'],['MC','Motorcycle'],['RE','Royal Enfield'],['PC','Car'],['VK','VK Tyre']]; if(isAdmin()) segs.push(['OT','Other']);
   $('sk-tabs').innerHTML=segs.map(function(s){return '<button data-seg="'+s[0]+'"'+(SK_SEG===s[0]?' class="on"':'')+'>'+s[1]+'</button>';}).join('');
+  $('sk-busy').style.display=$('sk-rm').style.display=isAdmin()?'inline-flex':'none';
   $('stock-list').innerHTML='<div class="empty"><div class="spin" style="margin:0 auto"></div></div>';
   gas('getItems',null,function(r){ ITEMS=JSON.parse(r); renderStock(); });
 }
