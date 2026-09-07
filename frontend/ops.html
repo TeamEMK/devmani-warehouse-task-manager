@@ -156,7 +156,10 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
   .bnav button.on .ic{transform:none;}
   .main{padding:20px 28px 30px;}
   .main>.pg{max-width:1200px;}
-  .grid2>div{width:25%;}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin:0 0 4px;}
+  .grid2>div{width:auto;padding:0;margin:0;}
+  .kpi .v{font-size:26px;}
+  .card{padding:16px 18px;}
   .cols2{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;}
   .cols2>.card{margin-bottom:0;}
   .ov{align-items:center;}
@@ -165,8 +168,11 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
 }
 /* Task Manager ke andar (iframe) chal raha ho to apni nav mat dikhao —
    tabs wahan ke sidebar (MICHELIN OPS section) se aate hain. */
-.embedded .bnav{display:none;}
-.embedded .main{padding-top:14px;}
+.embedded .bnav,.embedded .hdr{display:none;}
+.embedded .main{padding-top:12px;}
+.embed-strip{display:none;justify-content:flex-end;align-items:center;gap:10px;font-size:12px;color:var(--t2);margin:0 0 10px;}
+.embedded .embed-strip{display:flex;}
+.embed-strip b{color:var(--navy);}
 </style>
 </head>
 <body>
@@ -191,6 +197,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
     <div class="who" id="who"></div>
   </div>
   <div class="main" id="main">
+    <!-- Task Manager ke andar: header chhupa hota hai, ye patli line user + logout dikhati hai -->
+    <div class="embed-strip"><span id="who2"></span><button class="btn xs ghost" id="logoutBtn2">Logout</button></div>
 
     <!-- HOME -->
     <div class="pg" id="pg-home">
@@ -509,12 +517,13 @@ function doLogin(){
 }
 $('lg-btn').onclick=doLogin;
 $('lg-mob').addEventListener('keyup',function(e){ if(e.keyCode===13) doLogin(); });
-$('logoutBtn').onclick=function(){ fetch(API+'logout',{method:'POST',credentials:'same-origin'}).then(function(){ location.href='/ops'; }); };
+$('logoutBtn').onclick=$('logoutBtn2').onclick=function(){ fetch(API+'logout',{method:'POST',credentials:'same-origin'}).then(function(){ location.href='/ops'; }); };
 
 var PAGES={};
 function startApp(){
   $('loginView').style.display='none'; $('appView').style.display='flex';
   $('who').innerHTML=esc(USER.role==='DSR'?'DSR':USER.role)+'<b>'+esc(USER.name)+'</b>';
+  $('who2').innerHTML='Michelin Ops login: <b>'+esc(USER.name)+'</b> ('+esc(USER.role==='DSR'?'DSR':USER.role)+')';
   var nav=[['home','⌂','Home'],['order','➕','Order'],['orders','☰','Orders']];
   if(isAdmin()) nav.push(['crm','☎','CRM']);
   nav.push(['stock','▣','Stock']);
