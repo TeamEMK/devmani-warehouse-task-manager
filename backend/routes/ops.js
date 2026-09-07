@@ -286,22 +286,90 @@ module.exports = function registerOpsRoutes(app, ctx) {
     return J({ ok: true, oid, qty: b.qty, amount: b.amt });
   }));
 
-  function mapOrder(r) {
+  function mapOrder(r, files) {
     let lines = [], hist = [];
     try { lines = JSON.parse(r.items_json || '[]'); } catch (_) {}
     try { hist = JSON.parse(r.history_json || '[]'); } catch (_) {}
     return {
-      oid: r.oid, date: dmyOf(r.order_date), dsr: r.dsr_name, did: r.did, dname: r.dealer_name, dmob: clean(r.dealer_mobile),
+      oid: r.oid, date: dmyOf(r.order_date), dsr: r.dsr_name, dsrMob: r.dsr_mobile || '', did: r.did, dname: r.dealer_name, dmob: clean(r.dealer_mobile),
       city: r.city || '', items: lines, qty: r.total_qty | 0, amount: Number(r.amount) || 0, status: r.status,
       inv: r.invoice_no || '', vehicle: r.vehicle || '', note: r.note || '', created: r.created, updated: r.updated,
       history: hist, terms: r.payment_terms || '',
+      driver: r.driver_mobile || '', payStatus: r.payment_status || 'PENDING', paidAt: r.paid || '',
+      due: dmyOf(r.payment_due), delivered: r.delivered || '', cancelReason: r.cancel_reason || '',
+      files: (files && files[r.oid]) || [],
     };
   }
+  // Har order par kaunsi files lagi hain (invoice / pod) — ek query, oid se map
+  async function filesMap(oids) {
+    if (!oids.length) return {};
+    const [rows] = await db.query(`SELECT oid, kind FROM ops_order_files WHERE oid IN (${oids.map(() => '?').join(',')})`, oids);
+    const m = {}; for (const f of rows) (m[f.oid] = m[f.oid] || []).push(f.kind); return m;
+  }
+  const ORDER_SELECT = `SELECT *, ${FMT('created_at')} AS created, ${FMT('updated_at')} AS updated, ${FMT('paid_at')} AS paid, ${FMT('delivered_at')} AS delivered FROM ops_orders`;
   async function ordersFor(u) {
     const where = isAdmin(u) ? '' : ' WHERE dsr_mobile=?';
-    const [rows] = await db.query(`SELECT *, ${FMT('created_at')} AS created, ${FMT('updated_at')} AS updated FROM ops_orders${where} ORDER BY id DESC LIMIT 300`, isAdmin(u) ? [] : [u.mob]);
-    return rows.map(mapOrder);
+    const [rows] = await db.query(`${ORDER_SELECT}${where} ORDER BY id DESC LIMIT 300`, isAdmin(u) ? [] : [u.mob]);
+    const fm = await filesMap(rows.map(r => r.oid));
+    return rows.map(r => mapOrder(r, fm));
   }
+  async function orderByOid(oid) {
+    const [[r]] = await db.query(`${ORDER_SELECT} WHERE oid=?`, [String(oid)]);
+    if (!r) return null;
+    return mapOrder(r, await filesMap([r.oid]));
+  }
+
+  // "15 din credit" / "30 days" -> 15 / 30; "advance" / "cash" -> 0; kuch samajh na aaye to null
+  function termsDays(terms) {
+    const t = String(terms || '').toLowerCase();
+    if (!t.trim()) return null;
+    const m = t.match(/(\d+)\s*(din|day|days|d)\b/);
+    if (m) return parseInt(m[1], 10);
+    if (/advance|cash|spot|immediate/.test(t)) return 0;
+    const n = t.match(/^\s*(\d+)\s*$/); if (n) return parseInt(n[1], 10);
+    return null;
+  }
+
+  // ── Order EDIT (items/qty/rate/note) — PENDING ya CONFIRMED tak, BILLED ke baad nahi.
+  // DSR sirf apna order, admin koi bhi. History me 'EDITED' entry.
+  router.post('/editOrder', requireOps, rpc(async (u, j) => {
+    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const [[row]] = await db.query('SELECT * FROM ops_orders WHERE oid=?', [String(d.oid)]);
+    if (!row) return err('Order nahi mila');
+    if (!isAdmin(u) && row.dsr_mobile !== u.mob) return err('Ye aapka order nahi hai');
+    if (!['PENDING', 'CONFIRMED'].includes(row.status)) return err(`${row.status} order edit nahi ho sakta (sirf Pending/Confirmed)`);
+    const items = d.items || []; if (!items.length) return err('Kam se kam 1 item hona chahiye');
+    const b = buildLines(items, await itemInv()); if (b.error) return err(b.error);
+    let hist = []; try { hist = JSON.parse(row.history_json || '[]'); } catch (_) {}
+    hist.push({ s: 'EDITED', t: nowIST().dmyhm, by: u.name });
+    await db.query('UPDATE ops_orders SET items_json=?, total_qty=?, amount=?, note=?, history_json=?, updated_at=NOW() WHERE id=?',
+      [J(b.lines), b.qty, b.amt, d.note !== undefined ? String(d.note) : row.note, J(hist), row.id]);
+    return J({ ok: true, oid: row.oid, qty: b.qty, amount: b.amt });
+  }));
+
+  // ── Order CANCEL — DSR apna PENDING order, admin koi bhi khula order (dispatch hua ho to stock wapas)
+  router.post('/cancelOrder', requireOps, rpc(async (u, j) => {
+    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const reason = String(d.reason || '').trim();
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [[row]] = await conn.query('SELECT * FROM ops_orders WHERE oid=? FOR UPDATE', [String(d.oid)]);
+      if (!row) { await conn.rollback(); return err('Order nahi mila'); }
+      if (row.status === 'DELIVERED' || row.status === 'CANCELLED') { await conn.rollback(); return err(`Closed order (${row.status}) cancel nahi ho sakta`); }
+      if (!isAdmin(u)) {
+        if (row.dsr_mobile !== u.mob) { await conn.rollback(); return err('Ye aapka order nahi hai'); }
+        if (row.status !== 'PENDING') { await conn.rollback(); return err('Confirm hone ke baad cancel ke liye office se baat karo'); }
+      }
+      const lines = JSON.parse(row.items_json || '[]');
+      if (row.status === 'DISPATCHED') await adjustStock(conn, lines, +1, row.oid + ' (cancel wapas)', u.name);
+      let hist = []; try { hist = JSON.parse(row.history_json || '[]'); } catch (_) {}
+      hist.push({ s: 'CANCELLED', t: nowIST().dmyhm, by: u.name, note: reason });
+      await conn.query('UPDATE ops_orders SET status=\'CANCELLED\', cancel_reason=?, history_json=?, updated_at=NOW() WHERE id=?', [reason, J(hist), row.id]);
+      await conn.commit();
+      return J({ ok: true, status: 'CANCELLED' });
+    } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
+  }));
   router.post('/getOrders', requireOps, rpc(async (u) => ordersFor(u)));
 
   // sign -1 = minus (dispatch), +1 = wapas. Error string ya null.
@@ -337,7 +405,19 @@ module.exports = function registerOpsRoutes(app, ctx) {
       const [[row]] = await conn.query('SELECT * FROM ops_orders WHERE oid=? FOR UPDATE', [String(d.oid)]);
       if (!row) { await conn.rollback(); return err('Order nahi mila'); }
       const cur = row.status;
-      if (cur === st) { await conn.rollback(); return err('Already ' + st); }
+      if (cur === st) {
+        // Same status = sirf details save (invoice no, vehicle, driver, terms) — history nahi, WhatsApp nahi
+        const inv0 = (d.inv !== undefined && d.inv !== '') ? String(d.inv) : row.invoice_no;
+        const veh0 = (d.vehicle !== undefined && d.vehicle !== '') ? String(d.vehicle) : row.vehicle;
+        const drv0 = clean(d.driverMob).length === 10 ? clean(d.driverMob) : (row.driver_mobile || '');
+        const terms0 = (d.paymentTerms !== undefined && d.paymentTerms !== '') ? String(d.paymentTerms).trim() : row.payment_terms;
+        const days0 = termsDays(terms0);
+        const dueSql0 = (cur === 'DELIVERED' && days0 !== null) ? `DATE_ADD(DATE(COALESCE(delivered_at, NOW())), INTERVAL ${days0} DAY)` : 'payment_due';
+        await conn.query(`UPDATE ops_orders SET invoice_no=?, vehicle=?, driver_mobile=?, payment_terms=?, payment_due=${dueSql0}, updated_at=NOW() WHERE id=?`, [inv0, veh0, drv0, terms0, row.id]);
+        await conn.commit();
+        if (d.pod && d.pod.b64) { try { await saveOrderFile(row.oid, 'pod', d.pod, u.name); } catch (e) { console.error('ops pod', e.message); } }
+        return J({ ok: true, status: cur, saved: true });
+      }
       if (cur === 'DELIVERED' || cur === 'CANCELLED') { await conn.rollback(); return err(`Closed order (${cur}) change nahi ho sakta`); }
       lines = JSON.parse(row.items_json || '[]');
       const wasDispatched = cur === 'DISPATCHED';
@@ -348,17 +428,93 @@ module.exports = function registerOpsRoutes(app, ctx) {
       hist.push({ s: st, t: nowIST().dmyhm, by: u.name });
       const inv = (d.inv !== undefined && d.inv !== '') ? String(d.inv) : row.invoice_no;
       const veh = (d.vehicle !== undefined && d.vehicle !== '') ? String(d.vehicle) : row.vehicle;
-      await conn.query('UPDATE ops_orders SET status=?, invoice_no=?, vehicle=?, history_json=?, updated_at=NOW() WHERE id=?', [st, inv, veh, J(hist), row.id]);
+      // Driver number order par yaad rehta hai — dobara puchna na pade
+      const drv = clean(d.driverMob).length === 10 ? clean(d.driverMob) : (row.driver_mobile || '');
+      // Payment terms delivery form se bhi aa sakte hain
+      const terms = (d.paymentTerms !== undefined && d.paymentTerms !== '') ? String(d.paymentTerms).trim() : row.payment_terms;
+      // DELIVERED par delivered_at + payment due (terms ke din jod kar)
+      const days = termsDays(terms);
+      const dueSql = st === 'DELIVERED' && days !== null ? `DATE_ADD(CURRENT_DATE, INTERVAL ${days} DAY)` : (st === 'DELIVERED' ? 'NULL' : 'payment_due');
+      const delSql = st === 'DELIVERED' ? 'NOW()' : 'delivered_at';
+      await conn.query(`UPDATE ops_orders SET status=?, invoice_no=?, vehicle=?, driver_mobile=?, payment_terms=?, history_json=?, payment_due=${dueSql}, delivered_at=${delSql}, updated_at=NOW() WHERE id=?`,
+        [st, inv, veh, drv, terms, J(hist), row.id]);
       await conn.commit();
-      order = { ...row, status: st, invoice_no: inv, vehicle: veh };
+      order = { ...row, status: st, invoice_no: inv, vehicle: veh, driver_mobile: drv, payment_terms: terms };
     } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
 
-    // WhatsApp — dealer / DSR / driver
+    // POD (delivery proof photo) DELIVERED ke saath aaye to file me rakho
+    if (st === 'DELIVERED' && d.pod && d.pod.b64) {
+      try { await saveOrderFile(order.oid, 'pod', d.pod, u.name); } catch (e) { console.error('ops pod', e.message); }
+    }
+    // WhatsApp — dealer / DSR / driver (driver ko ek hi baar — DRIVER key se dedupe)
     (async () => {
       if (st === 'DISPATCHED' || st === 'DELIVERED') await notifyOrderStatus(order);
-      if (st === 'DISPATCHED' && d.driverMob) await notifyDriver(order, lines, clean(d.driverMob));
+      if (st === 'DISPATCHED' && order.driver_mobile) await notifyDriver(order, lines, order.driver_mobile);
     })().catch(e => console.error('ops wa', e.message));
     return J({ ok: true, status: st });
+  }));
+
+  // ── Order files: Busy invoice (PDF/photo) aur POD. Ek order par har kind ki ek file.
+  // Drive par bhi bhejne ki koshish (agar APPS_SCRIPT_UPLOAD_URL + OPS_DRIVE_FOLDER_ID set hon).
+  async function saveOrderFile(oid, kind, f, by) {
+    const mime = f.mime === 'application/pdf' ? 'application/pdf' : 'image/jpeg';
+    const ext = mime === 'application/pdf' ? 'pdf' : 'jpg';
+    const name = `${oid}_${kind.toUpperCase()}_${nowIST().iso.replace(/-/g, '')}.${ext}`;
+    const buf = Buffer.from(f.b64, 'base64');
+    const driveUrl = await pushToDrive(name, mime, f.b64, kind);
+    await db.query(
+      `INSERT INTO ops_order_files (oid,kind,file_name,mime,data,drive_url,uploaded_by) VALUES (?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE file_name=VALUES(file_name), mime=VALUES(mime), data=VALUES(data), drive_url=VALUES(drive_url), uploaded_by=VALUES(uploaded_by), uploaded_at=NOW()`,
+      [oid, kind, name, mime, buf, driveUrl, by]);
+    return { name, driveUrl };
+  }
+  // Drive: existing proof-upload Apps Script (backend/lib/google.js) se — owner ke quota par.
+  // Config na ho to chup-chaap '' (file DB me to hai hi).
+  async function pushToDrive(fileName, mime, b64, sub) {
+    const folderId = (process.env.OPS_DRIVE_FOLDER_ID || '').match(/\/folders\/([\w-]+)/)?.[1] || process.env.OPS_DRIVE_FOLDER_ID || '';
+    if (!folderId || !process.env.APPS_SCRIPT_UPLOAD_URL) return '';
+    try {
+      const { callProofScript } = require('../lib/google');
+      const r = await callProofScript({ action: 'upload', folderId, fileName: `${sub}_${fileName}`, mimeType: mime, dataBase64: b64 });
+      return r.fileId ? `https://drive.google.com/file/d/${r.fileId}/view` : '';
+    } catch (e) { console.error('ops drive', e.message); return ''; }
+  }
+  router.post('/uploadOrderFile', requireOps, rpc(async (u, j) => {
+    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    if (!['invoice', 'pod'].includes(d.kind)) return err('Kind galat (invoice / pod)');
+    if (!d.b64) return err('File nahi mili');
+    const [[row]] = await db.query('SELECT oid, dsr_mobile FROM ops_orders WHERE oid=?', [String(d.oid)]);
+    if (!row) return err('Order nahi mila');
+    if (d.kind === 'invoice' && !isAdmin(u)) return err('Invoice sirf office upload karta hai');
+    if (!isAdmin(u) && row.dsr_mobile !== u.mob) return err('Ye aapka order nahi hai');
+    const r = await saveOrderFile(row.oid, d.kind, d, u.name);
+    return J({ ok: true, file: r.name, drive: r.driveUrl });
+  }));
+  router.get('/order-file/:oid/:kind', requireOps, async (req, res) => {
+    try {
+      const [[r]] = await db.query('SELECT file_name, mime, data, drive_url FROM ops_order_files WHERE oid=? AND kind=?', [req.params.oid, req.params.kind]);
+      if (!r) return res.status(404).send('File nahi mili');
+      if (!r.data && r.drive_url) return res.redirect(r.drive_url);
+      res.setHeader('Content-Type', r.mime);
+      res.setHeader('Content-Disposition', `inline; filename="${r.file_name}"`);
+      res.send(r.data);
+    } catch (e) { res.status(500).send('Server error'); }
+  });
+  // Payment mila / nahi mila — admin
+  router.post('/markPaid', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const [[row]] = await db.query('SELECT id, history_json FROM ops_orders WHERE oid=?', [String(d.oid)]);
+    if (!row) return err('Order nahi mila');
+    const paid = d.paid !== false;
+    let hist = []; try { hist = JSON.parse(row.history_json || '[]'); } catch (_) {}
+    hist.push({ s: paid ? 'PAID' : 'UNPAID', t: nowIST().dmyhm, by: u.name });
+    await db.query(`UPDATE ops_orders SET payment_status=?, paid_at=${paid ? 'NOW()' : 'NULL'}, history_json=?, updated_at=NOW() WHERE id=?`, [paid ? 'PAID' : 'PENDING', J(hist), row.id]);
+    return J({ ok: true, payStatus: paid ? 'PAID' : 'PENDING' });
+  }));
+  // Pichle drivers/vehicles — status form me dropdown ke liye (baar-baar type na karna pade)
+  router.post('/getDrivers', requireOps, rpc(async () => {
+    const [rows] = await db.query(`SELECT driver_mobile AS mob, MAX(vehicle) AS vehicle, COUNT(*) AS n, MAX(updated_at) AS last FROM ops_orders WHERE driver_mobile<>'' GROUP BY driver_mobile ORDER BY last DESC LIMIT 20`);
+    return rows.map(r => ({ mob: r.mob, vehicle: r.vehicle || '', n: r.n }));
   }));
 
   // CRM confirm: PENDING -> CONFIRMED, qty/rate/terms edit ke saath; dealer ko WhatsApp
@@ -447,19 +603,14 @@ module.exports = function registerOpsRoutes(app, ctx) {
     return rows.map(r => ({ name: r.name, mob: clean(r.mobile), company: r.company || '', role: r.role || '' }));
   }));
 
-  router.post('/sendRMReport', requireOps, adminOnly, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
-    const [[rm]] = await db.query('SELECT * FROM ops_rm_list WHERE mobile=?', [clean(d.rmMob)]);
-    if (!rm) return err('RM nahi mila');
-    const type = String(d.type || '').toUpperCase(), today = nowIST().dmy;
+  // Report ka text banao (preview + send dono isi se). Admin bhejne se pehle
+  // text dekh aur badal sakta hai — sendRMReport me `text` aaye to wahi jaata hai.
+  async function buildRMReport(rm, type) {
     if (type === 'REORDER') {
       const [items] = await db.query('SELECT * FROM ops_items WHERE UPPER(brand)=? AND stock<=? ORDER BY stock, id LIMIT 30', [String(rm.company).toUpperCase(), LOW_STOCK]);
-      if (!items.length) return err(`Koi item low/out of stock nahi hai ${rm.company} mein abhi`);
+      if (!items.length) return { error: `Koi item low/out of stock nahi hai ${rm.company} mein abhi` };
       const lines = items.map(it => `${it.size}${it.position ? ' ' + it.position : ''} ${it.pattern} ${it.tltt}`.trim() + `: ${it.stock} bacha`);
-      const summary = `${lines.length} items low/out of stock: ${lines.slice(0, 5).join(', ')}${lines.length > 5 ? ` aur ${lines.length - 5} aur` : ''}`;
-      const res = await wati.send(rm.mobile, wati.T.RM_REPORT, ['Reorder', rm.company, summary, today]);
-      if (res !== 'SENT') return err('Message send nahi hua: ' + res);
-      return J({ ok: true, sentTo: rm.name, count: lines.length });
+      return { count: lines.length, text: `${lines.length} items low/out of stock:\n${lines.join('\n')}` };
     }
     if (type === 'SALE') {
       const [orders] = await db.query(`SELECT items_json FROM ops_orders WHERE order_date=CURRENT_DATE AND status<>'CANCELLED'`);
@@ -477,14 +628,32 @@ module.exports = function registerOpsRoutes(app, ctx) {
         }
         if (has) count++;
       }
-      if (!count) return err(`Aaj koi ${rm.company} sale nahi hui abhi tak`);
+      if (!count) return { error: `Aaj koi ${rm.company} sale nahi hui abhi tak` };
       const itemLines = Object.keys(byItem).map(k => `${k}: ${byItem[k]} pcs`);
-      const summary = `${count} orders, ${qty} pcs, ${wati.fmtR(amt)}. Items: ${itemLines.slice(0, 4).join(', ')}${itemLines.length > 4 ? ` aur ${itemLines.length - 4} aur` : ''}`;
-      const res = await wati.send(rm.mobile, wati.T.RM_REPORT, ['Sale', rm.company, summary, today]);
-      if (res !== 'SENT') return err('Message send nahi hua: ' + res);
-      return J({ ok: true, sentTo: rm.name, count });
+      return { count, text: `${count} orders, ${qty} pcs, ${wati.fmtR(amt)}.\nItems:\n${itemLines.join('\n')}` };
     }
-    return err('Type galat — SALE ya REORDER hona chahiye');
+    return { error: 'Type galat — SALE ya REORDER hona chahiye' };
+  }
+  router.post('/previewRMReport', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const [[rm]] = await db.query('SELECT * FROM ops_rm_list WHERE mobile=?', [clean(d.rmMob)]);
+    if (!rm) return err('RM nahi mila');
+    const r = await buildRMReport(rm, String(d.type || '').toUpperCase());
+    if (r.error) return err(r.error);
+    return J({ ok: true, text: r.text, count: r.count, rm: rm.name, company: rm.company, date: nowIST().dmy });
+  }));
+  router.post('/sendRMReport', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const [[rm]] = await db.query('SELECT * FROM ops_rm_list WHERE mobile=?', [clean(d.rmMob)]);
+    if (!rm) return err('RM nahi mila');
+    const type = String(d.type || '').toUpperCase(), today = nowIST().dmy;
+    let text = String(d.text || '').trim(), count = 0;
+    if (!text) { const r = await buildRMReport(rm, type); if (r.error) return err(r.error); text = r.text; count = r.count; }
+    if (type !== 'SALE' && type !== 'REORDER') return err('Type galat — SALE ya REORDER hona chahiye');
+    // WhatsApp template param me newline theek hai; lambai 1000 se andar rakho
+    const res = await wati.send(rm.mobile, wati.T.RM_REPORT, [type === 'SALE' ? 'Sale' : 'Reorder', rm.company, text.slice(0, 1000), today]);
+    if (res !== 'SENT') return err('Message send nahi hua: ' + res);
+    return J({ ok: true, sentTo: rm.name, count });
   }));
 
   // ══════════ BUSY IMPORT (admin) ══════════
@@ -614,6 +783,13 @@ module.exports = function registerOpsRoutes(app, ctx) {
   } else if (!wati.ENABLED) {
     console.log('  ℹ️  Michelin Ops: WATI_BASE/WATI_TOKEN nahi — WhatsApp band, baaki app chalegi');
   }
+
+  // v2 features (reports, attendance, route plan, expenses, payment reminders) —
+  // alag file me, par same router aur same helpers par.
+  require('./ops-extra')({
+    router, db, requireOps, adminOnly, rpc, J, err, clean, nb, nowIST, dmyOf, FMT, isAdmin,
+    ordersFor, orderByOid, logged, wati, pushToDrive, IS_SERVERLESS,
+  });
 
   app.use('/api/ops', router);
 };

@@ -605,3 +605,14 @@ html.view-only [onclick*="reject"]{ display:none!important; }
    Padding zero, taaki iframe topbar ke neeche poori jagah le. */
 .page.page-ops{padding:0;}
 .ops-frame{display:block;width:100%;height:calc(100vh - 60px);border:0;background:#f3f5f9;}
+
+/* ── Sidebar sections (BASIC / MICHELIN OPS) ──────────
+   Heading sirf khule sidebar me dikhti hai (collapsed 60px me bas ek lakeer).
+   Heading par click = section fold/unfold. */
+.nav{overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;}
+.nav-group{display:flex;align-items:center;justify-content:space-between;padding:10px 11px 4px;font-size:10px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:var(--sidebar-muted);cursor:pointer;white-space:nowrap;user-select:none;opacity:0;transition:opacity .2s .1s;}
+.sidebar:hover .nav-group,.sidebar-pinned .nav-group{opacity:1;}
+.nav-group svg{width:12px;height:12px;flex-shrink:0;transition:transform .2s;}
+.nav-sec.collapsed .nav-group svg{transform:rotate(-90deg);}
+.nav-sec.collapsed .nav-sec-items{display:none;}
+.nav-sec+.nav-sec{border-top:1px solid var(--sidebar-border);margin-top:6px;}

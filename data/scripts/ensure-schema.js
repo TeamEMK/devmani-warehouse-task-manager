@@ -29,7 +29,33 @@ const SEED_CHECKLIST = path.join(MIGR, 'seed-checklist.sql');
 // Michelin Ops (DSR order app) — tables har boot par (CREATE TABLE IF NOT
 // EXISTS), aur sheet ka data sirf tab jab ops_items khali ho.
 const OPS_SCHEMA = path.join(MIGR, '005_ops.sql');
+const OPS_SCHEMA_V2 = path.join(MIGR, '006_ops_v2.sql');
 const SEED_OPS = path.join(MIGR, 'seed-ops.sql');
+
+// MySQL me ADD COLUMN IF NOT EXISTS nahi hai — information_schema se poochh kar
+// sirf missing columns jodte hain. Har boot par chalta hai, idempotent.
+const OPS_V2_COLUMNS = {
+  ops_orders: {
+    driver_mobile: "varchar(10) NOT NULL DEFAULT ''",
+    payment_status: "varchar(10) NOT NULL DEFAULT 'PENDING'",
+    paid_at: 'datetime DEFAULT NULL',
+    payment_due: 'date DEFAULT NULL',
+    delivered_at: 'datetime DEFAULT NULL',
+    cancel_reason: "varchar(300) NOT NULL DEFAULT ''",
+  },
+};
+async function ensureColumns() {
+  for (const [table, cols] of Object.entries(OPS_V2_COLUMNS)) {
+    const [have] = await db.query(
+      'SELECT column_name AS c FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=?', [table]);
+    const set = new Set(have.map(r => String(r.c || r.COLUMN_NAME).toLowerCase()));
+    for (const [col, def] of Object.entries(cols)) {
+      if (set.has(col)) continue;
+      try { await db.query(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`); console.log(`   ${table}.${col} joda`); }
+      catch (err) { console.log('   ops column skip:', err.message.slice(0, 120)); }
+    }
+  }
+}
 
 function splitStatements(file) {
   return fs.readFileSync(file, 'utf8')
@@ -88,6 +114,12 @@ async function ensureSchema() {
     for (const st of splitStatements(OPS_SCHEMA)) {
       try { await db.query(st); ran++; } catch (err) { console.log('   ops schema skip:', err.message.slice(0, 120)); }
     }
+    if (fs.existsSync(OPS_SCHEMA_V2)) {
+      for (const st of splitStatements(OPS_SCHEMA_V2)) {
+        try { await db.query(st); } catch (err) { console.log('   ops v2 schema skip:', err.message.slice(0, 120)); }
+      }
+    }
+    await ensureColumns();
     if (fs.existsSync(SEED_OPS)) {
       const [[c]] = await db.query('SELECT COUNT(*) AS n FROM ops_items');
       if (c.n === 0) {

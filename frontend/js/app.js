@@ -235,7 +235,7 @@ async function init() {
       document.getElementById('nav-users').style.display = 'flex';
       document.getElementById('nav-mis').style.display = 'flex';
       document.getElementById('nav-fms').style.display = 'flex';
-      document.getElementById('nav-ops').style.display = 'flex';
+      document.getElementById('sec-ops').style.display = 'block';
       document.getElementById('bulkDeleteBtn').style.display = 'inline-flex';
       document.getElementById('bulkEditBtn').style.display = 'inline-flex';
       document.getElementById('misCombinedBtn').style.display = 'inline-flex';
@@ -429,7 +429,17 @@ const PAGE_NAV_ID = {
   'leaves': 'nav-leaves', 'query': 'nav-query', 'fms': 'nav-fms', 'fms-tasks': 'nav-fms-tasks',
 };
 
-function navigate(page, el) {
+// Sidebar section collapse/expand (BASIC / MICHELIN OPS) — yaad rehta hai
+function toggleSec(id) {
+  const sec = document.getElementById(id); if (!sec) return;
+  sec.classList.toggle('collapsed');
+  try { localStorage.setItem('sec:' + id, sec.classList.contains('collapsed') ? '1' : '0'); } catch (e) {}
+}
+(function restoreSecs() {
+  ['sec-basic', 'sec-ops'].forEach(id => { try { if (localStorage.getItem('sec:' + id) === '1') document.getElementById(id)?.classList.add('collapsed'); } catch (e) {} });
+})();
+
+function navigate(page, el, sub) {
   // Band feature — koi bhi raasta (nav, deep-link, refresh-restore, ya koi
   // purana navigate() call jo code me kahin bacha ho) dashboard par bhej do.
   // Wahi baat un doers ke liye jo kisi FMS step ka hissa nahi hain: unke liye
@@ -458,7 +468,18 @@ function navigate(page, el) {
   if (page==='records') loadRecords();
   // Michelin Ops iframe pehli baar khulne par hi load — baad me wahi rehta hai,
   // taaki tab badalne par uska cart/login state na jaye.
-  if (page==='ops') { const f = document.getElementById('opsFrame'); if (f && !f.src) f.src = f.dataset.src; }
+  if (page==='ops') {
+    // Sub-item = ops app ka page (hash). Pehli baar src lagao; baad me sirf hash
+    // badlo taaki iframe reload na ho (login/cart state bana rahe).
+    const f = document.getElementById('opsFrame');
+    const h = sub || 'home';
+    try { localStorage.setItem('opsSub', h); } catch (e) {}
+    if (f) {
+      if (!f.src) f.src = f.dataset.src + '#' + h;
+      else { try { f.contentWindow.location.replace(f.dataset.src + '#' + h); } catch (e) { f.src = f.dataset.src + '#' + h; } }
+    }
+    document.getElementById('topbarTitle').textContent = 'Michelin Ops · ' + ({home:'Dashboard',order:'New Order',orders:'Orders',crm:'CRM Calls',stock:'Stock',dealers:'Dealers',reports:'Reports',track:'DSR Tracking',route:'Route Plan',exp:'Expenses'}[h] || h);
+  }
   // navigate() core app ka hissa hai, yaani client ki copy me bhi jaata hai —
   // par ncLoadLog generator ke markers ke andar hai aur wahan hota hi nahi.
   // Isliye seedha bulane ke bajaye pehle dekh lete hain ki function hai ya nahi.

@@ -32,6 +32,7 @@ const T = {
   CONFIRMED: 'order_confirmed_dealer',        // dealer ko: dealer, oid, "X pcs, ₹Y", terms
   DRIVER: 'driver_dispatch',                  // driver ko: dealer, address, dealerMob, items, gps
   RM_REPORT: 'rm_report',                     // RM ko: "Sale"/"Reorder", company, text, date
+  PAY_REMINDER: 'michelin_payment_reminder',  // dealer + DSR: dealer, oid, amount, due date (NAYA template — Wati dashboard me banana hoga)
 };
 const MAX_RETRY = 10;
 
