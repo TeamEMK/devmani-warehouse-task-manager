@@ -286,6 +286,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
       <div class="grid2" id="kpis"></div>
       <!-- Quick actions: role ke hisaab se buttons (JS bharta hai) -->
       <div class="qa" id="home-qa"></div>
+      <!-- Admin: reports ka saar (delivery/payment pending, outstanding, DSR performance) -->
+      <div id="home-reports" style="display:none"></div>
       <div class="cols2">
         <div class="card" id="home-recent"></div>
         <div class="card" id="home-low"></div>
@@ -628,8 +630,22 @@ $('bnav').addEventListener('click',function(e){ var b=e.target.closest('button')
 window.addEventListener('hashchange',function(){ if(!USER) return; var h=(location.hash||'').replace('#',''); if(PAGES[h]) go(h); });
 
 /* ═══ HOME ═══ */
+// Admin dashboard par reports ka saar: 4 KPI + payment pending (top 6) + DSR performance
+function loadHomeReports(){
+  var c=$('home-reports'); c.style.display='block'; c.innerHTML='<div class="empty"><div class="spin" style="margin:0 auto"></div></div>';
+  call('getReports',{},function(d){
+    var dp=d.deliveryPending, pp=d.paymentPending, os=d.outstanding, dAmt=0, pAmt=0, oAmt=0, late=0;
+    dp.forEach(function(r){dAmt+=r.amount;}); pp.forEach(function(r){pAmt+=r.amount; if(r.overdue>0) late++;}); os.forEach(function(r){oAmt+=r.amount;});
+    var k=[['b',dp.length,'Delivery pending','('+fmt(dAmt)+')','delivery'],['r',pp.length,'Payment pending','('+fmt(pAmt)+(late?' · '+late+' late':'')+')','payment'],['',fmt(oAmt),'Busy outstanding',os.length+' accounts','outstanding'],['g',d.expensesPending,'Expenses approve karne hain','','exp']];
+    var kp='<div class="grid2">'+k.map(function(x){ return '<div><div class="kpi '+x[0]+'" data-rpgo="'+x[4]+'" style="cursor:pointer"><div class="v">'+x[1]+'</div><div class="l">'+x[2]+' <span style="color:var(--t3)">'+x[3]+'</span></div></div></div>'; }).join('')+'</div>';
+    var pay='<div class="card"><div class="h">Payment pending <small>delivered, paisa baaki — top 6</small></div>'+tbl([{h:'Dealer',f:function(r){return '<b>'+esc(r.dname)+'</b><br><span style="color:var(--t3)">'+esc(r.oid)+' · '+esc(r.dsr)+'</span>';}},{h:'Amount',f:function(r){return '<b>'+fmt(r.amount)+'</b>';},r:1},{h:'Due',f:function(r){ if(!r.due) return '<span style="color:var(--t3)">terms nahi</span>'; return esc(r.due)+(r.overdue>0?'<br><span class="neg">'+r.overdue+' din late</span>':''); }},{h:'',f:function(r){return '<button class="btn xs ghost" data-rprem="'+esc(r.oid)+'">Reminder</button> <button class="btn xs green" data-paid="'+esc(r.oid)+'|1">Paid</button>';}}],pp.slice(0,6),'Sab payments mil chuki hain')+(pp.length>6?'<div class="acts" style="margin-top:8px"><button class="btn sm ghost" data-rpgo="payment">Sab '+pp.length+' dekho &rarr;</button></div>':'')+'</div>';
+    var perf='<div class="card"><div class="h">DSR performance <small>is mahine</small></div>'+tbl([{h:'DSR',f:function(r){return '<b>'+esc(r.name)+'</b>';}},{h:'Orders',k:'orders',r:1},{h:'Tyres',k:'qty',r:1},{h:'Amount',f:function(r){return fmt(r.amount);},r:1},{h:'Visits',f:function(r){return r.visited+'/'+r.planned;},r:1},{h:'Days',k:'attendDays',r:1}],d.performance,'Koi DSR nahi')+'<div class="acts" style="margin-top:8px"><button class="btn sm ghost" data-rpgo="perf">Poori report &rarr;</button></div></div>';
+    c.innerHTML=kp+'<div class="cols2">'+pay+perf+'</div>';
+  });
+}
+$('home-reports').addEventListener('click',function(e){ var b=e.target.closest('[data-rpgo]'); if(!b) return; var t=b.getAttribute('data-rpgo'); if(t==='exp'){ go('exp'); return; } RP_TAB=t; go('reports'); });
 function loadHome(){
-  if(!isAdmin()) loadHomeDay(); else $('home-day').style.display='none';
+  if(!isAdmin()) loadHomeDay(); else { $('home-day').style.display='none'; loadHomeReports(); }
   $('kpis').innerHTML='<div style="width:100%"><div class="empty"><div class="spin" style="margin:0 auto"></div></div></div>';
   renderQA(0);
   gas('getDashboard',USER.mob,function(r){
@@ -890,7 +906,7 @@ document.addEventListener('click',function(e){
   if((b=e.target.closest('[data-crm]'))) return onCRM(b.getAttribute('data-crm'),'confirm');
   if((b=e.target.closest('[data-edit]'))) return onCRM(b.getAttribute('data-edit'),'edit');
   if((b=e.target.closest('[data-cancel]'))) return doCancel(b.getAttribute('data-cancel'));
-  if((b=e.target.closest('[data-paid]'))) { var p=b.getAttribute('data-paid').split('|'); showLoad('...'); call('markPaid',{oid:p[0],paid:p[1]==='1'},function(){ hideLoad(); toast(p[0]+' → '+(p[1]==='1'?'PAID':'UNPAID'),'ok'); if($('pg-reports').className.indexOf('on')>=0) loadReports(); else loadOrders(); }); return; }
+  if((b=e.target.closest('[data-paid]'))) { var p=b.getAttribute('data-paid').split('|'); showLoad('...'); call('markPaid',{oid:p[0],paid:p[1]==='1'},function(){ hideLoad(); toast(p[0]+' → '+(p[1]==='1'?'PAID':'UNPAID'),'ok'); if($('pg-reports').className.indexOf('on')>=0) loadReports(); else if($('pg-home').className.indexOf('on')>=0) loadHomeReports(); else loadOrders(); }); return; }
   if((b=e.target.closest('[data-pod]'))) { var oid=b.getAttribute('data-pod'); var inp=document.createElement('input'); inp.type='file'; inp.accept='image/*,application/pdf'; inp.onchange=function(){ readFileB64(inp.files[0],function(o){ if(!o) return; showLoad('POD upload...'); call('uploadOrderFile',{oid:oid,kind:'pod',mime:o.mime,b64:o.b64},function(){ hideLoad(); toast('POD lag gaya','ok'); loadOrders(); }); }); }; inp.click(); return; }
 });
 function findOrder(oid){ for(var i=0;i<ORDERS.length;i++) if(ORDERS[i].oid===oid) return ORDERS[i]; return null; }
@@ -1102,7 +1118,7 @@ function renderReport(){
 document.addEventListener('click',function(e){
   var b;
   if((b=e.target.closest('[data-rpsu]'))){ var oid=b.getAttribute('data-rpsu'); gas('getOrders',USER.mob,function(r){ ORDERS=JSON.parse(r); onSU(oid); }); return; }
-  if((b=e.target.closest('[data-rprem]'))){ var o2=b.getAttribute('data-rprem'); showLoad('Reminder...'); call('sendPaymentReminder',{oid:o2},function(d){ hideLoad(); toast('Reminder gaya: '+d.sent.join(', '),'ok'); loadReports(); }); return; }
+  if((b=e.target.closest('[data-rprem]'))){ var o2=b.getAttribute('data-rprem'); showLoad('Reminder...'); call('sendPaymentReminder',{oid:o2},function(d){ hideLoad(); toast('Reminder gaya: '+d.sent.join(', '),'ok'); if($('pg-home').className.indexOf('on')>=0) loadHomeReports(); else loadReports(); }); return; }
 });
 
 /* ═══ DAY (DSR): attendance + aaj ka route ═══ */
