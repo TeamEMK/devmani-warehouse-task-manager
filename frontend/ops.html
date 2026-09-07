@@ -769,16 +769,18 @@ function renderBrandTabs(){
     .concat(list.map(function(b){return '<button data-brand="'+esc(b)+'"'+(IT_BRAND===b?' class="on"':'')+'>'+esc(b)+'</button>';})).join('');
 }
 $('brand-tabs').addEventListener('click',function(e){ var b=e.target.closest('[data-brand]'); if(!b)return; IT_BRAND=b.getAttribute('data-brand'); renderBrandTabs(); $('it-search').dispatchEvent(new Event('input')); });
+// Dealer dropdown: khali search = poori list (naam se sorted), likhne par filter
 function dealerSearchHtml(q,attr){
-  var h=DEALERS.filter(function(d){return (d.name+' '+d.mob+' '+d.city).toLowerCase().indexOf(q)>=0;}).slice(0,10);
+  if(!DEALERS.length) return '<div style="color:var(--t3)">Dealers load ho rahe hain...</div>';
+  var h=DEALERS.filter(function(d){return !q||(d.name+' '+d.mob+' '+d.city).toLowerCase().indexOf(q)>=0;}).sort(function(a,b){return a.name.localeCompare(b.name);}).slice(0,q?12:60);
   if(!h.length) return '<div style="color:var(--t3)">Koi dealer nahi mila</div>';
   return h.map(function(d){ return '<div '+attr+'="'+esc(d.did)+'"><b>'+esc(d.name)+'</b> <span style="color:var(--t3);font-size:11px">'+esc(d.city)+' · '+esc(d.mob)+'</span>'+(d.outstanding?' <span class="outs">Outstanding '+fmt(d.outstanding.amount)+'</span>':'')+'</div>'; }).join('');
 }
-$('dl-search').addEventListener('input',function(){
-  var q=V('dl-search').toLowerCase(), box=$('dl-res');
-  if(q.length<1){box.style.display='none';return;}
-  box.style.display='block'; box.innerHTML=dealerSearchHtml(q,'data-did');
-});
+function showDealerList(inpId,boxId,attr){ var box=$(boxId); box.style.display='block'; box.innerHTML=dealerSearchHtml(V(inpId).toLowerCase(),attr); }
+$('dl-search').addEventListener('input',function(){ showDealerList('dl-search','dl-res','data-did'); });
+$('dl-search').addEventListener('focus',function(){ if(!DEALERS.length) gas('getDealers',null,function(r){ DEALERS=JSON.parse(r); showDealerList('dl-search','dl-res','data-did'); }); else showDealerList('dl-search','dl-res','data-did'); });
+// Bahar click par list band
+document.addEventListener('click',function(e){ if(!e.target.closest('#dl-search,#dl-res')) $('dl-res').style.display='none'; if(!e.target.closest('#rt-search,#rt-res')) $('rt-res').style.display='none'; });
 function selectDealer(did){
   SEL_DEALER=null;
   for(var i=0;i<DEALERS.length;i++) if(DEALERS[i].did===did) SEL_DEALER=DEALERS[i];
@@ -1228,7 +1230,8 @@ function renderRtStops(){
   var u=fullRouteUrl(withLL); $('rt-gmaps').style.display=u?'inline-flex':'none'; if(u) $('rt-gmaps').href=u;
 }
 $('rt-stops').addEventListener('click',function(e){ var b; if((b=e.target.closest('[data-rtx]'))){ RT_STOPS.splice(+b.getAttribute('data-rtx'),1); renderRtStops(); } else if((b=e.target.closest('[data-rtup]'))){ var i=+b.getAttribute('data-rtup'); if(i>0){ var t=RT_STOPS[i]; RT_STOPS[i]=RT_STOPS[i-1]; RT_STOPS[i-1]=t; renderRtStops(); } } });
-$('rt-search').addEventListener('input',function(){ var q=V('rt-search').toLowerCase(), box=$('rt-res'); if(q.length<1){box.style.display='none';return;} box.style.display='block'; box.innerHTML=dealerSearchHtml(q,'data-rtdid'); });
+$('rt-search').addEventListener('input',function(){ showDealerList('rt-search','rt-res','data-rtdid'); });
+$('rt-search').addEventListener('focus',function(){ if(!DEALERS.length) gas('getDealers',null,function(r){ DEALERS=JSON.parse(r); showDealerList('rt-search','rt-res','data-rtdid'); }); else showDealerList('rt-search','rt-res','data-rtdid'); });
 $('rt-res').addEventListener('click',function(e){ var el=e.target.closest('[data-rtdid]'); if(!el) return; var did=el.getAttribute('data-rtdid'), d=null; for(var i=0;i<DEALERS.length;i++) if(DEALERS[i].did===did) d=DEALERS[i]; if(!d) return; if(RT_STOPS.some(function(s){return s.did===did;})) toast('Already plan mein hai'); else RT_STOPS.push({did:d.did,name:d.name,city:d.city,mob:d.mob,status:'PLANNED'}); $('rt-res').style.display='none'; $('rt-search').value=''; renderRtStops(); });
 $('rt-free-add').onclick=function(){ var n=V('rt-free'); if(!n){toast('Naam likho','err');return;} RT_STOPS.push({did:'',name:n,city:'',status:'PLANNED'}); $('rt-free').value=''; renderRtStops(); };
 $('rt-save').onclick=function(){
