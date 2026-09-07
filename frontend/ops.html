@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>Michelin Ops | Bansal Oil Distributors</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Bebas+Neue&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 :root{--navy:#0D2137;--navy2:#16325a;--gold:#C9A84C;--gold2:#a8862f;--bg:#f3f5f9;--card:#fff;--bdr:#dfe4ee;--txt:#111827;--t2:#4b5563;--t3:#8a94a6;
@@ -165,6 +165,75 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
   .ov{align-items:center;}
   .sheet{border-radius:18px;max-height:90vh;}
   .toast{bottom:30px;}
+}
+/* ── DESKTOP THEME: Task Manager (Analytics dashboard) jaisa look ──
+   Inter font, neutral cards, chhote buttons, pill badges, grid lists.
+   Sirf >=900px par; mobile view (WhatsApp browser) bilkul pehle jaisa. */
+@media (min-width:900px){
+  :root{--bg:#f6f7f9;--card:#fff;--bdr:#e5e5e5;--txt:#0a0a0a;--t2:#404040;--t3:#737373;--navy:#0f172a;--navy2:#1e293b;}
+  html,body{font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:13.5px;}
+  button,input,select,textarea{font-family:inherit;}
+  .h{font-family:'Inter',sans-serif;font-size:15px;font-weight:600;letter-spacing:-.01em;text-transform:none;color:var(--txt);margin-bottom:12px;display:flex;align-items:baseline;flex-wrap:wrap;}
+  .h small{font-size:12px;color:var(--t3);font-weight:500;margin-left:8px;}
+  .card{border-radius:12px;box-shadow:0 1px 2px rgba(10,10,10,.05);padding:18px 20px;}
+  .kpi{border-radius:12px;padding:16px 18px;box-shadow:0 1px 2px rgba(10,10,10,.05);}
+  .kpi:before{height:0;}
+  .kpi{border-left:3px solid var(--navy);}
+  .kpi.g{border-left-color:var(--gold);}.kpi.r{border-left-color:#e40014;}.kpi.gr{border-left-color:#00a151;}.kpi.b{border-left-color:#3061ef;}
+  .kpi .v{font-family:'Inter',sans-serif;font-size:26px;font-weight:700;letter-spacing:-.02em;color:var(--txt);}
+  .kpi .l{font-size:12px;color:var(--t3);margin-top:6px;font-weight:500;}
+  .btn{width:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;font-size:13px;font-weight:600;border-radius:8px;box-shadow:0 1px 2px rgba(10,10,10,.05);transition:background .15s,transform .1s;}
+  .btn.gold{background:var(--navy);color:#fff;}
+  .btn.gold:hover,.btn:hover{filter:brightness(1.08);}
+  .btn.ghost{box-shadow:none;border:1px solid var(--bdr);color:var(--txt);}
+  .btn.ghost:hover{background:#f5f5f5;filter:none;}
+  .btn.sm{padding:7px 12px;font-size:12px;}
+  .btn.xs{padding:4px 10px;font-size:11px;border-radius:6px;}
+  .btn.green{background:#00a151;}.btn.red{background:#e40014;}
+  #or-submit,#rt-save,#ex-save,#nd-save,#sm-save,#crm-confirm-btn,#rm-send,#rm-preview,#rm-open,#dy-go,#lg-btn{width:100%;display:flex;}
+  .inp{border-radius:8px;padding:9px 12px;font-size:13.5px;border:1px solid var(--bdr);transition:border-color .15s,box-shadow .15s;}
+  .inp:focus{border-color:#2968c2;box-shadow:0 0 0 3px rgba(41,104,194,.15);}
+  label.l{font-size:11.5px;font-weight:600;color:var(--t3);letter-spacing:.3px;margin:12px 0 6px;}
+  .seg-tabs{gap:6px;margin-bottom:12px;}
+  .seg-tabs button{border-radius:8px;padding:7px 14px;font-size:12.5px;font-weight:600;margin:0;border:1px solid var(--bdr);color:var(--t2);}
+  .seg-tabs button.on{background:var(--navy);border-color:var(--navy);}
+  .st{font-size:11px;font-weight:600;padding:3px 10px;border:1px solid transparent;}
+  .st-PENDING{border-color:rgba(240,161,51,.3);}.st-DELIVERED,.st-PAID,.st-APPROVED,.st-VISITED{background:rgba(0,161,81,.1);color:#00a151;border-color:rgba(0,161,81,.25);}
+  .st-CANCELLED,.st-UNPAID,.st-REJECTED,.st-SKIPPED{background:rgba(228,0,20,.08);color:#e40014;border-color:rgba(228,0,20,.22);}
+  .st-DISPATCHED{background:rgba(48,97,239,.1);color:#3061ef;border-color:rgba(48,97,239,.25);}
+  .st-CONFIRMED,.st-BILLED{background:rgba(91,33,182,.08);color:#5b21b6;border-color:rgba(91,33,182,.22);}
+  .chip{font-size:10px;font-weight:600;}
+  .bchip{font-weight:600;background:var(--navy);}
+  .item{padding:11px 0;}
+  .item .nm b{font-size:13.5px;font-weight:600;}
+  .item .q{font-family:'Inter',sans-serif;font-size:18px;font-weight:700;}
+  #home-low{max-height:560px;overflow:auto;}
+  .ocard{border-radius:12px;padding:14px 16px;margin:0;box-shadow:0 1px 2px rgba(10,10,10,.05);transition:box-shadow .15s;}
+  .ocard:hover{box-shadow:0 4px 12px -2px rgba(10,10,10,.09);}
+  .ocard .top b{font-size:14px;font-weight:600;}
+  .ocard .lines{font-size:12.5px;border-radius:8px;}
+  #orders-list,#crm-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:12px;align-items:start;}
+  #orders-list .empty,#crm-list .empty{grid-column:1/-1;}
+  #home-recent .ocard{margin-bottom:10px;}
+  .tot b{font-family:'Inter',sans-serif;font-size:20px;font-weight:700;}
+  .slab .sh b,.slab .cn{font-family:'Inter',sans-serif;font-weight:700;}
+  .slab .sh b{font-size:13.5px;}.slab .cn{font-size:18px;}
+  table.tbl{font-size:13px;}
+  .tbl th{background:#fafafa;font-size:11px;font-weight:600;padding:10px 12px;border-bottom:1px solid var(--bdr);}
+  .tbl td{padding:11px 12px;}
+  .tbl tbody tr:hover td{background:#fafafa;}
+  .daybox b{font-family:'Inter',sans-serif;font-size:18px;font-weight:700;}
+  .daybox>div{padding:12px 14px;border:1px solid var(--bdr);background:#fff;}
+  .stop{padding:10px 0;}
+  .stop .num{background:var(--navy);}
+  .hdr .logo,.login .logo{font-family:'Bebas Neue',sans-serif;}
+  .sheet{border-radius:14px;padding:20px 22px 24px;box-shadow:0 24px 64px -12px rgba(10,10,10,.22);}
+  .sheet .hh .h{font-size:16px;}
+  .toast{border-radius:8px;font-size:13px;}
+  .embed-strip{font-size:12.5px;}
+  .bnav{background:#fff;}
+  .bnav button{color:var(--t2);font-weight:500;}
+  .bnav button.on{background:var(--navy);color:#fff;font-weight:600;}
 }
 /* Task Manager ke andar (iframe) chal raha ho to apni nav mat dikhao —
    tabs wahan ke sidebar (MICHELIN OPS section) se aate hain. */
