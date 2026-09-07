@@ -496,11 +496,15 @@ function _restoreActivePage() {
   const pageEl = document.getElementById('page-' + saved);
   if (!pageEl) { navigate('dashboard'); return; }
   // us page ka sidebar nav item dhoondo (highlight + role-visibility check ke liye)
+  // Michelin Ops: sub-page bhi yaad rakhte hain, aur usi sub-item ko highlight
+  let sub = '';
+  if (saved === 'ops') { try { sub = localStorage.getItem('opsSub') || 'home'; } catch(e) { sub = 'home'; } }
   const navEl = [...document.querySelectorAll('.nav-item')]
-    .find(n => (n.getAttribute('onclick') || '').includes(`navigate('${saved}'`));
+    .find(n => (n.getAttribute('onclick') || '').includes(sub ? `navigate('${saved}',this,'${sub}')` : `navigate('${saved}'`));
   // Nav item hai par role ke liye hidden (display:none) → allowed nahi → Dashboard
   if (navEl && navEl.style.display === 'none') { navigate('dashboard'); return; }
-  navigate(saved, navEl || null);
+  if (saved === 'ops' && document.getElementById('sec-ops').style.display === 'none') { navigate('dashboard'); return; }
+  navigate(saved, navEl || null, sub || undefined);
 }
 
 // ══════════════════════════════════════════════════════

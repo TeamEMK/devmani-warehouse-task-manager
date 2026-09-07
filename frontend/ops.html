@@ -163,6 +163,10 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
   .sheet{border-radius:18px;max-height:90vh;}
   .toast{bottom:30px;}
 }
+/* Task Manager ke andar (iframe) chal raha ho to apni nav mat dikhao —
+   tabs wahan ke sidebar (MICHELIN OPS section) se aate hain. */
+.embedded .bnav{display:none;}
+.embedded .main{padding-top:14px;}
 </style>
 </head>
 <body>
@@ -444,6 +448,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
 /* ═══ viewport fix for WhatsApp browser ═══ */
 function setH(){ document.documentElement.style.setProperty('--app-h', window.innerHeight+'px'); }
 setH(); window.addEventListener('resize',setH); window.addEventListener('orientationchange',setH);
+// Iframe (Task Manager) ke andar: apni tab bar chhupao, page parent ke sidebar se aata hai
+var EMBEDDED=false; try{ EMBEDDED = window.self!==window.top; }catch(e){ EMBEDDED=true; }
+if(EMBEDDED) document.body.className+=' embedded';
 
 /* ═══ Server call — Apps Script ke google.script.run ki jagah ═══ */
 var API='/api/ops/';
