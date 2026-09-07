@@ -142,10 +142,16 @@ module.exports = function registerOpsExtra(S) {
     const stopsOut = stops.map((s, i) => ({ i, name: s.name, city: s.city || '', status: s.status, visited_at: s.visited_at || '', lat: s.lat || (dm[s.did] && dm[s.did].lat) || '', lng: s.lng || (dm[s.did] && dm[s.did].lng) || '', address: (dm[s.did] && dm[s.did].address) || '' }));
     return J({ ok: true, date: day, dmy: dmyOf(day), user: { name: t.name, mob: t.mob }, points: pts.map(p => ({ t: p.t, lat: Number(p.lat), lng: Number(p.lng), acc: p.acc, kind: p.kind, note: p.note })), stops: stopsOut });
   }));
-  // Dealer ki location set (shop par khade hokar) — koi bhi logged-in user; already ho to force=true chahiye
+  // Dealer ki location set — Google Maps pin link se (link:) ya GPS se (lat/lng).
+  // Koi bhi logged-in user; already ho to force=true chahiye.
   router.post('/setDealerLocation', requireOps, rpc(async (u, j) => {
     const d = parse(j);
-    const la = num(d.lat), ln = num(d.lng);
+    let la = num(d.lat), ln = num(d.lng);
+    if (d.link) {
+      const c = await require('../lib/maps-link').coordsFromLink(d.link);
+      if (!c) return err('Is link se location nahi nikli — Google Maps ka pin link ya "lat, lng" daalo');
+      la = c.lat; ln = c.lng;
+    }
     if (la === null || ln === null) return err('Location nahi mili');
     const [[dl]] = await db.query('SELECT id, lat, lng FROM ops_dealers WHERE did=?', [String(d.did)]);
     if (!dl) return err('Dealer nahi mila');

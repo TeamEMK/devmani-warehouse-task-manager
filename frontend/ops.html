@@ -444,6 +444,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
   <label class="l">Mobile *</label><input class="inp" id="nd-mob" type="tel" maxlength="10">
   <label class="l">City / Area</label><input class="inp" id="nd-city" placeholder="Hisar">
   <label class="l">Address</label><input class="inp" id="nd-addr">
+  <label class="l">Google Maps pin link <small style="font-weight:500;text-transform:none">(WhatsApp wala location link — driver isi se jayega)</small></label><input class="inp" id="nd-maplink" placeholder="https://maps.app.goo.gl/... ya 28.4595, 77.0266">
+  <div class="hint">Link na ho to aapke phone ki abhi ki GPS location lagegi (shop par ho to sahi rahega).</div>
   <div class="h" style="margin-top:16px">KYC Documents <small>photo khincho ya PDF chuno</small></div>
   <div class="kyc" id="kyc-wrap">
     <div class="kf" data-k="gst"><span>GST Certificate</span><input type="file" accept="image/*,application/pdf" data-kf="gst"><b>+</b></div>
@@ -455,6 +457,17 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
   <div class="hint">Documents abhi nahi hain toh bhi dealer save ho jayega — baad mein Dealers list se upload kar sakte ho.</div>
   <div style="height:14px"></div>
   <button class="btn gold" id="nd-save">Save Dealer</button>
+</div></div>
+
+<!-- DEALER LOCATION SHEET: Maps pin link se ya GPS se -->
+<div class="ov" id="ov-loc"><div class="sheet">
+  <div class="hh"><div class="h" id="loc-title">Dealer Location</div><button data-close="ov-loc">&#10005;</button></div>
+  <label class="l" style="margin-top:0">Google Maps pin link <small style="font-weight:500;text-transform:none">(WhatsApp se copy karke paste karo)</small></label>
+  <input class="inp" id="loc-link" placeholder="https://maps.app.goo.gl/... ya 28.4595, 77.0266">
+  <div style="height:10px"></div>
+  <button class="btn gold" id="loc-save">Link se location set karo</button>
+  <div class="hint" style="text-align:center;margin:10px 0">— ya —</div>
+  <button class="btn ghost" id="loc-gps">📍 Meri abhi ki GPS location lagao (shop par khade ho to)</button>
 </div></div>
 
 <!-- STOCK MOVE SHEET (admin) -->
@@ -801,8 +814,8 @@ function selectDealer(did){
 $('dl-res').addEventListener('click',function(e){ var el=e.target.closest('[data-did]'); if(el) selectDealer(el.getAttribute('data-did')); });
 var KYC={}, KYC_DID=null;
 function resetKyc(){ KYC={}; var k=document.querySelectorAll('.kf'); for(var i=0;i<k.length;i++){ k[i].className='kf'; k[i].querySelector('input').value=''; } }
-$('dl-new').onclick=function(){ KYC_DID=null; $('nd-name').value=''; $('nd-mob').value=''; $('nd-city').value='Hisar'; $('nd-addr').value=''; $('nd-gst').value=''; $('nd-pan').value=''; resetKyc(); setDealerFormMode(false); openOv('ov-dealer'); };
-function setDealerFormMode(kycOnly){ var ids=['nd-name','nd-mob','nd-city','nd-addr']; for(var i=0;i<ids.length;i++) $(ids[i]).disabled=kycOnly; $('nd-save').textContent=kycOnly?'Upload KYC':'Save Dealer'; }
+$('dl-new').onclick=function(){ KYC_DID=null; $('nd-name').value=''; $('nd-mob').value=''; $('nd-city').value='Hisar'; $('nd-addr').value=''; $('nd-maplink').value=''; $('nd-gst').value=''; $('nd-pan').value=''; resetKyc(); setDealerFormMode(false); openOv('ov-dealer'); };
+function setDealerFormMode(kycOnly){ var ids=['nd-name','nd-mob','nd-city','nd-addr','nd-maplink']; for(var i=0;i<ids.length;i++) $(ids[i]).disabled=kycOnly; $('nd-save').textContent=kycOnly?'Upload KYC':'Save Dealer'; }
 function openKycFor(d){ KYC_DID=d.did; $('nd-name').value=d.name; $('nd-mob').value=d.mob; $('nd-city').value=d.city; $('nd-addr').value=d.address||''; $('nd-gst').value=d.gstNo||''; $('nd-pan').value=d.pan||''; resetKyc(); setDealerFormMode(true); openOv('ov-dealer'); }
 $('kyc-wrap').addEventListener('change',function(e){
   var inp=e.target; if(!inp.hasAttribute('data-kf')) return;
@@ -824,9 +837,9 @@ $('nd-save').onclick=function(){
   showLoad('Location le rahe hain...');
   getGPS(function(lat,lng){
     showLoad('Dealer save...');
-    gas('addDealer',JSON.stringify({by:USER.mob,name:V('nd-name'),mob:V('nd-mob'),city:V('nd-city'),address:V('nd-addr'),lat:lat,lng:lng}),function(r){
+    gas('addDealer',JSON.stringify({by:USER.mob,name:V('nd-name'),mob:V('nd-mob'),city:V('nd-city'),address:V('nd-addr'),lat:lat,lng:lng,mapLink:V('nd-maplink')}),function(r){
       hideLoad(); var d=JSON.parse(r); if(!d.ok){toast(d.error,'err');return;}
-      toast('Dealer add ho gaya: '+d.did,'ok');
+      toast('Dealer add ho gaya: '+d.did+(d.locFrom==='link'?' · location link se set':d.locFrom==='link-fail'?' · link samajh nahi aaya, GPS lagi':d.locFrom==='gps'?' · GPS location set':' · location nahi'),d.locFrom==='link-fail'?'err':'ok');
       uploadKycNow(d.did,function(){
         closeOv('ov-dealer');
         gas('getDealers',null,function(r2){ DEALERS=JSON.parse(r2); $('dl-search').value=V('nd-name'); $('dl-search').dispatchEvent(new Event('input')); loadDealersPg(); });
@@ -1020,8 +1033,12 @@ $('stock-list').addEventListener('click',function(e){
   $('sm-qty').value=''; $('sm-note').value=''; setSmType('IN'); openOv('ov-stock');
 });
 function setSmType(t){ SM_TYPE=t; var b=document.querySelectorAll('[data-smtype]'); for(var i=0;i<b.length;i++) b[i].className=(b[i].getAttribute('data-smtype')===t?'on':''); $('sm-qlbl').textContent=t==='IN'?'Kitna aaya (pcs)':'Sahi count kitna hai (pcs)'; }
-// Dealer ki location abhi ke GPS se set (shop par khade hokar) — Dealers page aur order page se
-document.addEventListener('click',function(e){ var b=e.target.closest('[data-setloc]'); if(!b) return; var did=b.getAttribute('data-setloc'); if(!confirm('Aap abhi is dealer ki shop par ho? Aapki abhi ki location dealer par save hogi.')) return; showLoad('Location...'); getGPS(function(lat,lng){ if(!lat){ hideLoad(); return; } call('setDealerLocation',{did:did,lat:lat,lng:lng,force:true},function(){ hideLoad(); toast('Dealer location set ho gayi','ok'); gas('getDealers',null,function(r){ DEALERS=JSON.parse(r); if($('pg-dealers').className.indexOf('on')>=0) renderDealers(); if(SEL_DEALER&&SEL_DEALER.did===did) selectDealer(did); }); }); }); });
+// Dealer ki location: Maps pin link paste karo (WhatsApp wala) ya abhi ki GPS — Dealers page aur order page se
+var LOC_DID=null;
+document.addEventListener('click',function(e){ var b=e.target.closest('[data-setloc]'); if(!b) return; LOC_DID=b.getAttribute('data-setloc'); var d=null; DEALERS.forEach(function(x){ if(x.did===LOC_DID) d=x; }); $('loc-title').textContent='Location: '+(d?d.name:LOC_DID); $('loc-link').value=''; openOv('ov-loc'); });
+function afterLocSet(){ hideLoad(); closeOv('ov-loc'); toast('Dealer location set ho gayi','ok'); gas('getDealers',null,function(r){ DEALERS=JSON.parse(r); if($('pg-dealers').className.indexOf('on')>=0) renderDealers(); if(SEL_DEALER&&SEL_DEALER.did===LOC_DID) selectDealer(LOC_DID); if($('pg-route').className.indexOf('on')>=0) renderRtStops(); }); }
+$('loc-save').onclick=function(){ var l=V('loc-link'); if(!l){toast('Link paste karo','err');return;} showLoad('Link se location nikal rahe hain...'); call('setDealerLocation',{did:LOC_DID,link:l,force:true},afterLocSet); };
+$('loc-gps').onclick=function(){ showLoad('GPS...'); getGPS(function(lat,lng){ if(!lat){ hideLoad(); return; } call('setDealerLocation',{did:LOC_DID,lat:lat,lng:lng,force:true},afterLocSet); }); };
 document.addEventListener('click',function(e){ var kb=e.target.closest('[data-kyc]'); if(kb){ var did=kb.getAttribute('data-kyc'); for(var q=0;q<DEALERS.length;q++) if(DEALERS[q].did===did) openKycFor(DEALERS[q]); return; } var b=e.target.closest('[data-smtype]'); if(b) setSmType(b.getAttribute('data-smtype')); var c=e.target.closest('[data-close]'); if(c) closeOv(c.getAttribute('data-close')); });
 $('sm-save').onclick=function(){
   var q=V('sm-qty'); if(q===''){toast('Qty daalo','err');return;}

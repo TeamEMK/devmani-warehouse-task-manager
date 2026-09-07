@@ -202,9 +202,16 @@ module.exports = function registerOpsRoutes(app, ctx) {
     let maxN = 0;
     for (const r of rows) { const m = String(r.did).match(/^D-(\d+)$/); if (m) maxN = Math.max(maxN, parseInt(m[1], 10)); }
     const did = 'D-' + String(maxN + 1).padStart(3, '0');
+    // Location: Google Maps pin link diya ho to usse (WhatsApp wala pin), warna phone ka GPS
+    let lat = d.lat == null ? '' : String(d.lat), lng = d.lng == null ? '' : String(d.lng), locFrom = lat ? 'gps' : '';
+    if (d.mapLink) {
+      const c = await require('../lib/maps-link').coordsFromLink(d.mapLink);
+      if (c) { lat = String(c.lat); lng = String(c.lng); locFrom = 'link'; }
+      else locFrom = 'link-fail';
+    }
     await db.query('INSERT INTO ops_dealers (did,name,mobile,city,address,added_by,active,lat,lng) VALUES (?,?,?,?,?,?,1,?,?)',
-      [did, name, mob, String(d.city || '').trim(), String(d.address || '').trim(), u.name, d.lat == null ? '' : String(d.lat), d.lng == null ? '' : String(d.lng)]);
-    return J({ ok: true, did });
+      [did, name, mob, String(d.city || '').trim(), String(d.address || '').trim(), u.name, lat, lng]);
+    return J({ ok: true, did, locFrom });
   }));
 
   // ── Michelin 2W monthly slab ──
