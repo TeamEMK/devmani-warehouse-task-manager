@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>Michelin Ops | Bansal Oil Distributors</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- Maps: Leaflet + OpenStreetMap (koi API key nahi) — route plan, DSR trail, dealer locations -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 :root{--navy:#0D2137;--navy2:#16325a;--gold:#C9A84C;--gold2:#a8862f;--bg:#f3f5f9;--card:#fff;--bdr:#dfe4ee;--txt:#111827;--t2:#4b5563;--t3:#8a94a6;
@@ -151,6 +154,10 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
 .wa-msg{background:#e7f7e3;border:1px solid #cfe9c8;border-radius:12px;padding:10px 12px;}
 .wa-line{font-size:13px;color:#1f2937;white-space:pre-wrap;padding:2px 0;}
 .wa-msg textarea.inp{margin:6px 0;background:#fff;}
+.map{height:280px;border-radius:12px;border:1px solid var(--bdr);margin-top:10px;background:#e9eef3;z-index:0;}
+.map.tall{height:380px;}
+.mk{width:26px;height:26px;border-radius:50%;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);font-family:'DM Sans',Inter,sans-serif;}
+.leaflet-popup-content{font-family:inherit;font-size:12.5px;line-height:1.4;}
 .daybox{display:flex;gap:8px;}
 .daybox>div{flex:1;background:var(--bg);border-radius:10px;padding:10px;font-size:12px;}
 .daybox b{display:block;font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--navy);}
@@ -388,8 +395,11 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
         <div class="res" id="rt-res"></div>
         <div class="row" style="margin-top:8px;gap:6px"><input class="inp" id="rt-free" placeholder="Ya area / naya dealer naam likho"><button class="btn sm ghost" id="rt-free-add">+ Add</button></div>
         <div id="rt-stops" style="margin-top:10px"></div>
+        <div id="rt-map" class="map"></div>
+        <div class="hint" id="rt-maphint"></div>
         <div style="height:10px"></div>
         <button class="btn gold" id="rt-save">Plan Save Karo</button>
+        <div class="acts" style="margin-top:8px"><a class="btn sm ghost" id="rt-gmaps" target="_blank" href="#" style="display:none;text-decoration:none">🗺 Google Maps me poora route kholo</a></div>
         <div id="rt-upcoming" style="margin-top:12px"></div>
       </div>
     </div>
@@ -535,6 +545,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
   <div class="hh"><div class="h" id="vs-title">Visit</div><button data-close="ov-visit">&#10005;</button></div>
   <div id="vs-info" style="font-size:13px;background:var(--bg);border-radius:10px;padding:10px 12px;"></div>
   <label class="l">Note</label><input class="inp" id="vs-note" placeholder="Order liya / payment / band tha...">
+  <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-top:10px;color:var(--t2)"><input type="checkbox" id="vs-setloc" checked> Dealer ki location yahin se set karo (agar pehle se nahi hai)</label>
   <div style="height:12px"></div>
   <div class="acts"><button class="btn sm green" data-vs="VISITED">Visited ✓</button><button class="btn sm ghost" data-vs="SKIPPED">Skip</button><button class="btn sm ghost" data-vs="ORDER">Order lo &rarr;</button></div>
 </div></div>
@@ -583,6 +594,32 @@ function readFileB64(f,cb){
   img.onerror=function(){ toast('Image padh nahi paya','err'); cb(null); };
   img.src=url;
 }
+/* ═══ MAPS (Leaflet + OSM) ═══ */
+var MAPS={};
+function navUrl(lat,lng){ return 'https://www.google.com/maps/dir/?api=1&destination='+lat+','+lng+'&travelmode=driving'; }
+function fullRouteUrl(stops){ var pts=stops.filter(function(s){return s.lat&&s.lng;}).map(function(s){return s.lat+','+s.lng;}); if(!pts.length) return ''; var dest=pts[pts.length-1], wp=pts.slice(0,-1).join('|'); return 'https://www.google.com/maps/dir/?api=1&destination='+dest+(wp?'&waypoints='+encodeURIComponent(wp):'')+'&travelmode=driving'; }
+function mkMap(id){ if(!window.L||!$(id)) return null; if(MAPS[id]){ try{MAPS[id].remove();}catch(e){} } var m=L.map(id,{scrollWheelZoom:false}); L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(m); MAPS[id]=m; return m; }
+function numIcon(n,color){ return L.divIcon({className:'',html:'<div class="mk" style="background:'+color+'">'+n+'</div>',iconSize:[26,26],iconAnchor:[13,13],popupAnchor:[0,-12]}); }
+// stops: [{lat,lng,name,city,status,visited_at}] (plan, numbered) ; points: DSR trail [{lat,lng,t,kind,note}]
+function drawRoute(id,stops,points){
+  var m=mkMap(id); if(!m) return; var b=[];
+  (stops||[]).forEach(function(s,i){ if(!s.lat||!s.lng) return; var ll=[+s.lat,+s.lng]; b.push(ll); L.marker(ll,{icon:numIcon(i+1,s.status==='VISITED'?'#15803d':s.status==='SKIPPED'?'#b91c1c':'#0D2137')}).addTo(m).bindPopup('<b>'+esc(s.name)+'</b><br>'+esc(s.city||'')+(s.visited_at?'<br>Visited '+esc(s.visited_at):'')+'<br><a target="_blank" href="'+navUrl(s.lat,s.lng)+'">Navigate &#8599;</a>'); });
+  var planned=(stops||[]).filter(function(s){return s.lat&&s.lng;}).map(function(s){return [+s.lat,+s.lng];}); if(planned.length>1) L.polyline(planned,{color:'#C9A84C',weight:3,dashArray:'6 6'}).addTo(m);
+  if(points&&points.length){ var tr=points.map(function(p){return [p.lat,p.lng];}); b=b.concat(tr); L.polyline(tr,{color:'#1d4ed8',weight:3,opacity:.85}).addTo(m);
+    points.forEach(function(p){ if(p.kind==='ping') return; L.circleMarker([p.lat,p.lng],{radius:6,color:p.kind==='start'?'#15803d':p.kind==='end'?'#b91c1c':'#1d4ed8',fillColor:'#fff',fillOpacity:1,weight:3}).addTo(m).bindPopup('<b>'+esc(p.kind==='start'?'Day start':p.kind==='end'?'Day end':'Visit')+'</b> '+esc(p.t)+(p.note?'<br>'+esc(p.note):'')); });
+    var last=points[points.length-1]; L.circleMarker([last.lat,last.lng],{radius:9,color:'#1d4ed8',fillColor:'#60a5fa',fillOpacity:1,weight:3}).addTo(m).bindPopup('<b>Last location</b> '+esc(last.t)); }
+  if(b.length) m.fitBounds(b,{padding:[30,30],maxZoom:15}); else m.setView([29.1492,75.7217],11);
+  setTimeout(function(){ try{m.invalidateSize();}catch(e){} },250);
+}
+// Stop ki location: visit wali, warna dealer master se
+function stopLL(s){ if(s.lat&&s.lng) return s; var d=null; for(var i=0;i<DEALERS.length;i++) if(DEALERS[i].did===s.did) d=DEALERS[i]; return d&&d.lat&&d.lng?Object.assign({},s,{lat:d.lat,lng:d.lng}):s; }
+
+/* ═══ LIVE LOCATION (DSR): day start ke baad har 2 min ═══ */
+var DAY_ON=false, PING_T=null;
+function sendPing(){ if(!DAY_ON||isAdmin()||!navigator.geolocation) return; navigator.geolocation.getCurrentPosition(function(p){ gas('pingLocation',JSON.stringify({lat:p.coords.latitude,lng:p.coords.longitude,acc:Math.round(p.coords.accuracy||0)}),function(){}); },function(){},{timeout:15000,enableHighAccuracy:true}); }
+function startPings(){ if(PING_T||isAdmin()) return; PING_T=setInterval(sendPing,120000); sendPing(); }
+function setDayOn(t){ DAY_ON=!!(t&&t.start&&!t.end); if(DAY_ON) startPings(); }
+
 function tbl(cols,rows,empty){ if(!rows.length) return '<div class="empty">'+esc(empty||'Kuch nahi')+'</div>'; return '<div class="tblw"><table class="tbl"><thead><tr>'+cols.map(function(c){return '<th'+(c.r?' class="r"':'')+'>'+esc(c.h)+'</th>';}).join('')+'</tr></thead><tbody>'+rows.map(function(r){ return '<tr>'+cols.map(function(c){ return '<td'+(c.r?' class="r"':'')+'>'+(c.f?c.f(r):esc(r[c.k]))+'</td>'; }).join('')+'</tr>'; }).join('')+'</tbody></table></div>'; }
 
 var USER=null, ITEMS=[], DEALERS=[], ORDERS=[], CART=[], SEL_DEALER=null, SEG='', SK_SEG='', ST_F='OPEN', DASH=null, IT_BRAND='', DRIVERS=[];
@@ -622,6 +659,9 @@ function startApp(){
   nav.push(['route','➜','Route Plan'],['exp','₹','Expenses']);
   PAGES={}; nav.forEach(function(n){ PAGES[n[0]]=1; });
   $('bnav').innerHTML=nav.map(function(n){ return '<button data-pg="'+n[0]+'"><span class="ic">'+n[1]+'</span>'+n[2]+'</button>'; }).join('');
+  // DSR: din chal raha ho to location pings shuru
+  if(!isAdmin()) call('getAttendance',{},function(d){ setDayOn(d.today); });
+  if(!DEALERS.length) gas('getDealers',null,function(r){ DEALERS=JSON.parse(r); });
   var h=(location.hash||'').replace('#','');
   go(PAGES[h]?h:'home');
 }
@@ -745,7 +785,7 @@ function selectDealer(did){
   if(!SEL_DEALER) return;
   $('dl-res').style.display='none'; $('dl-search').value='';
   var s=$('dl-sel'); s.style.display='block';
-  s.innerHTML='<b>'+esc(SEL_DEALER.name)+'</b> · '+esc(SEL_DEALER.city)+' · '+esc(SEL_DEALER.mob)+(SEL_DEALER.outstanding?'<div class="outs" style="margin-top:4px">Outstanding: '+fmt(SEL_DEALER.outstanding.amount)+' (as on '+esc(SEL_DEALER.outstanding.asOn)+')</div>':'')+'<div style="margin-top:6px">KYC: <span class="kyc-st'+(SEL_DEALER.kyc==='COMPLETE'?' done':'')+'">'+esc(SEL_DEALER.kyc||'0/4')+'</span>'+(SEL_DEALER.kyc!=='COMPLETE'?' <button class="btn sm ghost" data-kyc="'+esc(SEL_DEALER.did)+'" style="padding:4px 10px;font-size:11px">Upload KYC</button>':'')+'</div><div id="dl-hist" style="margin-top:6px;font-size:11.5px;color:var(--t2)">Loading history...</div>';
+  s.innerHTML='<b>'+esc(SEL_DEALER.name)+'</b> · '+esc(SEL_DEALER.city)+' · '+esc(SEL_DEALER.mob)+(SEL_DEALER.outstanding?'<div class="outs" style="margin-top:4px">Outstanding: '+fmt(SEL_DEALER.outstanding.amount)+' (as on '+esc(SEL_DEALER.outstanding.asOn)+')</div>':'')+'<div style="margin-top:6px">KYC: <span class="kyc-st'+(SEL_DEALER.kyc==='COMPLETE'?' done':'')+'">'+esc(SEL_DEALER.kyc||'0/4')+'</span>'+(SEL_DEALER.kyc!=='COMPLETE'?' <button class="btn sm ghost" data-kyc="'+esc(SEL_DEALER.did)+'" style="padding:4px 10px;font-size:11px">Upload KYC</button>':'')+' '+(SEL_DEALER.lat&&SEL_DEALER.lng?mapLink(SEL_DEALER.lat,SEL_DEALER.lng):'<button class="btn xs ghost" data-setloc="'+esc(SEL_DEALER.did)+'">📍 Location set karo</button>')+'</div><div id="dl-hist" style="margin-top:6px;font-size:11.5px;color:var(--t2)">Loading history...</div>';
   refreshSlab();
   gas('getDealerHistory',SEL_DEALER.did,function(r){
     var d=JSON.parse(r); if(!d.ok) return;
@@ -978,6 +1018,8 @@ $('stock-list').addEventListener('click',function(e){
   $('sm-qty').value=''; $('sm-note').value=''; setSmType('IN'); openOv('ov-stock');
 });
 function setSmType(t){ SM_TYPE=t; var b=document.querySelectorAll('[data-smtype]'); for(var i=0;i<b.length;i++) b[i].className=(b[i].getAttribute('data-smtype')===t?'on':''); $('sm-qlbl').textContent=t==='IN'?'Kitna aaya (pcs)':'Sahi count kitna hai (pcs)'; }
+// Dealer ki location abhi ke GPS se set (shop par khade hokar) — Dealers page aur order page se
+document.addEventListener('click',function(e){ var b=e.target.closest('[data-setloc]'); if(!b) return; var did=b.getAttribute('data-setloc'); if(!confirm('Aap abhi is dealer ki shop par ho? Aapki abhi ki location dealer par save hogi.')) return; showLoad('Location...'); getGPS(function(lat,lng){ if(!lat){ hideLoad(); return; } call('setDealerLocation',{did:did,lat:lat,lng:lng,force:true},function(){ hideLoad(); toast('Dealer location set ho gayi','ok'); gas('getDealers',null,function(r){ DEALERS=JSON.parse(r); if($('pg-dealers').className.indexOf('on')>=0) renderDealers(); if(SEL_DEALER&&SEL_DEALER.did===did) selectDealer(did); }); }); }); });
 document.addEventListener('click',function(e){ var kb=e.target.closest('[data-kyc]'); if(kb){ var did=kb.getAttribute('data-kyc'); for(var q=0;q<DEALERS.length;q++) if(DEALERS[q].did===did) openKycFor(DEALERS[q]); return; } var b=e.target.closest('[data-smtype]'); if(b) setSmType(b.getAttribute('data-smtype')); var c=e.target.closest('[data-close]'); if(c) closeOv(c.getAttribute('data-close')); });
 $('sm-save').onclick=function(){
   var q=V('sm-qty'); if(q===''){toast('Qty daalo','err');return;}
@@ -1004,7 +1046,7 @@ function docLinks(d){
 function renderDealers(){
   var q=V('de-search').toLowerCase();
   var l=DEALERS.filter(function(d){return !q||(d.name+' '+d.city+' '+d.mob+' '+d.dsr).toLowerCase().indexOf(q)>=0;});
-  $('dealer-list').innerHTML='<div class="h">'+l.length+' dealers</div>'+(l.length?l.map(function(d){ return '<div class="item"><div class="nm"><b>'+esc(d.name)+'</b><span>'+esc(d.city)+' · '+esc(d.mob)+' · by '+esc(d.dsr)+'</span><div style="margin-top:4px">KYC <span class="kyc-st'+(d.kyc==='COMPLETE'?' done':'')+'">'+esc(d.kyc||'0/4')+'</span> '+(d.kyc!=='COMPLETE'?'<button class="btn sm ghost" data-kyc="'+esc(d.did)+'" style="padding:3px 9px;font-size:10.5px">Upload</button> ':'')+docLinks(d)+mapLink(d.lat,d.lng)+(d.busy?'':' <span style="font-size:10px;color:var(--amber)">Busy naam set nahi</span>')+'</div></div><div style="text-align:right;font-size:12px">'+(d.outstanding?'<span class="outs">'+fmt(d.outstanding.amount)+'</span><br><span style="font-size:10px;color:var(--t3)">'+esc(d.outstanding.asOn)+'</span>':'<span style="color:var(--t3)">—</span>')+'</div></div>'; }).join(''):'<div class="empty">Koi dealer nahi</div>')+'<div class="hint" style="margin-top:8px">Outstanding Busy import se aata hai. Dealer ka "Busy Name" set karo taaki match ho.</div>';
+  $('dealer-list').innerHTML='<div class="h">'+l.length+' dealers</div>'+(l.length?l.map(function(d){ return '<div class="item"><div class="nm"><b>'+esc(d.name)+'</b><span>'+esc(d.city)+' · '+esc(d.mob)+' · by '+esc(d.dsr)+'</span><div style="margin-top:4px">KYC <span class="kyc-st'+(d.kyc==='COMPLETE'?' done':'')+'">'+esc(d.kyc||'0/4')+'</span> '+(d.kyc!=='COMPLETE'?'<button class="btn sm ghost" data-kyc="'+esc(d.did)+'" style="padding:3px 9px;font-size:10.5px">Upload</button> ':'')+docLinks(d)+mapLink(d.lat,d.lng)+' <button class="btn xs ghost" data-setloc="'+esc(d.did)+'">📍 '+(d.lat&&d.lng?'Location badlo':'Location set')+'</button>'+(d.busy?'':' <span style="font-size:10px;color:var(--amber)">Busy naam set nahi</span>')+'</div></div><div style="text-align:right;font-size:12px">'+(d.outstanding?'<span class="outs">'+fmt(d.outstanding.amount)+'</span><br><span style="font-size:10px;color:var(--t3)">'+esc(d.outstanding.asOn)+'</span>':'<span style="color:var(--t3)">—</span>')+'</div></div>'; }).join(''):'<div class="empty">Koi dealer nahi</div>')+'<div class="hint" style="margin-top:8px">Outstanding Busy import se aata hai. Dealer ka "Busy Name" set karo taaki match ho.</div>';
 }
 
 /* ═══ CRM CONFIRM / EDIT ═══ */
@@ -1135,13 +1177,13 @@ $('dy-go').onclick=function(){
   getGPS(function(lat,lng){
     showLoad(DAY_MODE==='start'?'Day start...':'Day end...');
     var fn=DAY_MODE==='start'?'dayStart':'dayEnd', body=DAY_MODE==='start'?{lat:lat,lng:lng,plan:V('dy-plan')}:{lat:lat,lng:lng,remark:V('dy-remark')};
-    call(fn,body,function(d){ hideLoad(); closeOv('ov-day'); toast(DAY_MODE==='start'?'Din shuru! '+d.today.start:'Din khatam. '+d.today.end,'ok'); if($('pg-day').className.indexOf('on')>=0) loadDay(); else loadHome(); });
+    call(fn,body,function(d){ hideLoad(); closeOv('ov-day'); setDayOn(d.today); toast(DAY_MODE==='start'?'Din shuru! '+d.today.start+' — location har 2 min share hogi (app khula rakho)':'Din khatam. '+d.today.end,'ok'); if($('pg-day').className.indexOf('on')>=0) loadDay(); else loadHome(); });
   });
 };
 function loadDay(){
   $('day-card').innerHTML='<div class="empty"><div class="spin" style="margin:0 auto"></div></div>'; $('day-route').innerHTML=''; $('day-month').innerHTML='';
   call('getAttendance',{},function(d){
-    DAY=d; var t=d.today;
+    DAY=d; var t=d.today; setDayOn(t);
     $('day-card').innerHTML='<div class="h">Aaj <small>'+esc(t?t.date:'')+'</small></div><div class="daybox"><div>Day Start<b>'+(t&&t.start?esc(t.start.slice(11)):'—')+'</b>'+(t?mapLink(t.startLat,t.startLng):'')+'</div><div>Day End<b>'+(t&&t.end?esc(t.end.slice(11)):'—')+'</b>'+(t?mapLink(t.endLat,t.endLng):'')+'</div></div>'+(t&&t.plan?'<div class="hint" style="margin-top:8px"><b>Aaj ka plan:</b> '+esc(t.plan)+'</div>':'')+(t&&t.remark?'<div class="hint"><b>Remark:</b> '+esc(t.remark)+'</div>':'')+'<div class="acts" style="margin-top:10px">'+(!(t&&t.start)?'<button class="btn sm gold" onclick="openDay(\'start\')">Day Start &rarr;</button>':(!(t&&t.end)?'<button class="btn sm ghost" onclick="openDay(\'end\')">Day End</button>':'<span class="st st-DELIVERED">Din poora ✓</span>'))+(t&&t.start&&!t.end?'<button class="btn sm ghost" onclick="openDay(\'start\')">Plan badlo</button>':'')+'</div>';
     var days=d.list.length, ended=d.list.filter(function(x){return x.end;}).length;
     $('day-month').innerHTML='<div class="h">Is mahine <small>'+days+' din present</small></div>'+tbl([{h:'Date',k:'date'},{h:'Start',f:function(r){return esc(r.start.slice(11))+mapLink(r.startLat,r.startLng);}},{h:'End',f:function(r){return r.end?esc(r.end.slice(11))+mapLink(r.endLat,r.endLng):'—';}},{h:'Plan / Remark',f:function(r){return esc(r.plan)+(r.remark?'<br><span style="color:var(--t3)">'+esc(r.remark)+'</span>':'');}}],d.list,'Abhi tak koi din record nahi');
@@ -1149,26 +1191,27 @@ function loadDay(){
   loadDayRoute();
 }
 function loadDayRoute(){
-  call('getRoutePlan',{},function(rp){
-    var s=rp.stops;
-    $('day-route').innerHTML='<div class="h">Aaj ka route <small>'+s.filter(function(x){return x.status==='VISITED';}).length+' / '+s.length+' visited</small></div>'+(s.length?s.map(function(st,i){ return '<div class="stop"><div class="num">'+(i+1)+'</div><div class="n"><b>'+esc(st.name)+'</b><span>'+esc(st.city||'')+(st.note?' · '+esc(st.note):'')+(st.visited_at?' · '+esc(st.visited_at.slice(11)):'')+'</span></div><span class="st st-'+st.status+'">'+st.status+'</span>'+(st.status==='PLANNED'?'<button class="btn xs gold" data-visit="'+i+'">Visit</button>':'')+'</div>'; }).join(''):'<div class="empty">Aaj ka plan nahi bana — Route Plan tab se banao</div>')+'<div class="acts" style="margin-top:10px"><button class="btn sm ghost" onclick="go(\'route\')">Plan edit &rarr;</button></div>';
+  call('getTrail',{},function(tr){
+    var s=tr.stops;
+    $('day-route').innerHTML='<div class="h">Aaj ka route <small>'+s.filter(function(x){return x.status==='VISITED';}).length+' / '+s.length+' visited</small></div>'+(s.length?s.map(function(st,i){ return '<div class="stop"><div class="num">'+(i+1)+'</div><div class="n"><b>'+esc(st.name)+'</b><span>'+esc(st.city||'')+(st.note?' · '+esc(st.note):'')+(st.visited_at?' · '+esc(st.visited_at.slice(11)):'')+'</span></div><span class="st st-'+st.status+'">'+st.status+'</span>'+(st.lat&&st.lng?'<a class="btn xs ghost" target="_blank" href="'+navUrl(st.lat,st.lng)+'" style="text-decoration:none">🧭</a>':'')+(st.status==='PLANNED'?'<button class="btn xs gold" data-visit="'+i+'">Visit</button>':'')+'</div>'; }).join(''):'<div class="empty">Aaj ka plan nahi bana — Route Plan tab se banao</div>')+'<div id="day-map" class="map"></div><div class="hint">Gold dotted = plan, blue = aapka rasta (day start ke baad), 🧭 = Google Maps navigation</div><div class="acts" style="margin-top:10px"><button class="btn sm ghost" onclick="go(\'route\')">Plan edit &rarr;</button>'+(fullRouteUrl(s)?'<a class="btn sm ghost" target="_blank" href="'+fullRouteUrl(s)+'" style="text-decoration:none">🗺 Poora route Google Maps me</a>':'')+'</div>';
+    drawRoute('day-map',s,tr.points);
   });
 }
 var VS_IDX=null;
-$('day-route').addEventListener('click',function(e){ var b=e.target.closest('[data-visit]'); if(!b) return; VS_IDX=+b.getAttribute('data-visit'); call('getRoutePlan',{},function(rp){ var st=rp.stops[VS_IDX]; if(!st) return; VS_STOP=st; $('vs-title').textContent='Visit: '+st.name; $('vs-info').innerHTML='<b>'+esc(st.name)+'</b> · '+esc(st.city||'')+(st.mob?' · '+esc(st.mob):''); $('vs-note').value=st.note||''; openOv('ov-visit'); }); });
+$('day-route').addEventListener('click',function(e){ var b=e.target.closest('[data-visit]'); if(!b) return; VS_IDX=+b.getAttribute('data-visit'); call('getRoutePlan',{},function(rp){ var st=rp.stops[VS_IDX]; if(!st) return; VS_STOP=st; $('vs-title').textContent='Visit: '+st.name; $('vs-info').innerHTML='<b>'+esc(st.name)+'</b> · '+esc(st.city||'')+(st.mob?' · '+esc(st.mob):''); $('vs-note').value=st.note||''; $('vs-setloc').checked=true; $('vs-setloc').parentNode.style.display=st.did?'flex':'none'; openOv('ov-visit'); }); });
 var VS_STOP=null;
 document.querySelector('#ov-visit .acts').addEventListener('click',function(e){
   var b=e.target.closest('[data-vs]'); if(!b) return; var st=b.getAttribute('data-vs');
   if(st==='ORDER'){ closeOv('ov-visit'); if(VS_STOP&&VS_STOP.did){ PRESEL_DID=VS_STOP.did; } go('order'); return; }
   showLoad('Location...');
-  getGPS(function(lat,lng){ showLoad('...'); call('visitStop',{idx:VS_IDX,status:st,lat:lat,lng:lng,note:V('vs-note')},function(){ hideLoad(); closeOv('ov-visit'); toast(st==='VISITED'?'Visit mark ho gaya':'Skip','ok'); loadDayRoute(); }); });
+  getGPS(function(lat,lng){ showLoad('...'); call('visitStop',{idx:VS_IDX,status:st,lat:lat,lng:lng,note:V('vs-note'),setDealerLoc:$('vs-setloc').checked},function(){ hideLoad(); closeOv('ov-visit'); toast(st==='VISITED'?'Visit mark ho gaya':'Skip','ok'); DEALERS=[]; gas('getDealers',null,function(r){ DEALERS=JSON.parse(r); loadDayRoute(); }); }); });
 });
 
 /* ═══ ROUTE PLAN (DSR + admin) ═══ */
 var RT_STOPS=[], RT_USERS=[];
 function loadRoutePg(){
   if(!$('rt-date').value) $('rt-date').value=todayISO();
-  if(!DEALERS.length) gas('getDealers',null,function(r){DEALERS=JSON.parse(r);});
+  if(!DEALERS.length) gas('getDealers',null,function(r){DEALERS=JSON.parse(r); renderRtStops();});
   if(isAdmin()){ $('rt-user').style.display='inline-block'; if(!RT_USERS.length) call('getUsers',{},function(us){ RT_USERS=us.filter(function(x){return x.role==='DSR'&&x.active;}); $('rt-user').innerHTML=RT_USERS.map(function(x){return '<option value="'+esc(x.mob)+'">'+esc(x.name)+'</option>';}).join(''); loadRoute(); }); else loadRoute(); }
   else loadRoute();
 }
@@ -1178,7 +1221,11 @@ function loadRoute(){
 }
 $('rt-load').onclick=loadRoute; $('rt-user').addEventListener('change',loadRoute); $('rt-date').addEventListener('change',loadRoute);
 function renderRtStops(){
-  $('rt-stops').innerHTML=RT_STOPS.length?RT_STOPS.map(function(st,i){ var locked=st.status!=='PLANNED'; return '<div class="stop"><div class="num">'+(i+1)+'</div><div class="n"><b>'+esc(st.name)+'</b><span>'+esc(st.city||'')+(st.did?' · '+esc(st.did):' · (bina dealer)')+'</span></div>'+(locked?'<span class="st st-'+st.status+'">'+st.status+'</span>':'<button class="btn xs ghost" data-rtup="'+i+'">↑</button><button class="btn xs ghost" data-rtx="'+i+'" style="color:var(--red)">✕</button>')+'</div>'; }).join(''):'<div class="empty">Koi stop nahi — upar se dealer add karo</div>';
+  var withLL=RT_STOPS.map(stopLL), noLoc=withLL.filter(function(s){return !(s.lat&&s.lng);}).length;
+  $('rt-stops').innerHTML=RT_STOPS.length?RT_STOPS.map(function(st,i){ var locked=st.status!=='PLANNED', ll=withLL[i]; return '<div class="stop"><div class="num">'+(i+1)+'</div><div class="n"><b>'+esc(st.name)+'</b><span>'+esc(st.city||'')+(st.did?' · '+esc(st.did):' · (bina dealer)')+(ll.lat&&ll.lng?'':' · <span style="color:var(--amber)">location nahi</span>')+'</span></div>'+(ll.lat&&ll.lng?'<a class="btn xs ghost" target="_blank" href="'+navUrl(ll.lat,ll.lng)+'" style="text-decoration:none">🧭</a>':'')+(locked?'<span class="st st-'+st.status+'">'+st.status+'</span>':'<button class="btn xs ghost" data-rtup="'+i+'">↑</button><button class="btn xs ghost" data-rtx="'+i+'" style="color:var(--red)">✕</button>')+'</div>'; }).join(''):'<div class="empty">Koi stop nahi — upar se dealer add karo</div>';
+  drawRoute('rt-map',withLL,null);
+  $('rt-maphint').textContent=RT_STOPS.length?(noLoc?noLoc+' stop ki location nahi hai — DSR visit par "Visited" karega to location apne aap set ho jayegi.':'Sab stops map par hain. Numbers = plan ka kram.'):'';
+  var u=fullRouteUrl(withLL); $('rt-gmaps').style.display=u?'inline-flex':'none'; if(u) $('rt-gmaps').href=u;
 }
 $('rt-stops').addEventListener('click',function(e){ var b; if((b=e.target.closest('[data-rtx]'))){ RT_STOPS.splice(+b.getAttribute('data-rtx'),1); renderRtStops(); } else if((b=e.target.closest('[data-rtup]'))){ var i=+b.getAttribute('data-rtup'); if(i>0){ var t=RT_STOPS[i]; RT_STOPS[i]=RT_STOPS[i-1]; RT_STOPS[i-1]=t; renderRtStops(); } } });
 $('rt-search').addEventListener('input',function(){ var q=V('rt-search').toLowerCase(), box=$('rt-res'); if(q.length<1){box.style.display='none';return;} box.style.display='block'; box.innerHTML=dealerSearchHtml(q,'data-rtdid'); });
@@ -1195,7 +1242,9 @@ $('tk-load').onclick=loadTrackData; $('tk-date').addEventListener('change',loadT
 function loadTrackData(){
   $('tk-body').innerHTML='<div class="empty"><div class="spin" style="margin:0 auto"></div></div>';
   call('getRouteTracking',{date:V('tk-date')},function(d){
-    $('tk-body').innerHTML='<div class="card"><div class="h">'+esc(d.dmy)+' <small>'+d.list.filter(function(x){return x.start;}).length+' / '+d.list.length+' DSR present</small></div>'+tbl([{h:'DSR',f:function(r){return '<b>'+esc(r.name)+'</b><br><span style="color:var(--t3)">'+esc(r.mob)+'</span>';}},{h:'Start',f:function(r){return r.start?esc(r.start.slice(11))+mapLink(r.startLat,r.startLng):'<span class="neg">Absent</span>';}},{h:'End',f:function(r){return r.end?esc(r.end.slice(11))+mapLink(r.endLat,r.endLng):'—';}},{h:'Plan',f:function(r){return esc(r.plan||'—');}},{h:'Visits',f:function(r){return r.visited+' / '+r.planned+(r.skipped?' <span style="color:var(--t3)">('+r.skipped+' skip)</span>':'');},r:1},{h:'Orders',f:function(r){return r.orders+'<br><span style="color:var(--t3)">'+fmt(r.amount)+'</span>';},r:1}],d.list,'Koi DSR nahi')+'</div>'+d.list.filter(function(r){return r.stops.length;}).map(function(r){ return '<div class="card"><div class="h" style="font-size:16px">'+esc(r.name)+' — route <small>'+r.visited+' / '+r.planned+'</small></div>'+r.stops.map(function(st,i){ return '<div class="stop"><div class="num">'+(i+1)+'</div><div class="n"><b>'+esc(st.name)+'</b><span>'+esc(st.city||'')+(st.visited_at?' · '+esc(st.visited_at.slice(11)):'')+(st.note?' · '+esc(st.note):'')+'</span></div><span class="st st-'+st.status+'">'+st.status+'</span>'+mapLink(st.lat,st.lng)+'</div>'; }).join('')+'</div>'; }).join('');
+    var withMap=d.list.filter(function(r){return r.stops.length||r.points;});
+    $('tk-body').innerHTML='<div class="card"><div class="h">'+esc(d.dmy)+' <small>'+d.list.filter(function(x){return x.start;}).length+' / '+d.list.length+' DSR present</small></div>'+tbl([{h:'DSR',f:function(r){return '<b>'+esc(r.name)+'</b><br><span style="color:var(--t3)">'+esc(r.mob)+'</span>';}},{h:'Start',f:function(r){return r.start?esc(r.start.slice(11))+mapLink(r.startLat,r.startLng):'<span class="neg">Absent</span>';}},{h:'End',f:function(r){return r.end?esc(r.end.slice(11))+mapLink(r.endLat,r.endLng):'—';}},{h:'Last location',f:function(r){return r.last?esc(r.last.t.slice(11))+' '+mapLink(r.last.lat,r.last.lng)+'<br><span style="color:var(--t3)">'+r.points+' points</span>':'<span style="color:var(--t3)">—</span>';}},{h:'Plan',f:function(r){return esc(r.plan||'—');}},{h:'Visits',f:function(r){return r.visited+' / '+r.planned+(r.skipped?' <span style="color:var(--t3)">('+r.skipped+' skip)</span>':'');},r:1},{h:'Orders',f:function(r){return r.orders+'<br><span style="color:var(--t3)">'+fmt(r.amount)+'</span>';},r:1}],d.list,'Koi DSR nahi')+'</div>'+withMap.map(function(r,idx){ return '<div class="card"><div class="h" style="font-size:16px">'+esc(r.name)+' — route <small>'+r.visited+' / '+r.planned+' visited · '+r.points+' location points</small></div><div class="cols2"><div>'+(r.stops.length?r.stops.map(function(st,i){ return '<div class="stop"><div class="num">'+(i+1)+'</div><div class="n"><b>'+esc(st.name)+'</b><span>'+esc(st.city||'')+(st.visited_at?' · '+esc(st.visited_at.slice(11)):'')+(st.note?' · '+esc(st.note):'')+'</span></div><span class="st st-'+st.status+'">'+st.status+'</span>'+mapLink(st.lat,st.lng)+'</div>'; }).join(''):'<div class="empty">Plan nahi bana</div>')+'</div><div><div id="tk-map-'+idx+'" class="map tall" style="margin-top:0"></div><div class="hint">Gold dotted = plan, blue = DSR ka rasta, green = day start, red = day end</div></div></div></div>'; }).join('');
+    withMap.forEach(function(r,idx){ call('getTrail',{mob:r.mob,date:d.date},function(tr){ drawRoute('tk-map-'+idx,tr.stops,tr.points); }); });
   });
 }
 

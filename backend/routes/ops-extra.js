@@ -109,6 +109,51 @@ module.exports = function registerOpsExtra(S) {
   });
   if (!IS_SERVERLESS && wati.ENABLED) setInterval(() => autoReminders().catch(e => console.error('ops payrem', e.message)), 15 * 60 * 1000);
 
+  // ══════════ LOCATION (live trail) ══════════
+  const num = v => { const n = parseFloat(v); return isFinite(n) ? n : null; };
+  async function addPoint(userId, lat, lng, kind, note, acc) {
+    const la = num(lat), ln = num(lng);
+    if (la === null || ln === null || (la === 0 && ln === 0)) return false;
+    await db.query('INSERT INTO ops_locations (user_id, lat, lng, accuracy, kind, note) VALUES (?,?,?,?,?,?)', [userId, la, ln, parseInt(acc, 10) || 0, kind, String(note || '').slice(0, 120)]);
+    return true;
+  }
+  // Phone se har ~2 min (sirf jab din chal raha ho). Aakhri point 60 sec ke andar ho to skip.
+  router.post('/pingLocation', requireOps, rpc(async (u, j) => {
+    const d = parse(j);
+    const [[att]] = await db.query('SELECT start_at, end_at FROM ops_attendance WHERE user_id=? AND att_date=CURRENT_DATE', [u.id]);
+    if (!att || !att.start_at || att.end_at) return J({ ok: true, skipped: 'day-off' });
+    const [[last]] = await db.query('SELECT at_time FROM ops_locations WHERE user_id=? AND at_time>DATE_SUB(NOW(), INTERVAL 60 SECOND) ORDER BY id DESC LIMIT 1', [u.id]);
+    if (last) return J({ ok: true, skipped: 'too-soon' });
+    const ok = await addPoint(u.id, d.lat, d.lng, 'ping', '', d.acc);
+    return J({ ok: true, saved: ok });
+  }));
+  // Ek DSR ka ek din ka trail + stops (admin koi bhi, DSR apna)
+  router.post('/getTrail', requireOps, rpc(async (u, j) => {
+    const d = parse(j);
+    const t = await targetUser(u, d.mob);
+    const day = isoDate(d.date) || nowIST().iso;
+    const [pts] = await db.query(`SELECT ${FMT('at_time')} AS t, lat, lng, accuracy AS acc, kind, note FROM ops_locations WHERE user_id=? AND DATE(at_time)=? ORDER BY id`, [t.id, day]);
+    const [[rp]] = await db.query('SELECT stops_json FROM ops_route_plans WHERE user_id=? AND plan_date=?', [t.id, day]);
+    const stops = stopsOf(rp);
+    // Stops ke liye dealer ki location (plan me sirf did hota hai)
+    const dids = stops.map(s => s.did).filter(Boolean);
+    const dm = {};
+    if (dids.length) { const [dl] = await db.query(`SELECT did, lat, lng, address FROM ops_dealers WHERE did IN (${dids.map(() => '?').join(',')})`, dids); for (const x of dl) dm[x.did] = x; }
+    const stopsOut = stops.map((s, i) => ({ i, name: s.name, city: s.city || '', status: s.status, visited_at: s.visited_at || '', lat: s.lat || (dm[s.did] && dm[s.did].lat) || '', lng: s.lng || (dm[s.did] && dm[s.did].lng) || '', address: (dm[s.did] && dm[s.did].address) || '' }));
+    return J({ ok: true, date: day, dmy: dmyOf(day), user: { name: t.name, mob: t.mob }, points: pts.map(p => ({ t: p.t, lat: Number(p.lat), lng: Number(p.lng), acc: p.acc, kind: p.kind, note: p.note })), stops: stopsOut });
+  }));
+  // Dealer ki location set (shop par khade hokar) — koi bhi logged-in user; already ho to force=true chahiye
+  router.post('/setDealerLocation', requireOps, rpc(async (u, j) => {
+    const d = parse(j);
+    const la = num(d.lat), ln = num(d.lng);
+    if (la === null || ln === null) return err('Location nahi mili');
+    const [[dl]] = await db.query('SELECT id, lat, lng FROM ops_dealers WHERE did=?', [String(d.did)]);
+    if (!dl) return err('Dealer nahi mila');
+    if (dl.lat && dl.lng && !d.force) return J({ ok: true, unchanged: true });
+    await db.query('UPDATE ops_dealers SET lat=?, lng=? WHERE id=?', [String(la), String(ln), dl.id]);
+    return J({ ok: true, lat: la, lng: ln });
+  }));
+
   // ══════════ ATTENDANCE ══════════
   const ATT_SELECT = `SELECT a.*, u.name, u.mobile, ${FMT('a.start_at')} AS start_s, ${FMT('a.end_at')} AS end_s FROM ops_attendance a JOIN ops_users u ON u.id=a.user_id`;
   const mapAtt = r => ({ date: dmyOf(r.att_date), iso: String(r.att_date).slice(0, 10), name: r.name, mob: r.mobile, start: r.start_s || '', end: r.end_s || '', startLat: r.start_lat, startLng: r.start_lng, endLat: r.end_lat, endLng: r.end_lng, plan: r.plan || '', remark: r.remark || '' });
@@ -136,6 +181,7 @@ module.exports = function registerOpsExtra(S) {
       `INSERT INTO ops_attendance (user_id, att_date, start_at, start_lat, start_lng, plan) VALUES (?, CURRENT_DATE, NOW(), ?, ?, ?)
        ON DUPLICATE KEY UPDATE start_at=COALESCE(start_at, NOW()), start_lat=IF(start_lat='',VALUES(start_lat),start_lat), start_lng=IF(start_lng='',VALUES(start_lng),start_lng), plan=IF(VALUES(plan)='', plan, VALUES(plan))`,
       [u.id, d.lat == null ? '' : String(d.lat), d.lng == null ? '' : String(d.lng), plan]);
+    await addPoint(u.id, d.lat, d.lng, 'start', 'Day start', d.acc);
     const [[r]] = await db.query(`${ATT_SELECT} WHERE a.user_id=? AND a.att_date=CURRENT_DATE`, [u.id]);
     return J({ ok: true, today: mapAtt(r) });
   }));
@@ -144,6 +190,7 @@ module.exports = function registerOpsExtra(S) {
     const [[r0]] = await db.query('SELECT id, start_at FROM ops_attendance WHERE user_id=? AND att_date=CURRENT_DATE', [u.id]);
     if (!r0 || !r0.start_at) return err('Pehle Day Start karo');
     await db.query('UPDATE ops_attendance SET end_at=NOW(), end_lat=?, end_lng=?, remark=? WHERE id=?', [d.lat == null ? '' : String(d.lat), d.lng == null ? '' : String(d.lng), String(d.remark || '').trim().slice(0, 500), r0.id]);
+    await addPoint(u.id, d.lat, d.lng, 'end', 'Day end', d.acc);
     const [[r]] = await db.query(`${ATT_SELECT} WHERE a.id=?`, [r0.id]);
     return J({ ok: true, today: mapAtt(r) });
   }));
@@ -196,6 +243,13 @@ module.exports = function registerOpsExtra(S) {
     if (!['VISITED', 'SKIPPED', 'PLANNED'].includes(status)) return err('Status galat');
     stops[i] = { ...stops[i], status, visited_at: status === 'PLANNED' ? '' : nowIST().dmyhm, lat: d.lat == null ? '' : String(d.lat), lng: d.lng == null ? '' : String(d.lng), note: String(d.note || stops[i].note || '').slice(0, 200) };
     await db.query('UPDATE ops_route_plans SET stops_json=?, updated_at=NOW() WHERE id=?', [J(stops), row.id]);
+    if (status === 'VISITED') {
+      await addPoint(u.id, d.lat, d.lng, 'visit', stops[i].name, d.acc);
+      // Dealer ki location abhi tak nahi thi to visit wali jagah se set (DSR shop par hi hai)
+      if (stops[i].did && d.setDealerLoc !== false && num(d.lat) !== null) {
+        await db.query(`UPDATE ops_dealers SET lat=?, lng=? WHERE did=? AND (lat='' OR lng='')`, [String(num(d.lat)), String(num(d.lng)), stops[i].did]);
+      }
+    }
     return J({ ok: true, stops });
   }));
   // Admin tracking: ek din ke sab DSR — plan, visits, attendance, orders
@@ -206,6 +260,11 @@ module.exports = function registerOpsExtra(S) {
     const [plans] = await db.query('SELECT user_id, stops_json FROM ops_route_plans WHERE plan_date=?', [day]);
     const [att] = await db.query(`SELECT user_id, ${FMT('start_at')} AS s, ${FMT('end_at')} AS e, start_lat, start_lng, end_lat, end_lng, plan FROM ops_attendance WHERE att_date=?`, [day]);
     const [ord] = await db.query(`SELECT dsr_mobile, COUNT(*) AS n, COALESCE(SUM(amount),0) AS a FROM ops_orders WHERE order_date=? AND status<>'CANCELLED' GROUP BY dsr_mobile`, [day]);
+    const [loc] = await db.query(`SELECT l.user_id, COUNT(*) AS n, MAX(l.id) AS lastId FROM ops_locations l WHERE DATE(l.at_time)=? GROUP BY l.user_id`, [day]);
+    const lastIds = loc.map(l => l.lastId);
+    const lm = {};
+    if (lastIds.length) { const [ls] = await db.query(`SELECT id, user_id, ${FMT('at_time')} AS t, lat, lng FROM ops_locations WHERE id IN (${lastIds.map(() => '?').join(',')})`, lastIds); for (const l of ls) lm[l.user_id] = { t: l.t, lat: Number(l.lat), lng: Number(l.lng) }; }
+    const cm = {}; for (const l of loc) cm[l.user_id] = l.n;
     const pm = {}; for (const p of plans) pm[p.user_id] = stopsOf(p);
     const am = {}; for (const a of att) am[a.user_id] = a;
     const om = {}; for (const o of ord) om[o.dsr_mobile] = o;
@@ -213,7 +272,8 @@ module.exports = function registerOpsExtra(S) {
       const stops = pm[x.id] || [], a = am[x.id] || {};
       return { name: x.name, mob: x.mobile, stops, planned: stops.length, visited: stops.filter(s => s.status === 'VISITED').length, skipped: stops.filter(s => s.status === 'SKIPPED').length,
         start: a.s || '', end: a.e || '', startLat: a.start_lat || '', startLng: a.start_lng || '', endLat: a.end_lat || '', endLng: a.end_lng || '', plan: a.plan || '',
-        orders: (om[x.mobile] || {}).n | 0, amount: Number((om[x.mobile] || {}).a) || 0 };
+        orders: (om[x.mobile] || {}).n | 0, amount: Number((om[x.mobile] || {}).a) || 0,
+        points: cm[x.id] | 0, last: lm[x.id] || null };
     }) });
   }));
 

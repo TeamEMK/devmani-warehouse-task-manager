@@ -71,3 +71,18 @@ CREATE TABLE IF NOT EXISTS ops_route_plans (
   UNIQUE KEY ops_route_plans_uq (user_id, plan_date),
   KEY ops_route_plans_date_idx (plan_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- DSR live location: day start ke baad phone har kuch minute me point bhejta hai
+-- (kind: start / ping / visit / end). Admin tracking map isi se trail banata hai.
+CREATE TABLE IF NOT EXISTS ops_locations (
+  id int NOT NULL AUTO_INCREMENT,
+  user_id int NOT NULL,
+  at_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  lat decimal(10,7) NOT NULL,
+  lng decimal(10,7) NOT NULL,
+  accuracy int NOT NULL DEFAULT 0,
+  kind varchar(10) NOT NULL DEFAULT 'ping',
+  note varchar(120) NOT NULL DEFAULT '',
+  PRIMARY KEY (id),
+  KEY ops_locations_user_time_idx (user_id, at_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
