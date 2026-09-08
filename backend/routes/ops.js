@@ -28,6 +28,8 @@ const busy = require('../lib/ops-busy');
 const { istParts } = require('../lib/dates');
 
 const STATUSES = ['PENDING', 'CONFIRMED', 'BILLED', 'DISPATCHED', 'DELIVERED', 'CANCELLED'];
+// In statuses me maal godown se nikal chuka hai (stock minus). BILLED = bill + dispatch ek saath.
+const STOCK_OUT = new Set(['BILLED', 'DISPATCHED']);
 const LOW_STOCK = busy.LOW_STOCK;
 // Michelin 2W monthly slab: [is mahine kam se kam itne tyre, credit note Rs/tyre]
 const SLAB_TABLE = [[6, 20], [10, 40], [20, 55], [50, 70], [75, 85], [100, 100]];
@@ -173,23 +175,108 @@ module.exports = function registerOpsRoutes(app, ctx) {
     }
     return m;
   }
+  // Dealer ka payment rating + exposure (credit limit ke liye) — ops_orders se
+  //   exposure = max(Busy outstanding, app ke delivered-unpaid) + khule orders (confirmed/billed)
+  //   rating   = paid orders me kitne late the (terms ke hisaab se), abhi overdue hai ya nahi
+  async function dealerStats() {
+    const [rows] = await db.query(
+      `SELECT did,
+              COALESCE(SUM(CASE WHEN status='DELIVERED' AND payment_status<>'PAID' THEN amount END),0) AS unpaid,
+              COALESCE(SUM(CASE WHEN status IN ('PENDING','CONFIRMED','BILLED','DISPATCHED') THEN amount END),0) AS open_amt,
+              SUM(status='DELIVERED' AND payment_status='PAID') AS paidN,
+              SUM(status='DELIVERED' AND payment_status='PAID' AND payment_due IS NOT NULL AND DATE(paid_at)>payment_due) AS lateN,
+              AVG(CASE WHEN status='DELIVERED' AND payment_status='PAID' AND delivered_at IS NOT NULL THEN DATEDIFF(paid_at, delivered_at) END) AS avgDays,
+              SUM(status='DELIVERED' AND payment_status<>'PAID' AND payment_due IS NOT NULL AND payment_due<CURRENT_DATE) AS overdueN,
+              MAX(CASE WHEN status='DELIVERED' AND payment_status='PAID' THEN paid_at END) AS lastPaid,
+              SUBSTRING_INDEX(GROUP_CONCAT(CASE WHEN payment_terms<>'' THEN payment_terms END ORDER BY id DESC SEPARATOR '||'),'||',1) AS lastTerms
+       FROM ops_orders WHERE status<>'CANCELLED' GROUP BY did`);
+    const m = {}; for (const r of rows) m[r.did] = r; return m;
+  }
+  function ratingOf(s) {
+    if (!s) return { stars: 0, label: 'NEW', paidN: 0, lateN: 0, overdueN: 0, avgDays: null, lastTerms: '' };
+    const paidN = s.paidN | 0, lateN = s.lateN | 0, overdueN = s.overdueN | 0;
+    let stars = 0, label = 'NEW';
+    if (paidN > 0) {
+      const latePct = lateN / paidN;
+      stars = latePct <= 0.1 ? 5 : latePct <= 0.3 ? 4 : latePct <= 0.5 ? 3 : latePct <= 0.75 ? 2 : 1;
+      if (overdueN > 0) stars = Math.max(1, stars - 1);
+      label = stars >= 4 ? 'GOOD' : stars === 3 ? 'OK' : 'RISK';
+    } else if (overdueN > 0) { stars = 1; label = 'RISK'; }
+    return { stars, label, paidN, lateN, overdueN, avgDays: s.avgDays == null ? null : Math.round(Number(s.avgDays)), lastTerms: s.lastTerms || '', lastPaid: s.lastPaid ? dmyOf(new Date(s.lastPaid).toISOString()) : '' };
+  }
   async function dealersList() {
     const [rows] = await db.query('SELECT * FROM ops_dealers WHERE active=1 ORDER BY id');
     const [docs] = await db.query('SELECT dealer_id, doc_key FROM ops_dealer_docs');
     const docMap = {};
     for (const d of docs) (docMap[d.dealer_id] = docMap[d.dealer_id] || []).push(d.doc_key);
     const out = await outstandingMap();
+    const stats = await dealerStats();
     return rows.map(r => {
       const mob = clean(r.mobile);
+      const o = out[mob] || out[nb(r.busy_name)] || out[nb(r.name)] || null;
+      const s = stats[r.did];
+      const unpaid = s ? Number(s.unpaid) : 0, open = s ? Number(s.open_amt) : 0;
+      const exposure = Math.max(o ? Number(o.amount) : 0, unpaid) + open;
       return {
         did: r.did, name: r.name, mob, city: r.city || '', address: r.address || '', dsr: r.added_by || '',
         busy: r.busy_name || '', gstNo: r.gst_no || '', pan: r.pan || '', kyc: r.kyc_status || '',
         folder: r.kyc_folder || '', docs: docMap[r.id] || [], lat: r.lat || '', lng: r.lng || '',
-        outstanding: out[mob] || out[nb(r.busy_name)] || out[nb(r.name)] || null,
+        outstanding: o, creditLimit: Number(r.credit_limit) || 0, exposure, unpaid, open,
+        overLimit: Number(r.credit_limit) > 0 && exposure > Number(r.credit_limit),
+        rating: ratingOf(s),
       };
     });
   }
   router.post('/getDealers', requireOps, rpc(async () => dealersList()));
+
+  // Dealer edit (admin): naam, mobile, city, address, Busy naam, GST, PAN, credit limit, active
+  router.post('/editDealer', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const [[dl]] = await db.query('SELECT * FROM ops_dealers WHERE did=?', [String(d.did)]);
+    if (!dl) return err('Dealer nahi mila');
+    const name = String(d.name ?? dl.name).trim(); if (name.length < 2) return err('Naam daalo');
+    const mob = d.mob !== undefined ? clean(d.mob) : dl.mobile; if (mob.length !== 10) return err('10-digit mobile daalo');
+    const [dup] = await db.query('SELECT did FROM ops_dealers WHERE mobile=? AND id<>?', [mob, dl.id]);
+    if (dup[0]) return err(`Ye number dealer ${dup[0].did} ka hai`);
+    const cl = d.creditLimit !== undefined ? (parseFloat(d.creditLimit) || 0) : Number(dl.credit_limit);
+    await db.query('UPDATE ops_dealers SET name=?, mobile=?, city=?, address=?, busy_name=?, gst_no=?, pan=?, credit_limit=?, active=? WHERE id=?',
+      [name, mob, String(d.city ?? dl.city).trim(), String(d.address ?? dl.address).trim(), String(d.busy ?? dl.busy_name).trim(), String(d.gstNo ?? dl.gst_no).toUpperCase().trim(), String(d.pan ?? dl.pan).toUpperCase().trim(), cl, d.active === undefined ? dl.active : (d.active ? 1 : 0), dl.id]);
+    // Orders me dealer ka naam/mobile copy hota hai — khule orders me update
+    await db.query(`UPDATE ops_orders SET dealer_name=?, dealer_mobile=? WHERE did=? AND status IN ('PENDING','CONFIRMED','BILLED','DISPATCHED')`, [name, mob, dl.did]);
+    return J({ ok: true });
+  }));
+
+  // ── Users (admin): DSR / CRM / ADMIN / ACCOUNTS / BILLING / RM
+  const ROLES = ['DSR', 'CRM', 'ADMIN', 'ACCOUNTS', 'BILLING', 'RM'];
+  router.post('/saveUser', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const mob = clean(d.mob); if (mob.length !== 10) return err('10-digit mobile daalo');
+    const name = String(d.name || '').trim(); if (name.length < 2) return err('Naam daalo');
+    const role = ROLES.includes(String(d.role || '').toUpperCase()) ? String(d.role).toUpperCase() : 'DSR';
+    const active = d.active === undefined ? 1 : (d.active ? 1 : 0);
+    if (mob === u.mob && !active) return err('Khud ko band nahi kar sakte');
+    await db.query('INSERT INTO ops_users (mobile,name,role,active) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE name=VALUES(name), role=VALUES(role), active=VALUES(active)', [mob, name, role, active]);
+    return J({ ok: true });
+  }));
+
+  // ── Transporter master (admin edit, sab padh sakte hain)
+  router.post('/getTransporters', requireOps, rpc(async () => {
+    const [rows] = await db.query('SELECT * FROM ops_transporters WHERE active=1 ORDER BY name');
+    return rows.map(r => ({ id: r.id, name: r.name, mob: r.mobile, vehicle: r.vehicle, driverName: r.driver_name, driverMob: r.driver_mobile, city: r.city, note: r.note }));
+  }));
+  router.post('/saveTransporter', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const name = String(d.name || '').trim(); if (name.length < 2) return err('Transporter ka naam daalo');
+    const vals = [name, clean(d.mob), String(d.vehicle || '').trim().toUpperCase(), String(d.driverName || '').trim(), clean(d.driverMob), String(d.city || '').trim(), String(d.note || '').trim()];
+    if (d.id) { await db.query('UPDATE ops_transporters SET name=?, mobile=?, vehicle=?, driver_name=?, driver_mobile=?, city=?, note=? WHERE id=?', vals.concat([parseInt(d.id, 10)])); return J({ ok: true, id: parseInt(d.id, 10) }); }
+    const [r] = await db.query('INSERT INTO ops_transporters (name,mobile,vehicle,driver_name,driver_mobile,city,note) VALUES (?,?,?,?,?,?,?)', vals);
+    return J({ ok: true, id: r.insertId });
+  }));
+  router.post('/deleteTransporter', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    await db.query('UPDATE ops_transporters SET active=0 WHERE id=?', [parseInt(d.id, 10)]);
+    return J({ ok: true });
+  }));
 
   router.post('/addDealer', requireOps, rpc(async (u, j) => {
     const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
@@ -209,8 +296,8 @@ module.exports = function registerOpsRoutes(app, ctx) {
       if (c) { lat = String(c.lat); lng = String(c.lng); locFrom = 'link'; }
       else locFrom = 'link-fail';
     }
-    await db.query('INSERT INTO ops_dealers (did,name,mobile,city,address,added_by,active,lat,lng) VALUES (?,?,?,?,?,?,1,?,?)',
-      [did, name, mob, String(d.city || '').trim(), String(d.address || '').trim(), u.name, lat, lng]);
+    await db.query('INSERT INTO ops_dealers (did,name,mobile,city,address,added_by,active,lat,lng,credit_limit) VALUES (?,?,?,?,?,?,1,?,?,?)',
+      [did, name, mob, String(d.city || '').trim(), String(d.address || '').trim(), u.name, lat, lng, parseFloat(d.creditLimit) || 0]);
     return J({ ok: true, did, locFrom });
   }));
 
@@ -302,7 +389,8 @@ module.exports = function registerOpsRoutes(app, ctx) {
       city: r.city || '', items: lines, qty: r.total_qty | 0, amount: Number(r.amount) || 0, status: r.status,
       inv: r.invoice_no || '', vehicle: r.vehicle || '', note: r.note || '', created: r.created, updated: r.updated,
       history: hist, terms: r.payment_terms || '',
-      driver: r.driver_mobile || '', payStatus: r.payment_status || 'PENDING', paidAt: r.paid || '',
+      driver: r.driver_mobile || '', driverName: r.driver_name || '', transporter: r.transporter || '', lr: r.lr_no || '',
+      billed: r.billed || '', payStatus: r.payment_status || 'PENDING', paidAt: r.paid || '',
       due: dmyOf(r.payment_due), delivered: r.delivered || '', cancelReason: r.cancel_reason || '',
       files: (files && files[r.oid]) || [],
     };
@@ -313,7 +401,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
     const [rows] = await db.query(`SELECT oid, kind FROM ops_order_files WHERE oid IN (${oids.map(() => '?').join(',')})`, oids);
     const m = {}; for (const f of rows) (m[f.oid] = m[f.oid] || []).push(f.kind); return m;
   }
-  const ORDER_SELECT = `SELECT *, ${FMT('created_at')} AS created, ${FMT('updated_at')} AS updated, ${FMT('paid_at')} AS paid, ${FMT('delivered_at')} AS delivered FROM ops_orders`;
+  const ORDER_SELECT = `SELECT *, ${FMT('created_at')} AS created, ${FMT('updated_at')} AS updated, ${FMT('paid_at')} AS paid, ${FMT('delivered_at')} AS delivered, ${FMT('billed_at')} AS billed FROM ops_orders`;
   async function ordersFor(u) {
     const where = isAdmin(u) ? '' : ' WHERE dsr_mobile=?';
     const [rows] = await db.query(`${ORDER_SELECT}${where} ORDER BY id DESC LIMIT 300`, isAdmin(u) ? [] : [u.mob]);
@@ -369,7 +457,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
         if (row.status !== 'PENDING') { await conn.rollback(); return err('Confirm hone ke baad cancel ke liye office se baat karo'); }
       }
       const lines = JSON.parse(row.items_json || '[]');
-      if (row.status === 'DISPATCHED') await adjustStock(conn, lines, +1, row.oid + ' (cancel wapas)', u.name);
+      if (STOCK_OUT.has(row.status)) await adjustStock(conn, lines, +1, row.oid + ' (cancel wapas)', u.name);
       let hist = []; try { hist = JSON.parse(row.history_json || '[]'); } catch (_) {}
       hist.push({ s: 'CANCELLED', t: nowIST().dmyhm, by: u.name, note: reason });
       await conn.query('UPDATE ops_orders SET status=\'CANCELLED\', cancel_reason=?, history_json=?, updated_at=NOW() WHERE id=?', [reason, J(hist), row.id]);
@@ -427,38 +515,82 @@ module.exports = function registerOpsRoutes(app, ctx) {
       }
       if (cur === 'DELIVERED' || cur === 'CANCELLED') { await conn.rollback(); return err(`Closed order (${cur}) change nahi ho sakta`); }
       lines = JSON.parse(row.items_json || '[]');
-      const wasDispatched = cur === 'DISPATCHED';
-      if (st === 'DISPATCHED' && !wasDispatched) { const e1 = await adjustStock(conn, lines, -1, row.oid, u.name); if (e1) { await conn.rollback(); return err(e1); } }
-      if (st === 'CANCELLED' && wasDispatched) await adjustStock(conn, lines, +1, row.oid + ' (cancel wapas)', u.name);
-      if ((st === 'BILLED' || st === 'PENDING' || st === 'CONFIRMED') && wasDispatched) await adjustStock(conn, lines, +1, row.oid + ' (undo dispatch)', u.name);
+      // Flow: PENDING -> CONFIRMED (CRM) -> BILLED (bill + maal nikla: stock minus, party/driver ko msg)
+      //       -> DELIVERED -> payment. DISPATCHED purana status hai (BILLED jaisa hi maana jaata hai).
+      const stockOut = STOCK_OUT.has(cur);
+      if (STOCK_OUT.has(st) && !stockOut) { const e1 = await adjustStock(conn, lines, -1, row.oid, u.name); if (e1) { await conn.rollback(); return err(e1); } }
+      if (st === 'CANCELLED' && stockOut) await adjustStock(conn, lines, +1, row.oid + ' (cancel wapas)', u.name);
+      if ((st === 'PENDING' || st === 'CONFIRMED') && stockOut) await adjustStock(conn, lines, +1, row.oid + ' (undo billing)', u.name);
       let hist = []; try { hist = JSON.parse(row.history_json || '[]'); } catch (_) {}
       hist.push({ s: st, t: nowIST().dmyhm, by: u.name });
-      const inv = (d.inv !== undefined && d.inv !== '') ? String(d.inv) : row.invoice_no;
-      const veh = (d.vehicle !== undefined && d.vehicle !== '') ? String(d.vehicle) : row.vehicle;
-      // Driver number order par yaad rehta hai — dobara puchna na pade
-      const drv = clean(d.driverMob).length === 10 ? clean(d.driverMob) : (row.driver_mobile || '');
-      // Payment terms delivery form se bhi aa sakte hain
+      const f = pickTransportFields(d, row);
+      // Payment terms billing/delivery form se bhi aa sakte hain
       const terms = (d.paymentTerms !== undefined && d.paymentTerms !== '') ? String(d.paymentTerms).trim() : row.payment_terms;
       // DELIVERED par delivered_at + payment due (terms ke din jod kar)
       const days = termsDays(terms);
       const dueSql = st === 'DELIVERED' && days !== null ? `DATE_ADD(CURRENT_DATE, INTERVAL ${days} DAY)` : (st === 'DELIVERED' ? 'NULL' : 'payment_due');
       const delSql = st === 'DELIVERED' ? 'NOW()' : 'delivered_at';
-      await conn.query(`UPDATE ops_orders SET status=?, invoice_no=?, vehicle=?, driver_mobile=?, payment_terms=?, history_json=?, payment_due=${dueSql}, delivered_at=${delSql}, updated_at=NOW() WHERE id=?`,
-        [st, inv, veh, drv, terms, J(hist), row.id]);
+      const billSql = (STOCK_OUT.has(st) && !stockOut) ? 'NOW()' : 'billed_at';
+      await conn.query(`UPDATE ops_orders SET status=?, invoice_no=?, vehicle=?, driver_mobile=?, driver_name=?, transporter=?, lr_no=?, payment_terms=?, history_json=?, payment_due=${dueSql}, delivered_at=${delSql}, billed_at=${billSql}, updated_at=NOW() WHERE id=?`,
+        [st, f.inv, f.veh, f.drv, f.drvName, f.transporter, f.lr, terms, J(hist), row.id]);
       await conn.commit();
-      order = { ...row, status: st, invoice_no: inv, vehicle: veh, driver_mobile: drv, payment_terms: terms };
+      order = { ...row, status: st, invoice_no: f.inv, vehicle: f.veh, driver_mobile: f.drv, driver_name: f.drvName, transporter: f.transporter, lr_no: f.lr, payment_terms: terms };
     } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
 
     // POD (delivery proof photo) DELIVERED ke saath aaye to file me rakho
     if (st === 'DELIVERED' && d.pod && d.pod.b64) {
       try { await saveOrderFile(order.oid, 'pod', d.pod, u.name); } catch (e) { console.error('ops pod', e.message); }
     }
-    // WhatsApp — dealer / DSR / driver (driver ko ek hi baar — DRIVER key se dedupe)
+    // WhatsApp — BILLED: party ko driver/vehicle detail, driver ko party detail + location, DSR ko.
+    // DELIVERED: party + DSR. (driver ko ek hi baar — DRIVER key se dedupe)
     (async () => {
-      if (st === 'DISPATCHED' || st === 'DELIVERED') await notifyOrderStatus(order);
-      if (st === 'DISPATCHED' && order.driver_mobile) await notifyDriver(order, lines, order.driver_mobile);
+      if (STOCK_OUT.has(st) || st === 'DELIVERED') await notifyOrderStatus(order);
+      if (STOCK_OUT.has(st) && order.driver_mobile) await notifyDriver(order, lines, order.driver_mobile);
     })().catch(e => console.error('ops wa', e.message));
     return J({ ok: true, status: st });
+  }));
+  // Billing/transport fields: form se aaye to wahi, warna order ka purana
+  function pickTransportFields(d, row) {
+    const s = (v, old) => (v !== undefined && v !== '' && v !== null) ? String(v).trim() : (old || '');
+    return {
+      inv: s(d.inv, row.invoice_no), veh: s(d.vehicle, row.vehicle),
+      drv: clean(d.driverMob).length === 10 ? clean(d.driverMob) : (row.driver_mobile || ''),
+      drvName: s(d.driverName, row.driver_name), transporter: s(d.transporter, row.transporter), lr: s(d.lrNo, row.lr_no),
+    };
+  }
+  // Party ko jaane wala "kaise aa raha hai" text — template ke vehicle param me
+  function transportText(r) {
+    const p = [];
+    if (r.vehicle) p.push(r.vehicle);
+    if (r.transporter) p.push('Transport: ' + r.transporter);
+    if (r.driver_name || r.driver_mobile) p.push('Driver: ' + [r.driver_name, r.driver_mobile].filter(Boolean).join(' '));
+    if (r.lr_no) p.push('LR ' + r.lr_no);
+    return p.join(' · ');
+  }
+
+  // ── Delivery/transport info EDIT (BILLED / DELIVERED par): LR no, vehicle, driver, transporter, invoice.
+  // Badalne par party ko naya detail WhatsApp; naya driver ho to use bhi.
+  router.post('/editDeliveryInfo', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const [[row]] = await db.query('SELECT * FROM ops_orders WHERE oid=?', [String(d.oid)]);
+    if (!row) return err('Order nahi mila');
+    if (!STOCK_OUT.has(row.status) && row.status !== 'DELIVERED') return err('Billing ke baad hi delivery info edit hoti hai');
+    const f = pickTransportFields(d, row);
+    const changed = f.inv !== row.invoice_no || f.veh !== row.vehicle || f.drv !== row.driver_mobile || f.drvName !== row.driver_name || f.transporter !== row.transporter || f.lr !== row.lr_no;
+    let hist = []; try { hist = JSON.parse(row.history_json || '[]'); } catch (_) {}
+    if (changed) hist.push({ s: 'INFO', t: nowIST().dmyhm, by: u.name, note: transportText({ vehicle: f.veh, transporter: f.transporter, driver_name: f.drvName, driver_mobile: f.drv, lr_no: f.lr }) });
+    await db.query('UPDATE ops_orders SET invoice_no=?, vehicle=?, driver_mobile=?, driver_name=?, transporter=?, lr_no=?, history_json=?, updated_at=NOW() WHERE id=?',
+      [f.inv, f.veh, f.drv, f.drvName, f.transporter, f.lr, J(hist), row.id]);
+    const order = { ...row, invoice_no: f.inv, vehicle: f.veh, driver_mobile: f.drv, driver_name: f.drvName, transporter: f.transporter, lr_no: f.lr };
+    if (changed && d.notify !== false) {
+      (async () => {
+        const dmob = wati.watiMob(order.dealer_mobile);
+        const stamp = Date.now();
+        if (dmob) await logged(`DISPU|${order.oid}|${dmob}|${stamp}`, 'DISPATCH_UPDATE', order.oid, dmob, wati.T.DISPATCH, [order.dealer_name, order.oid, order.total_qty | 0, transportText(order) || 'update']);
+        if (order.driver_mobile && order.driver_mobile !== row.driver_mobile) await notifyDriver(order, JSON.parse(row.items_json || '[]'), order.driver_mobile);
+      })().catch(e => console.error('ops wa', e.message));
+    }
+    return J({ ok: true, changed });
   }));
 
   // ── Order files: Busy invoice (PDF/photo) aur POD. Ek order par har kind ki ek file.
@@ -516,6 +648,17 @@ module.exports = function registerOpsRoutes(app, ctx) {
     let hist = []; try { hist = JSON.parse(row.history_json || '[]'); } catch (_) {}
     hist.push({ s: paid ? 'PAID' : 'UNPAID', t: nowIST().dmyhm, by: u.name });
     await db.query(`UPDATE ops_orders SET payment_status=?, paid_at=${paid ? 'NOW()' : 'NULL'}, history_json=?, updated_at=NOW() WHERE id=?`, [paid ? 'PAID' : 'PENDING', J(hist), row.id]);
+    // Payment aayi -> party + DSR ko "payment mil gayi" WhatsApp (baaki = us dealer ke bache unpaid orders)
+    if (paid) {
+      (async () => {
+        const [[o]] = await db.query('SELECT * FROM ops_orders WHERE id=?', [row.id]);
+        const [[rest]] = await db.query(`SELECT COALESCE(SUM(amount),0) AS a FROM ops_orders WHERE did=? AND status='DELIVERED' AND payment_status<>'PAID'`, [o.did]);
+        const vals = [o.dealer_name, Math.round(Number(o.amount)), Math.round(Number(rest.a)), nowIST().dmy];
+        const dmob = wati.watiMob(o.dealer_mobile), dsrMob = wati.watiMob(o.dsr_mobile);
+        if (dmob) await logged(`PAID|${o.oid}|${dmob}`, 'PAYMENT', o.oid, dmob, wati.T.PAYMENT, vals);
+        if (dsrMob) await logged(`PAID|${o.oid}|${dsrMob}`, 'PAYMENT', o.oid, dsrMob, wati.T.PAYMENT, vals);
+      })().catch(e => console.error('ops wa', e.message));
+    }
     return J({ ok: true, payStatus: paid ? 'PAID' : 'PENDING' });
   }));
   // Pichle drivers/vehicles — status form me dropdown ke liye (baar-baar type na karna pade)
@@ -553,7 +696,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
     }
     s.low.sort((a, b) => a.stock - b.stock); s.low = s.low.slice(0, 15);
     for (const o of orders) {
-      if (o.status === 'PENDING') s.pending++; if (o.status === 'BILLED') s.billed++; if (o.status === 'DISPATCHED') s.dispatched++;
+      if (o.status === 'PENDING') s.pending++; if (o.status === 'BILLED') s.billed++; if (o.status === 'DISPATCHED' || o.status === 'BILLED') s.dispatched++;
       if (o.status === 'CANCELLED') continue;
       if (o.date === today) { s.todayOrders++; s.todayQty += o.qty; }
       if (o.date.slice(3) === mk) { s.monthQty += o.qty; s.monthAmt += o.amount; }
@@ -613,6 +756,15 @@ module.exports = function registerOpsRoutes(app, ctx) {
   // Report ka text banao (preview + send dono isi se). Admin bhejne se pehle
   // text dekh aur badal sakta hai — sendRMReport me `text` aaye to wahi jaata hai.
   async function buildRMReport(rm, type) {
+    if (type === 'STOCK') {
+      // Current stock — us company ke sab items jinka stock > 0, zyada se kam
+      const [items] = await db.query('SELECT * FROM ops_items WHERE UPPER(brand)=? AND stock>0 ORDER BY stock DESC, id', [String(rm.company).toUpperCase()]);
+      if (!items.length) return { error: `${rm.company} ka koi stock nahi hai abhi` };
+      let total = 0; items.forEach(it => { total += it.stock | 0; });
+      const lines = items.map(it => `${it.size}${it.position ? ' ' + it.position : ''} ${it.pattern} ${it.tltt}`.replace(/\s+/g, ' ').trim() + `: ${it.stock}`);
+      const shown = lines.slice(0, 45);
+      return { count: items.length, text: `Current stock: ${items.length} items, ${total} pcs\n${shown.join('\n')}${lines.length > shown.length ? `\n...aur ${lines.length - shown.length} items` : ''}` };
+    }
     if (type === 'REORDER') {
       const [items] = await db.query('SELECT * FROM ops_items WHERE UPPER(brand)=? AND stock<=? ORDER BY stock, id LIMIT 30', [String(rm.company).toUpperCase(), LOW_STOCK]);
       if (!items.length) return { error: `Koi item low/out of stock nahi hai ${rm.company} mein abhi` };
@@ -656,9 +808,10 @@ module.exports = function registerOpsRoutes(app, ctx) {
     const type = String(d.type || '').toUpperCase(), today = nowIST().dmy;
     let text = String(d.text || '').trim(), count = 0;
     if (!text) { const r = await buildRMReport(rm, type); if (r.error) return err(r.error); text = r.text; count = r.count; }
-    if (type !== 'SALE' && type !== 'REORDER') return err('Type galat — SALE ya REORDER hona chahiye');
+    if (!['SALE', 'REORDER', 'STOCK'].includes(type)) return err('Type galat — SALE, REORDER ya STOCK hona chahiye');
     // WhatsApp template param me newline theek hai; lambai 1000 se andar rakho
-    const res = await wati.send(rm.mobile, wati.T.RM_REPORT, [type === 'SALE' ? 'Sale' : 'Reorder', rm.company, text.slice(0, 1000), today]);
+    const label = { SALE: 'Sale', REORDER: 'Reorder', STOCK: 'Stock' }[type];
+    const res = await wati.send(rm.mobile, wati.T.RM_REPORT, [label, rm.company, text.slice(0, 1000), today]);
     if (res !== 'SENT') return err('Message send nahi hua: ' + res);
     return J({ ok: true, sentTo: rm.name, count });
   }));
@@ -668,7 +821,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
   router.post('/importBusy', requireOps, adminOnly, rpc(async (u, j) => {
     const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
     if (!d.b64) return err('File nahi mili');
-    const r = await busy.importBusyBuffer(db, Buffer.from(d.b64, 'base64'), String(d.name || 'upload.xlsx'), nowIST().dmy);
+    const r = await busy.importBusyBuffer(db, Buffer.from(d.b64, 'base64'), String(d.name || 'upload.xlsx'), nowIST().dmy, String(d.kind || '').toUpperCase());
     // Payment aayi ho to dealer/DSR ko turant bata do
     scanPayments().catch(() => {});
     return J({ ok: true, result: r.result, notes: r.notes });
@@ -704,17 +857,26 @@ module.exports = function registerOpsRoutes(app, ctx) {
     return status;
   }
 
+  // Naya order: office numbers (env) + CRM role wale users (Masters > Users me role CRM)
+  async function newOrderNumbers() {
+    const nums = new Set(wati.NOTIFY_NUMBERS);
+    try {
+      const [rows] = await db.query(`SELECT mobile FROM ops_users WHERE active=1 AND UPPER(role) IN ('CRM','ADMIN')`);
+      for (const r of rows) { const m = wati.watiMob(r.mobile); if (m) nums.add(m); }
+    } catch (_) {}
+    return [...nums];
+  }
   async function notifyNewOrder(o) {
-    for (const num of wati.NOTIFY_NUMBERS) {
+    for (const num of await newOrderNumbers()) {
       await logged(`NEW|${o.oid}|${num}`, 'NEW_ORDER', o.oid, num, wati.T.NEW_ORDER, [o.dname, o.city, o.dsr, o.qty, o.amount, o.oid]);
     }
   }
-  // DISPATCHED: dealer + DSR. DELIVERED: (dispatch wale agar chhoot gaye ho) + dealer + DSR.
+  // BILLED/DISPATCHED: party ko (vehicle/driver/LR detail ke saath) + DSR. DELIVERED: party + DSR.
   async function notifyOrderStatus(r) {
     const status = String(r.status).toUpperCase();
     const dmob = wati.watiMob(r.dealer_mobile), dsrMob = wati.watiMob(r.dsr_mobile);
-    const oid = r.oid, qty = r.total_qty | 0, veh = r.vehicle || '';
-    if (status === 'DISPATCHED' || status === 'DELIVERED') {
+    const oid = r.oid, qty = r.total_qty | 0, veh = transportText(r);
+    if (STOCK_OUT.has(status) || status === 'DELIVERED') {
       if (dmob) await logged(`DISP|${oid}|${dmob}`, 'DISPATCH', oid, dmob, wati.T.DISPATCH, [r.dealer_name, oid, qty, veh || 'jaldi update hoga']);
       if (dsrMob) await logged(`DISP_DSR|${oid}|${dsrMob}`, 'DISPATCH_DSR', oid, dsrMob, wati.T.DISPATCH_DSR, [r.dealer_name, oid, qty, veh || '-']);
     }
@@ -728,8 +890,10 @@ module.exports = function registerOpsRoutes(app, ctx) {
     const [[dl]] = await db.query('SELECT lat, lng FROM ops_dealers WHERE did=?', [r.did]);
     const gps = dl && dl.lat && dl.lng ? `https://maps.google.com/?q=${dl.lat},${dl.lng}` : '';
     const items = lines.map(l => `${l.name} x${l.qty}`).join(', ');
+    const [[dl2]] = await db.query('SELECT address, city FROM ops_dealers WHERE did=?', [r.did]);
+    const addr = [dl2 && dl2.address, dl2 && dl2.city || r.city].filter(Boolean).join(', ');
     await logged(`DRIVER|${r.oid}|${wati.watiMob(driverMob)}`, 'DRIVER', r.oid, driverMob, wati.T.DRIVER,
-      [r.dealer_name, r.city || '', clean(r.dealer_mobile) || '-', items, gps || 'GPS nahi hai']);
+      [r.dealer_name, addr || r.city || '-', clean(r.dealer_mobile) || '-', items, gps || 'GPS nahi hai']);
   }
 
   // Har 5 min: pichle 30 din ke orders par NEW / DISP / DELV jo SENT nahi hue

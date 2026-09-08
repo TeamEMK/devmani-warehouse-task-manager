@@ -86,3 +86,19 @@ CREATE TABLE IF NOT EXISTS ops_locations (
   PRIMARY KEY (id),
   KEY ops_locations_user_time_idx (user_id, at_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Transporter master: maal transport se jaye to detail baar-baar na likhni pade
+CREATE TABLE IF NOT EXISTS ops_transporters (
+  id int NOT NULL AUTO_INCREMENT,
+  name varchar(120) NOT NULL,
+  mobile varchar(10) NOT NULL DEFAULT '',
+  vehicle varchar(60) NOT NULL DEFAULT '',
+  driver_name varchar(100) NOT NULL DEFAULT '',
+  driver_mobile varchar(10) NOT NULL DEFAULT '',
+  city varchar(100) NOT NULL DEFAULT '',
+  note varchar(300) NOT NULL DEFAULT '',
+  active tinyint NOT NULL DEFAULT 1,
+  created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY ops_transporters_name_idx (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

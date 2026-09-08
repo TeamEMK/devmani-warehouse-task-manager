@@ -478,7 +478,7 @@ function navigate(page, el, sub) {
       if (!f.src) f.src = f.dataset.src + '#' + h;
       else { try { f.contentWindow.location.replace(f.dataset.src + '#' + h); } catch (e) { f.src = f.dataset.src + '#' + h; } }
     }
-    document.getElementById('topbarTitle').textContent = 'Michelin Ops · ' + ({home:'Dashboard',order:'New Order',orders:'Orders',crm:'CRM Calls',stock:'Stock',dealers:'Dealers',reports:'Reports',track:'DSR Tracking',route:'Route Plan',exp:'Expenses'}[h] || h);
+    document.getElementById('topbarTitle').textContent = 'Michelin Ops · ' + ({home:'Dashboard',order:'New Order',orders:'Orders',crm:'CRM Calls',stock:'Stock',dealers:'Dealers',reports:'Reports',track:'DSR Tracking',route:'Route Plan',exp:'Expenses',masters:'Masters'}[h] || h);
   }
   // navigate() core app ka hissa hai, yaani client ki copy me bhi jaata hai —
   // par ncLoadLog generator ke markers ke andar hai aur wahan hota hi nahi.

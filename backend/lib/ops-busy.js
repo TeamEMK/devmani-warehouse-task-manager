@@ -23,19 +23,49 @@ function itemName(r) {
   return `${r.brand} ${r.size}${r.position ? ' ' + r.position : ''} ${r.pattern} ${r.tltt}`.replace(/\s+/g, ' ').trim();
 }
 
-// Pehli 8 rows ke column A me report ka naam hota hai.
+// Report ka naam pehli ~15 rows me kahin bhi ho sakta hai (merged cell, column B...).
+// Sab cells jod kar dekhte hain. Busy ke naam alag-alag hote hain: "Stock Status",
+// "Amount Receivable", "Outstanding", "Party Wise Outstanding", "Receivables", "Sundry Debtors".
+function headText(rows, n) { return rows.slice(0, n || 15).map(r => r.map(c => String(c == null ? '' : c)).join(' ')).join(' | ').toUpperCase(); }
 function detectKind(rows) {
-  const head = rows.slice(0, 8).map(r => String(r[0] || '')).join(' ').toUpperCase();
-  if (head.includes('STOCK STATUS')) return 'STOCK';
-  if (head.includes('AMOUNT RECEIVABLE') || head.includes('OUTSTANDING')) return 'OUT';
+  const head = headText(rows);
+  if (/STOCK\s*STATUS|STOCK\s*SUMMARY|ITEM\s*WISE\s*STOCK/.test(head)) return 'STOCK';
+  if (/RECEIVABLE|OUTSTANDING|DEBTOR|RECEIVABLES|BALANCE\s*DUE|PARTY\s*WISE/.test(head)) return 'OUT';
+  // Naam na mile to columns se andaza: "Item Details" = stock, "Account"/"Party" = outstanding
+  if (findHeaderRow(rows, /^ITEM\s*(DETAILS|NAME)?$/) >= 0) return 'STOCK';
+  if (findHeaderRow(rows, /^(ACCOUNT|PARTY|PARTY\s*NAME|ACCOUNT\s*NAME|NAME|CUSTOMER)$/) >= 0) return 'OUT';
   return '';
 }
 function asOnOf(rows, fallback) {
-  for (let i = 0; i < Math.min(8, rows.length); i++) {
-    const m = String(rows[i][0] || '').match(/As On\s*:\s*([\d\-\/]+)/i);
-    if (m) return m[1];
+  for (let i = 0; i < Math.min(15, rows.length); i++) {
+    for (const c of rows[i]) {
+      const m = String(c || '').match(/As\s*On\s*:?\s*([\d\-\/\.]+)/i);
+      if (m) return m[1];
+    }
   }
   return fallback;
+}
+// Header row: jis row ke kisi cell ka text `re` se match kare -> {row, col}
+function findHeaderRow(rows, re) {
+  for (let i = 0; i < Math.min(40, rows.length); i++) {
+    for (let c = 0; c < (rows[i] || []).length; c++) if (re.test(nb(rows[i][c]))) return i;
+  }
+  return -1;
+}
+function findHeaderCell(rows, re) {
+  for (let i = 0; i < Math.min(40, rows.length); i++) {
+    for (let c = 0; c < (rows[i] || []).length; c++) if (re.test(nb(rows[i][c]))) return { row: i, col: c };
+  }
+  return null;
+}
+// "1,23,456.00 Dr" / "(12,000)" / 12000 -> number (Cr = negative)
+function money(v) {
+  if (typeof v === 'number') return v;
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return NaN;
+  const neg = /\bCR\b/i.test(s) || /^\(.*\)$/.test(s) || /^-/.test(s);
+  const n = parseFloat(s.replace(/[^\d.]/g, ''));
+  return isNaN(n) ? NaN : (neg ? -n : n);
 }
 
 // ── Stock Status ─────────────────────────────────────
@@ -75,12 +105,20 @@ async function importStock(db, rows, todayDMY) {
 async function importOutstanding(db, rows, todayDMY) {
   const asOn = asOnOf(rows, todayDMY);
   const list = [];
-  let on = false;
-  for (const r of rows) {
-    const a = String(r[0] || '').trim();
-    if (a === 'Account') { on = true; continue; }
-    if (!on || !a || a === 'Total') continue;
-    const bal = parseFloat(r[1]);
+  // Header dhoondo: "Account" / "Party" / "Name" column, aur balance column
+  // ("Balance" / "Amount" / "Outstanding" / "Closing" / "Dr" ...). Na mile to
+  // naam = pehla text column, balance = us row ka pehla number.
+  const hc = findHeaderCell(rows, /^(ACCOUNT|PARTY|PARTY\s*NAME|ACCOUNT\s*NAME|NAME|CUSTOMER|DEALER)$/);
+  const startRow = hc ? hc.row + 1 : 0, nameCol = hc ? hc.col : 0;
+  let balCol = -1;
+  if (hc) { const hr = rows[hc.row]; for (let c = 0; c < hr.length; c++) if (c !== nameCol && /BALANCE|AMOUNT|OUTSTANDING|CLOSING|DUE|RECEIVABLE|TOTAL|DR/.test(nb(hr[c]))) { balCol = c; break; } }
+  for (let i = startRow; i < rows.length; i++) {
+    const r = rows[i] || [];
+    const a = String(r[nameCol] || '').trim();
+    if (!a || /^(TOTAL|GRAND\s*TOTAL|ACCOUNT|PARTY)$/i.test(a)) continue;
+    let bal = NaN;
+    if (balCol >= 0) bal = money(r[balCol]);
+    if (isNaN(bal)) { for (let c = 0; c < r.length; c++) { if (c === nameCol) continue; const m = money(r[c]); if (!isNaN(m) && String(r[c]).trim() !== '') { bal = m; break; } } }
     if (isNaN(bal)) continue;
     list.push({ name: a, mobile: '', amount: bal });
   }
@@ -127,13 +165,16 @@ async function importOutstanding(db, rows, todayDMY) {
   };
 }
 
-// Ek xlsx buffer -> kind pehchano -> import -> ops_import_log me likho.
-async function importBusyBuffer(db, buf, fileName, todayDMY) {
+// Ek xlsx buffer -> kind pehchano (ya forceKind: 'STOCK'/'OUT') -> import -> ops_import_log me likho.
+// Pehchan na ho to pehli rows ka preview notes me jaata hai, taaki format dekh kar sudhara ja sake.
+async function importBusyBuffer(db, buf, fileName, todayDMY, forceKind) {
   let result = '', notes = '';
   try {
     const sheets = readXlsx(buf);
-    const rows = (sheets[0] && sheets[0].rows) || [];
-    const kind = detectKind(rows);
+    // Jis sheet me data ho (pehli khali ho sakti hai)
+    const sh = sheets.find(s => s.rows.length > 2) || sheets[0];
+    const rows = (sh && sh.rows) || [];
+    const kind = (forceKind === 'STOCK' || forceKind === 'OUT') ? forceKind : detectKind(rows);
     if (kind === 'STOCK') {
       const r = await importStock(db, rows, todayDMY);
       result = `STOCK: ${r.updated} items updated`; notes = r.unmatched.join(' | ');
@@ -141,14 +182,20 @@ async function importBusyBuffer(db, buf, fileName, todayDMY) {
       const r = await importOutstanding(db, rows, todayDMY);
       result = `OUTSTANDING: ${r.count} accounts, as on ${r.asOn}` + (r.payments ? `, ${r.payments} payment(s) detected` : '');
       notes = r.unmatched.join(' | ');
+      if (!r.count) notes = 'Koi account/balance row nahi mili. Pehli rows: ' + preview(rows);
     } else {
-      result = 'SKIP: file pehchani nahi (Stock Status ya Amount Receivable hona chahiye)';
+      result = 'SKIP: file pehchani nahi (Stock Status ya Amount Receivable hona chahiye) — import karte waqt "File type" chun kar dobara try karo';
+      notes = 'Pehli rows: ' + preview(rows);
     }
   } catch (e) {
     result = 'ERROR: ' + String(e.message || e).slice(0, 250);
   }
   await db.query('INSERT INTO ops_import_log (file_name,result,notes) VALUES (?,?,?)', [fileName.slice(0, 200), result, notes]);
   return { result, notes };
+}
+
+function preview(rows) {
+  return rows.slice(0, 12).map((r, i) => `[${i + 1}] ` + (r || []).filter(c => String(c == null ? '' : c).trim() !== '').map(c => String(c).slice(0, 30)).join(' ; ')).filter(s => s.length > 4).join(' || ').slice(0, 1500);
 }
 
 module.exports = { LOW_STOCK, nb, clean, itemName, detectKind, importStock, importOutstanding, importBusyBuffer };

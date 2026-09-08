@@ -42,6 +42,14 @@ const OPS_V2_COLUMNS = {
     payment_due: 'date DEFAULT NULL',
     delivered_at: 'datetime DEFAULT NULL',
     cancel_reason: "varchar(300) NOT NULL DEFAULT ''",
+    // v3: billing/dispatch details + transporter
+    driver_name: "varchar(100) NOT NULL DEFAULT ''",
+    transporter: "varchar(120) NOT NULL DEFAULT ''",
+    lr_no: "varchar(60) NOT NULL DEFAULT ''",
+    billed_at: 'datetime DEFAULT NULL',
+  },
+  ops_dealers: {
+    credit_limit: 'decimal(14,2) NOT NULL DEFAULT 0',
   },
 };
 async function ensureColumns() {
