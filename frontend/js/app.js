@@ -435,7 +435,7 @@ window.addEventListener('message', (ev) => {
   const pageEl = document.getElementById('page-ops'); if (!pageEl || !pageEl.classList.contains('active')) return;
   const h = String(d.opsPage);
   try { localStorage.setItem('opsSub', h); } catch (e) {}
-  document.getElementById('topbarTitle').textContent = 'Michelin Ops · ' + ({home:'Dashboard',order:'New Order',orders:'Orders',crm:'CRM Calls',stock:'Stock',dealers:'Dealers',reports:'Reports',track:'DSR Tracking',route:'Route Plan',exp:'Expenses',masters:'Masters',day:'Day'}[h] || h);
+  document.getElementById('topbarTitle').textContent = 'Michelin Ops · ' + ({home:'Dashboard',order:'New Order',orders:'Orders',crm:'CRM Calls',stock:'Stock',dealers:'Dealers',reports:'Reports',track:'DSR Tracking',route:'Route Plan',exp:'Expenses',masters:'Masters',day:'Day',tally:'Tally Bridge'}[h] || h);
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const el = [...document.querySelectorAll('#sec-ops .nav-item')].find(n => (n.getAttribute('onclick') || '').includes(`'${h}')`));
   if (el) el.classList.add('active');
@@ -490,7 +490,7 @@ function navigate(page, el, sub) {
       if (!f.src) f.src = f.dataset.src + '#' + h;
       else { try { f.contentWindow.location.replace(f.dataset.src + '#' + h); } catch (e) { f.src = f.dataset.src + '#' + h; } }
     }
-    document.getElementById('topbarTitle').textContent = 'Michelin Ops · ' + ({home:'Dashboard',order:'New Order',orders:'Orders',crm:'CRM Calls',stock:'Stock',dealers:'Dealers',reports:'Reports',track:'DSR Tracking',route:'Route Plan',exp:'Expenses',masters:'Masters'}[h] || h);
+    document.getElementById('topbarTitle').textContent = 'Michelin Ops · ' + ({home:'Dashboard',order:'New Order',orders:'Orders',crm:'CRM Calls',stock:'Stock',dealers:'Dealers',reports:'Reports',track:'DSR Tracking',route:'Route Plan',exp:'Expenses',masters:'Masters',tally:'Tally Bridge'}[h] || h);
   }
   // navigate() core app ka hissa hai, yaani client ki copy me bhi jaata hai —
   // par ncLoadLog generator ke markers ke andar hai aur wahan hota hi nahi.

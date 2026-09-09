@@ -474,6 +474,29 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
       </div>
     </div>
 
+    <!-- TALLY BRIDGE (admin): Busy "List of Supply Outward Vouchers" -> Michelin InvoiceTally .xlsx -->
+    <div class="pg" id="pg-tally">
+      <div class="cols2" style="grid-template-columns:320px 1fr">
+        <div class="card">
+          <div class="h">Tally Bridge — Settings <small>sabke liye ek</small></div>
+          <label class="l" style="margin-top:0">Distributor code</label><input class="inp" id="tb-code" placeholder="e.g. 2818298">
+          <label class="l">CA (item code) reference</label>
+          <div class="hint" id="tb-castatus" style="margin:0 0 6px">Loading…</div>
+          <input type="file" id="tb-cafile" accept=".xlsx" style="font-size:12px;width:100%">
+          <div class="hint">Michelin se mila naya CA/Size file (.xlsx): pehla column CA number, doosra Size. Upload karke Save dabao.</div>
+          <div style="height:10px"></div>
+          <button class="btn gold" id="tb-save">Settings save karo</button>
+          <div class="hint" id="tb-note"></div>
+        </div>
+        <div class="card">
+          <div class="h">Busy "List of Supply Outward Vouchers" <small>upload → Michelin InvoiceTally template download</small></div>
+          <input type="file" id="tb-list" accept=".xlsx" style="font-size:13px;width:100%">
+          <div class="hint">Busy se export ki hui .xlsx chuno. Sirf wahi items aate hain jinka CA match milta hai; car tyre / tube / naya SKU "Skipped" me dikhega. Download asli .xlsx hai, seedha Michelin portal par upload karo.</div>
+          <div id="tb-result" style="margin-top:12px"><div class="empty">File upload karte hi yahan preview aur download button aa jayega.</div></div>
+        </div>
+      </div>
+    </div>
+
     <!-- EXPENSES -->
     <div class="pg" id="pg-exp">
       <div class="cols2">
@@ -777,7 +800,7 @@ function startApp(){
   if(isAdmin()) nav.push(['dealers','☺','Dealers'],['reports','▤','Reports'],['track','◎','DSR Tracking']);
   else nav.push(['day','☀','Day']);
   nav.push(['route','➜','Route Plan'],['exp','₹','Expenses']);
-  if(isAdmin()) nav.push(['masters','⚙','Masters']);
+  if(isAdmin()) nav.push(['tally','⇄','Tally Bridge'],['masters','⚙','Masters']);
   PAGES={}; nav.forEach(function(n){ PAGES[n[0]]=1; });
   $('bnav').innerHTML=nav.map(function(n){ return '<button data-pg="'+n[0]+'"><span class="ic">'+n[1]+'</span>'+n[2]+'</button>'; }).join('');
   // DSR: din chal raha ho to location pings shuru
@@ -795,7 +818,7 @@ function go(p){
   // Back button (home ke alawa har page par) + parent Task Manager ko batao (title/sidebar highlight)
   $('backBtn').style.display=$('backBtn2').style.display=(p==='home'?'none':'inline-flex');
   if(EMBEDDED){ try{ window.parent.postMessage({opsPage:p},'*'); }catch(e){} }
-  ({home:loadHome,order:loadOrderPg,orders:loadOrders,crm:loadCRM,stock:loadStock,dealers:loadDealersPg,reports:loadReports,day:loadDay,route:loadRoutePg,track:loadTrack,exp:loadExp,masters:loadMasters})[p]();
+  ({home:loadHome,order:loadOrderPg,orders:loadOrders,crm:loadCRM,stock:loadStock,dealers:loadDealersPg,reports:loadReports,day:loadDay,route:loadRoutePg,track:loadTrack,exp:loadExp,masters:loadMasters,tally:loadTally})[p]();
 }
 $('bnav').addEventListener('click',function(e){ var b=e.target.closest('button'); if(b) go(b.getAttribute('data-pg')); });
 // Parent (Task Manager sidebar) hash badalta hai -> wahi page
@@ -1497,6 +1520,41 @@ function loadTrList(){
 function trClear(){ ['tr-id','tr-name','tr-mob','tr-veh','tr-city','tr-drv','tr-drvmob','tr-note'].forEach(function(i){ $(i).value=''; }); $('tr-form-h').textContent='Transporter add'; }
 $('tr-clear').onclick=trClear;
 $('tr-save').onclick=function(){ showLoad('Save...'); call('saveTransporter',{id:V('tr-id')||null,name:V('tr-name'),mob:V('tr-mob'),vehicle:V('tr-veh'),city:V('tr-city'),driverName:V('tr-drv'),driverMob:V('tr-drvmob'),note:V('tr-note')},function(){ hideLoad(); toast('Transporter save ho gaya','ok'); trClear(); loadTrList(); }); };
+
+/* ═══ TALLY BRIDGE (admin) ═══ */
+var TB_CA=null, TB_DATA=null;
+function loadTally(){
+  $('tb-castatus').textContent='Loading…';
+  call('tallyGetSettings',{},function(s){ $('tb-code').value=s.distributorCode||''; $('tb-castatus').innerHTML='<b>'+s.caCount+'</b> items loaded ('+esc(s.caSourceLabel)+(s.caUpdatedAt?', '+esc(s.caUpdatedAt):'')+')'; });
+}
+$('tb-cafile').addEventListener('change',function(){ var f=this.files[0]; if(!f) return; var rd=new FileReader(); rd.onload=function(){ TB_CA={name:f.name,b64:rd.result.split(',')[1]}; $('tb-castatus').textContent='ready to save: '+f.name+' (Save dabao)'; }; rd.readAsDataURL(f); });
+$('tb-save').onclick=function(){
+  var code=V('tb-code'); if(!code){ toast('Distributor code daalo','err'); return; }
+  showLoad('Settings save...');
+  call('tallySaveSettings',{distributorCode:code,caFile:TB_CA},function(s){ hideLoad(); TB_CA=null; $('tb-cafile').value=''; $('tb-castatus').innerHTML='<b>'+s.caCount+'</b> items loaded ('+esc(s.caSourceLabel)+', '+esc(s.caUpdatedAt)+')'; $('tb-note').textContent='Save ho gaya — ab sab isi ke saath kaam karenge.'; toast('Settings save ho gayi','ok'); });
+};
+$('tb-list').addEventListener('change',function(){
+  var f=this.files[0], inp=this; if(!f) return;
+  $('tb-result').innerHTML='<div class="empty"><div class="spin" style="margin:0 auto"></div><div>Processing…</div></div>';
+  var rd=new FileReader(); rd.onload=function(){
+    gas('tallyProcess',JSON.stringify({b64:rd.result.split(',')[1],name:f.name,distributorCode:V('tb-code')}),function(r){
+      inp.value=''; var d=JSON.parse(r); if(!d.ok){ $('tb-result').innerHTML='<div class="empty" style="color:var(--red)">'+esc(d.error)+'</div>'; return; }
+      TB_DATA=d; renderTally(d);
+    });
+  }; rd.readAsDataURL(f);
+});
+function renderTally(d){
+  var cols=['DistributorCode','DealerShipName','InvoiceNumber','InvoiceDate','CAI','ItemPricePerUnit','Quantity','TotalAmount','GSTIN','SalesReturnNumber'];
+  var h='<div class="grid2"><div><div class="kpi g"><div class="v">'+d.matchedCount+'</div><div class="l">Rows ready</div></div></div><div><div class="kpi r"><div class="v">'+d.droppedCount+'</div><div class="l">Skipped (no CA match)</div></div></div><div><div class="kpi"><div class="v">'+Number(d.totals.qty).toLocaleString('en-IN')+'</div><div class="l">Total quantity</div></div></div><div><div class="kpi gr"><div class="v">'+fmt(d.totals.amount)+'</div><div class="l">Total amount</div></div></div></div>';
+  if(!d.matchedCount) h+='<div class="warn">Koi item match nahi hua — CA data ya file format check karo.</div>';
+  else {
+    h+='<button class="btn gold" id="tb-download" style="margin:6px 0 12px">⬇ Filled template download karo (.xlsx)</button>';
+    h+='<div class="h" style="font-size:14px">Preview <small>'+d.preview.length+' of '+d.matchedCount+'</small></div><div class="tblw"><table class="tbl"><thead><tr>'+cols.map(function(c){return '<th>'+c+'</th>';}).join('')+'</tr></thead><tbody>'+d.preview.map(function(r){ return '<tr>'+cols.map(function(c){ return '<td>'+esc(r[c]==null?'':r[c])+'</td>'; }).join('')+'</tr>'; }).join('')+'</tbody></table></div>';
+  }
+  if(d.dropped.length) h+='<div class="h" style="font-size:14px;margin-top:14px">Skipped items <small>CA data me match nahi mila</small></div><div style="max-height:220px;overflow:auto;border:1px solid var(--bdr);border-radius:10px">'+d.dropped.map(function(x){ return '<div class="logrow" style="padding:6px 10px;display:flex;justify-content:space-between;gap:10px"><span>'+esc(x.item)+'</span><span style="color:var(--t3)">'+esc(x.vch||'')+'</span></div>'; }).join('')+'</div>';
+  $('tb-result').innerHTML=h;
+  var b=$('tb-download'); if(b) b.onclick=function(){ var bin=atob(d.base64), arr=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i); var blob=new Blob([arr],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}); var u=URL.createObjectURL(blob), a=document.createElement('a'); a.href=u; a.download=d.filename; document.body.appendChild(a); a.click(); setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(u); },1000); };
+}
 
 /* ═══ EXPENSES ═══ */
 var EX_USERS=[];

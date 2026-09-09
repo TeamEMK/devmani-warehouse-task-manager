@@ -346,6 +346,45 @@ module.exports = function registerOpsExtra(S) {
     } catch (e) { res.status(500).send('Server error'); }
   });
 
+  // ══════════ TALLY BRIDGE ══════════
+  // Busy "List of Supply Outward Vouchers" -> Michelin InvoiceTally .xlsx. Settings app_settings me (sabke liye ek).
+  const tally = require('../lib/tally-bridge');
+  async function getSetting(k) { const [[r]] = await db.query('SELECT value FROM app_settings WHERE key_name=?', [k]); return r ? r.value : null; }
+  async function setSetting(k, v) { await db.query('INSERT INTO app_settings (key_name, value) VALUES (?,?) ON DUPLICATE KEY UPDATE value=VALUES(value)', [k, v]); }
+  async function tallySettings() {
+    let code = await getSetting('tally.distributorCode'), ca = await getSetting('tally.caTable');
+    if (code === null) { code = tally.DEFAULT_DISTRIBUTOR; await setSetting('tally.distributorCode', code); }
+    let caTable = [];
+    if (ca) { try { caTable = JSON.parse(ca); } catch (_) { caTable = []; } }
+    if (!caTable.length) { caTable = tally.DEFAULT_CA_TABLE; await setSetting('tally.caTable', J(caTable)); await setSetting('tally.caSourceLabel', 'bundled default (Aug 2026 export)'); await setSetting('tally.caUpdatedAt', '2026-08-24'); }
+    return { distributorCode: code, caTable, caSourceLabel: (await getSetting('tally.caSourceLabel')) || 'default', caUpdatedAt: (await getSetting('tally.caUpdatedAt')) || '' };
+  }
+  router.post('/tallyGetSettings', requireOps, adminOnly, rpc(async () => { const s = await tallySettings(); return J({ ok: true, distributorCode: s.distributorCode, caCount: s.caTable.length, caSourceLabel: s.caSourceLabel, caUpdatedAt: s.caUpdatedAt }); }));
+  router.post('/tallySaveSettings', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = parse(j);
+    await setSetting('tally.distributorCode', String(d.distributorCode || '').trim());
+    if (d.caFile && d.caFile.b64) {
+      const sheets = require('../lib/xlsx').readXlsx(Buffer.from(d.caFile.b64, 'base64'));
+      const rows = ((sheets.find(s => s.rows.length > 1) || sheets[0]) || { rows: [] }).rows;
+      const caTable = tally.buildCaTableFromRows(rows);
+      if (!caTable.length) return err('Is file mein CA / Size column nahi mile — pehla column CA number, doosra Size hona chahiye.');
+      await setSetting('tally.caTable', J(caTable));
+      await setSetting('tally.caSourceLabel', String(d.caFile.name || 'uploaded file').slice(0, 120));
+      await setSetting('tally.caUpdatedAt', nowIST().iso);
+    }
+    const s = await tallySettings();
+    return J({ ok: true, distributorCode: s.distributorCode, caCount: s.caTable.length, caSourceLabel: s.caSourceLabel, caUpdatedAt: s.caUpdatedAt });
+  }));
+  router.post('/tallyProcess', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = parse(j);
+    if (!d.b64) return err('File nahi mili');
+    const s = await tallySettings();
+    const code = String(d.distributorCode || s.distributorCode || '').trim();
+    if (!code) return err('Distributor code set nahi hai — pehle Settings mein save karein.');
+    const r = tally.processListOfSupply(Buffer.from(d.b64, 'base64'), s.caTable, code);
+    return J({ ok: true, base64: r.xlsx ? r.xlsx.toString('base64') : null, filename: r.xlsx ? `InvoiceTally_${code}.xlsx` : null, matchedCount: r.matchedCount, droppedCount: r.droppedCount, dropped: r.dropped, preview: r.preview, totals: r.totals });
+  }));
+
   // Chhota helper: ops users list (admin ko filters ke liye)
   router.post('/getUsers', requireOps, adminOnly, rpc(async () => {
     const [rows] = await db.query('SELECT name, mobile, role, active FROM ops_users ORDER BY role=\'DSR\' DESC, name');
