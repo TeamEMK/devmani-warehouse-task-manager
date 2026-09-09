@@ -1,7 +1,8 @@
 // Hostinger par deploy: zip upload (TUS) + Node.js build trigger + poll.
-// Zaroori env: HOSTINGER_API_TOKEN, aur pehle se bana hua app.zip (workflow banata hai).
+// Zaroori env: HOSTINGER_API_TOKEN, aur pehle se bana hua app.zip (neeche wala git archive command).
 //
-// Lokal se bhi chala sakte ho:
+// Ye sirf fallback hai — asal deploy ab Hostinger ke GitHub connect se hota hai (hPanel -> Deployments),
+// har main push par Hostinger khud build karta hai. Lokal se zaroorat pade to:
 //   git archive --format=zip --prefix=devmani-warehouse-task-manager/ -o app.zip HEAD
 //   HOSTINGER_API_TOKEN=... node scripts/hostinger-deploy.js
 const fs = require('fs');
