@@ -63,18 +63,13 @@ module.exports = function registerOpsRoutes(app, ctx) {
   const isAdmin = u => u && u.role !== 'DSR';
 
   // Order ID: MO-yyMMdd-HHmmss (IST). Same second me do orders aayein to -2, -3.
+  // Order ID: simple running number — MO-1001, MO-1002 ... (purane sheet wale
+  // MO-yyMMdd-HHmmss waise hi rahenge). Race me duplicate na bane, isliye insert
+  // fail hone par caller retry karta hai (unique key oid).
   async function newOrderId() {
-    const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour12: false, year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const p = {}; for (const x of fmt.formatToParts(new Date())) p[x.type] = x.value;
-    if (p.hour === '24') p.hour = '00';
-    const base = `MO-${p.year}${p.month}${p.day}-${p.hour}${p.minute}${p.second}`;
-    let oid = base;
-    for (let i = 2; i < 20; i++) {
-      const [r] = await db.query('SELECT 1 FROM ops_orders WHERE oid=?', [oid]);
-      if (!r.length) return oid;
-      oid = `${base}-${i}`;
-    }
-    return oid;
+    const [[r]] = await db.query(`SELECT MAX(CAST(SUBSTRING(oid, 4) AS UNSIGNED)) AS n FROM ops_orders WHERE oid REGEXP '^MO-[0-9]+$'`);
+    const next = Math.max(1000, r && r.n ? Number(r.n) : 1000) + 1;
+    return `MO-${next}`;
   }
 
   // ── auth ───────────────────────────────────────────
@@ -368,13 +363,19 @@ module.exports = function registerOpsRoutes(app, ctx) {
     const [[dl]] = await db.query('SELECT * FROM ops_dealers WHERE did=?', [String(d.did)]);
     if (!dl) return err('Dealer nahi mila');
     const b = buildLines(items, await itemInv()); if (b.error) return err(b.error);
-    const oid = await newOrderId();
     const now = nowIST();
     const hist = [{ s: 'PENDING', t: now.dmyhm, by: u.name }];
-    await db.query(
-      `INSERT INTO ops_orders (oid,order_date,dsr_name,dsr_mobile,did,dealer_name,dealer_mobile,city,items_json,total_qty,amount,status,note,history_json,created_at,updated_at)
-       VALUES (?,CURRENT_DATE,?,?,?,?,?,?,?,?,?,'PENDING',?,?,NOW(),NOW())`,
-      [oid, u.name, u.mob, dl.did, dl.name, clean(dl.mobile), dl.city || '', J(b.lines), b.qty, b.amt, String(d.note || ''), J(hist)]);
+    let oid = '';
+    for (let attempt = 0; attempt < 5; attempt++) {
+      oid = await newOrderId();
+      try {
+        await db.query(
+          `INSERT INTO ops_orders (oid,order_date,dsr_name,dsr_mobile,did,dealer_name,dealer_mobile,city,items_json,total_qty,amount,status,note,history_json,created_at,updated_at)
+           VALUES (?,CURRENT_DATE,?,?,?,?,?,?,?,?,?,'PENDING',?,?,NOW(),NOW())`,
+          [oid, u.name, u.mob, dl.did, dl.name, clean(dl.mobile), dl.city || '', J(b.lines), b.qty, b.amt, String(d.note || ''), J(hist)]);
+        break;
+      } catch (e) { if (e.code === '23505' && attempt < 4) continue; throw e; }
+    }
     // Office ko WhatsApp — turant; fail ho to 5-min scanner dobara try karega
     notifyNewOrder({ oid, dname: dl.name, city: dl.city || '', dsr: u.name, qty: b.qty, amount: b.amt }).catch(e => console.error('ops wa', e.message));
     return J({ ok: true, oid, qty: b.qty, amount: b.amt });
@@ -607,17 +608,31 @@ module.exports = function registerOpsRoutes(app, ctx) {
       [oid, kind, name, mime, buf, driveUrl, by]);
     return { name, driveUrl };
   }
-  // Drive: existing proof-upload Apps Script (backend/lib/google.js) se — owner ke quota par.
+  // Drive: apni Apps Script web app (docs/apps-script-drive) — owner ke Drive me
+  // "Michelin Ops - Files/<sub>" me file. Env: OPS_DRIVE_SCRIPT_URL + OPS_DRIVE_SECRET.
   // Config na ho to chup-chaap '' (file DB me to hai hi).
   async function pushToDrive(fileName, mime, b64, sub) {
-    const folderId = (process.env.OPS_DRIVE_FOLDER_ID || '').match(/\/folders\/([\w-]+)/)?.[1] || process.env.OPS_DRIVE_FOLDER_ID || '';
-    if (!folderId || !process.env.APPS_SCRIPT_UPLOAD_URL) return '';
+    const url = process.env.OPS_DRIVE_SCRIPT_URL, secret = process.env.OPS_DRIVE_SECRET;
+    if (!url || !secret) return '';
     try {
-      const { callProofScript } = require('../lib/google');
-      const r = await callProofScript({ action: 'upload', folderId, fileName: `${sub}_${fileName}`, mimeType: mime, dataBase64: b64 });
-      return r.fileId ? `https://drive.google.com/file/d/${r.fileId}/view` : '';
+      const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ secret, action: 'upload', sub, fileName, mimeType: mime, dataBase64: b64 }), redirect: 'follow' });
+      const text = await resp.text();
+      let data; try { data = JSON.parse(text); } catch (_) { throw new Error('script ne JSON nahi diya — editor me authorize() ek baar chalao'); }
+      if (!data.ok) throw new Error(data.error || 'upload fail');
+      return data.url || (data.fileId ? `https://drive.google.com/file/d/${data.fileId}/view` : '');
     } catch (e) { console.error('ops drive', e.message); return ''; }
   }
+  // Admin check: Drive setup chal raha hai ya nahi
+  router.post('/driveCheck', requireOps, adminOnly, rpc(async () => {
+    const url = process.env.OPS_DRIVE_SCRIPT_URL, secret = process.env.OPS_DRIVE_SECRET;
+    if (!url || !secret) return J({ ok: false, error: 'OPS_DRIVE_SCRIPT_URL / OPS_DRIVE_SECRET env set nahi' });
+    try {
+      const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ secret, action: 'ping' }), redirect: 'follow' });
+      const text = await resp.text();
+      let data; try { data = JSON.parse(text); } catch (_) { return J({ ok: false, error: 'Script authorize nahi hua — Apps Script editor me authorize() chalao' }); }
+      return J(data);
+    } catch (e) { return err(e.message); }
+  }));
   router.post('/uploadOrderFile', requireOps, rpc(async (u, j) => {
     const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
     if (!['invoice', 'pod'].includes(d.kind)) return err('Kind galat (invoice / pod)');
@@ -755,7 +770,9 @@ module.exports = function registerOpsRoutes(app, ctx) {
 
   // Report ka text banao (preview + send dono isi se). Admin bhejne se pehle
   // text dekh aur badal sakta hai — sendRMReport me `text` aaye to wahi jaata hai.
-  async function buildRMReport(rm, type) {
+  // YYYY-MM-DD hi maano, warna null
+  const isoD = v => { const m = String(v || '').match(/^(\d{4}-\d{2}-\d{2})/); return m ? m[1] : null; };
+  async function buildRMReport(rm, type, from, to) {
     if (type === 'STOCK') {
       // Current stock — us company ke sab items jinka stock > 0, zyada se kam
       const [items] = await db.query('SELECT * FROM ops_items WHERE UPPER(brand)=? AND stock>0 ORDER BY stock DESC, id', [String(rm.company).toUpperCase()]);
@@ -772,7 +789,10 @@ module.exports = function registerOpsRoutes(app, ctx) {
       return { count: lines.length, text: `${lines.length} items low/out of stock:\n${lines.join('\n')}` };
     }
     if (type === 'SALE') {
-      const [orders] = await db.query(`SELECT items_json FROM ops_orders WHERE order_date=CURRENT_DATE AND status<>'CANCELLED'`);
+      // Date range (default aaj). from/to YYYY-MM-DD
+      const f = isoD(from) || nowIST().iso, t = isoD(to) || f;
+      const [orders] = await db.query(`SELECT items_json FROM ops_orders WHERE order_date BETWEEN ? AND ? AND status<>'CANCELLED'`, [f, t]);
+      const rangeTxt = f === t ? dmyOf(f) : `${dmyOf(f)} - ${dmyOf(t)}`;
       let qty = 0, amt = 0, count = 0; const byItem = {};
       for (const o of orders) {
         let lines = []; try { lines = JSON.parse(o.items_json || '[]'); } catch (_) {}
@@ -787,31 +807,36 @@ module.exports = function registerOpsRoutes(app, ctx) {
         }
         if (has) count++;
       }
-      if (!count) return { error: `Aaj koi ${rm.company} sale nahi hui abhi tak` };
+      if (!count) return { error: `${rangeTxt} me koi ${rm.company} sale nahi hui` };
       const itemLines = Object.keys(byItem).map(k => `${k}: ${byItem[k]} pcs`);
-      return { count, text: `${count} orders, ${qty} pcs, ${wati.fmtR(amt)}.\nItems:\n${itemLines.join('\n')}` };
+      return { count, range: rangeTxt, text: `Sales ${rangeTxt}: ${count} orders, ${qty} pcs, ${wati.fmtR(amt)}.\nItems:\n${itemLines.join('\n')}` };
     }
     return { error: 'Type galat — SALE ya REORDER hona chahiye' };
+  }
+  // WhatsApp template params me newline / tab / 4+ space allowed NAHI hain (Meta reject
+  // karta hai) aur poora message ~1024 akshar. Isliye bhejne se pehle ek line banao.
+  function waParam(text, max) {
+    return String(text || '').replace(/\r/g, '').split('\n').map(s => s.trim()).filter(Boolean).join(' | ').replace(/\s{2,}/g, ' ').slice(0, max || 900);
   }
   router.post('/previewRMReport', requireOps, adminOnly, rpc(async (u, j) => {
     const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
     const [[rm]] = await db.query('SELECT * FROM ops_rm_list WHERE mobile=?', [clean(d.rmMob)]);
     if (!rm) return err('RM nahi mila');
-    const r = await buildRMReport(rm, String(d.type || '').toUpperCase());
+    const r = await buildRMReport(rm, String(d.type || '').toUpperCase(), d.from, d.to);
     if (r.error) return err(r.error);
-    return J({ ok: true, text: r.text, count: r.count, rm: rm.name, company: rm.company, date: nowIST().dmy });
+    return J({ ok: true, text: r.text, count: r.count, rm: rm.name, company: rm.company, date: r.range || nowIST().dmy, waLen: waParam(r.text, 100000).length });
   }));
   router.post('/sendRMReport', requireOps, adminOnly, rpc(async (u, j) => {
     const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
     const [[rm]] = await db.query('SELECT * FROM ops_rm_list WHERE mobile=?', [clean(d.rmMob)]);
     if (!rm) return err('RM nahi mila');
-    const type = String(d.type || '').toUpperCase(), today = nowIST().dmy;
-    let text = String(d.text || '').trim(), count = 0;
-    if (!text) { const r = await buildRMReport(rm, type); if (r.error) return err(r.error); text = r.text; count = r.count; }
+    const type = String(d.type || '').toUpperCase();
     if (!['SALE', 'REORDER', 'STOCK'].includes(type)) return err('Type galat — SALE, REORDER ya STOCK hona chahiye');
-    // WhatsApp template param me newline theek hai; lambai 1000 se andar rakho
-    const label = { SALE: 'Sale', REORDER: 'Reorder', STOCK: 'Stock' }[type];
-    const res = await wati.send(rm.mobile, wati.T.RM_REPORT, [label, rm.company, text.slice(0, 1000), today]);
+    let text = String(d.text || '').trim(), count = 0, dateTxt = nowIST().dmy;
+    if (!text) { const r = await buildRMReport(rm, type, d.from, d.to); if (r.error) return err(r.error); text = r.text; count = r.count; if (r.range) dateTxt = r.range; }
+    else if (type === 'SALE') { const f = isoD(d.from), t = isoD(d.to) || f; if (f) dateTxt = f === t ? dmyOf(f) : `${dmyOf(f)} - ${dmyOf(t)}`; }
+    const label = { SALE: 'Sales', REORDER: 'Reorder', STOCK: 'Stock' }[type];
+    const res = await wati.send(rm.mobile, wati.T.RM_REPORT, [label, rm.company, waParam(text), dateTxt]);
     if (res !== 'SENT') return err('Message send nahi hua: ' + res);
     return J({ ok: true, sentTo: rm.name, count });
   }));

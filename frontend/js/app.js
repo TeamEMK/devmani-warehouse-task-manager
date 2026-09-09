@@ -429,6 +429,18 @@ const PAGE_NAV_ID = {
   'leaves': 'nav-leaves', 'query': 'nav-query', 'fms': 'nav-fms', 'fms-tasks': 'nav-fms-tasks',
 };
 
+// Ops iframe ke andar page badle (back button / tabs) to topbar title aur sidebar highlight yahan bhi badlo
+window.addEventListener('message', (ev) => {
+  const d = ev && ev.data; if (!d || !d.opsPage) return;
+  const pageEl = document.getElementById('page-ops'); if (!pageEl || !pageEl.classList.contains('active')) return;
+  const h = String(d.opsPage);
+  try { localStorage.setItem('opsSub', h); } catch (e) {}
+  document.getElementById('topbarTitle').textContent = 'Michelin Ops · ' + ({home:'Dashboard',order:'New Order',orders:'Orders',crm:'CRM Calls',stock:'Stock',dealers:'Dealers',reports:'Reports',track:'DSR Tracking',route:'Route Plan',exp:'Expenses',masters:'Masters',day:'Day'}[h] || h);
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const el = [...document.querySelectorAll('#sec-ops .nav-item')].find(n => (n.getAttribute('onclick') || '').includes(`'${h}')`));
+  if (el) el.classList.add('active');
+});
+
 // Sidebar section collapse/expand (BASIC / MICHELIN OPS) — yaad rehta hai
 function toggleSec(id) {
   const sec = document.getElementById(id); if (!sec) return;

@@ -21,6 +21,27 @@ input,select,textarea{font-family:inherit;font-size:15px;}
 .hdr .logo{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;color:var(--gold);line-height:1;}
 .hdr .sub{font-size:10px;color:rgba(255,255,255,.55);letter-spacing:.5px;}
 .hdr .who{margin-left:auto;text-align:right;font-size:11px;color:rgba(255,255,255,.75);}
+.hdr-back{border:none;background:rgba(255,255,255,.12);color:#fff;width:32px;height:32px;border-radius:9px;font-size:18px;margin-right:10px;line-height:1;}
+.kpi.go{cursor:pointer;}
+.kpi.go:hover{box-shadow:0 4px 12px -2px rgba(10,10,10,.12);}
+/* Date range picker (RM sales report): left quick selects, right calendar */
+.drp{display:flex;gap:10px;border:1px solid var(--bdr);border-radius:12px;padding:10px;background:#fff;margin-top:6px;}
+.drp .quick{display:flex;flex-direction:column;gap:4px;min-width:120px;border-right:1px solid var(--bdr);padding-right:10px;}
+.drp .quick button{border:1px solid transparent;background:none;text-align:left;padding:7px 9px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--t2);}
+.drp .quick button.on{background:var(--navy);color:#fff;}
+.drp .cal{flex:1;min-width:0;}
+.drp .cal-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-weight:700;font-size:13px;}
+.drp .cal-h button{border:1px solid var(--bdr);background:#fff;width:26px;height:26px;border-radius:7px;font-size:14px;}
+.drp .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.drp .grid span{font-size:10px;color:var(--t3);text-align:center;font-weight:700;padding:2px 0;}
+.drp .grid button{border:none;background:none;height:30px;border-radius:7px;font-size:12.5px;color:var(--txt);}
+.drp .grid button:hover{background:var(--bbg);}
+.drp .grid button.dim{color:#c4c9d2;}
+.drp .grid button.in{background:#e8ecf5;border-radius:0;}
+.drp .grid button.st,.drp .grid button.en{background:var(--navy);color:#fff;border-radius:7px;}
+.drp .grid button.today{font-weight:800;text-decoration:underline;}
+.drp .sel{font-size:12px;color:var(--t2);margin-top:6px;}
+@media (max-width:480px){ .drp{flex-direction:column;} .drp .quick{flex-direction:row;flex-wrap:wrap;border-right:none;border-bottom:1px solid var(--bdr);padding:0 0 8px;} }
 .hdr .who b{display:block;font-size:13px;color:#fff;}
 .main{flex:1;overflow-y:auto;padding:14px 14px 20px;-webkit-overflow-scrolling:touch;}
 .bnav{background:#fff;border-top:1px solid var(--bdr);display:flex;flex-shrink:0;padding-bottom:env(safe-area-inset-bottom);order:2;overflow-x:auto;}
@@ -300,12 +321,13 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
   <nav class="bnav" id="bnav"></nav>
   <div class="body">
   <div class="hdr">
+    <button id="backBtn" class="hdr-back" style="display:none" title="Dashboard">&larr;</button>
     <div><div class="logo">MICHELIN OPS</div><div class="sub">BANSAL OIL DISTRIBUTORS · v2.0</div></div>
     <div class="who" id="who"></div>
   </div>
   <div class="main" id="main">
     <!-- Task Manager ke andar: header chhupa hota hai, ye patli line user + logout dikhati hai -->
-    <div class="embed-strip"><span id="who2"></span><button class="btn xs ghost" id="logoutBtn2">Logout</button></div>
+    <div class="embed-strip"><button class="btn xs ghost" id="backBtn2" style="display:none;margin-right:auto">&larr; Dashboard</button><span id="who2"></span><button class="btn xs ghost" id="logoutBtn2">Logout</button></div>
 
     <!-- HOME -->
     <div class="pg" id="pg-home">
@@ -593,7 +615,20 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
   <div class="hh"><div class="h">RM ko WhatsApp Report</div><button data-close="ov-rm">&#10005;</button></div>
   <div class="row" style="gap:8px;flex-wrap:wrap">
     <div style="flex:1;min-width:200px"><label class="l" style="margin-top:0">RM</label><select class="inp" id="rm-select"></select></div>
-    <div><label class="l" style="margin-top:0">Report</label><div class="seg-tabs" style="margin:0"><button class="on" data-rmtype="SALE">Aaj ki Sale</button><button data-rmtype="REORDER">Reorder</button><button data-rmtype="STOCK">Current Stock</button></div></div>
+    <div><label class="l" style="margin-top:0">Report</label><div class="seg-tabs" style="margin:0"><button class="on" data-rmtype="SALE">Sales Report</button><button data-rmtype="REORDER">Reorder</button><button data-rmtype="STOCK">Current Stock</button></div></div>
+  </div>
+  <div id="rm-range" style="margin-top:8px">
+    <label class="l" style="margin-top:0">Date range <small style="font-weight:500;text-transform:none">(default: aaj)</small></label>
+    <div class="drp">
+      <div class="quick" id="drp-quick">
+        <button data-q="0" class="on">Aaj</button><button data-q="1">Kal (yesterday)</button><button data-q="7">Last 7 din</button><button data-q="14">Last 14 din</button><button data-q="30">Last 30 din</button><button data-q="M">Is mahina</button><button data-q="PM">Pichla mahina</button>
+      </div>
+      <div class="cal">
+        <div class="cal-h"><button id="drp-prev">&lsaquo;</button><span id="drp-title"></span><button id="drp-next">&rsaquo;</button></div>
+        <div class="grid" id="drp-grid"></div>
+        <div class="sel" id="drp-sel"></div>
+      </div>
+    </div>
   </div>
   <label class="l">Ye message jayega <small style="font-weight:500;text-transform:none">(beech ka hissa edit kar sakte ho)</small></label>
   <div class="wa-msg" id="rm-wa">
@@ -720,6 +755,7 @@ function doLogin(){
 }
 $('lg-btn').onclick=doLogin;
 $('lg-mob').addEventListener('keyup',function(e){ if(e.keyCode===13) doLogin(); });
+$('backBtn').onclick=$('backBtn2').onclick=function(){ go('home'); };
 $('logoutBtn').onclick=$('logoutBtn2').onclick=function(){ fetch(API+'logout',{method:'POST',credentials:'same-origin'}).then(function(){ location.href='/ops'; }); };
 
 var PAGES={};
@@ -748,6 +784,9 @@ function go(p){
   var pg=document.querySelectorAll('.pg'); for(var j=0;j<pg.length;j++) pg[j].className='pg';
   $('pg-'+p).className='pg on'; $('main').scrollTop=0;
   try{ if(location.hash!=='#'+p) history.replaceState(null,'','#'+p); }catch(e){}
+  // Back button (home ke alawa har page par) + parent Task Manager ko batao (title/sidebar highlight)
+  $('backBtn').style.display=$('backBtn2').style.display=(p==='home'?'none':'inline-flex');
+  if(EMBEDDED){ try{ window.parent.postMessage({opsPage:p},'*'); }catch(e){} }
   ({home:loadHome,order:loadOrderPg,orders:loadOrders,crm:loadCRM,stock:loadStock,dealers:loadDealersPg,reports:loadReports,day:loadDay,route:loadRoutePg,track:loadTrack,exp:loadExp,masters:loadMasters})[p]();
 }
 $('bnav').addEventListener('click',function(e){ var b=e.target.closest('button'); if(b) go(b.getAttribute('data-pg')); });
@@ -768,6 +807,9 @@ function loadHomeReports(){
     c.innerHTML=kp+'<div class="cols2">'+pay+perf+'</div>';
   });
 }
+// Upar wale KPI click: orders (filter ke saath) ya stock
+$('kpis').addEventListener('click',function(e){ var b=e.target.closest('[data-kgo]'); if(!b) return; var t=b.getAttribute('data-kgo').split(':'); if(t[0]==='orders'){ ST_F=t[1]||'ALL'; go('orders'); } else { SK_SEG=''; STOCK_LOW=(t[1]==='low'); go('stock'); } });
+var STOCK_LOW=false;
 $('home-reports').addEventListener('click',function(e){ var b=e.target.closest('[data-rpgo]'); if(!b) return; var t=b.getAttribute('data-rpgo'); if(t==='exp'){ go('exp'); return; } RP_TAB=t; go('reports'); });
 function loadHome(){
   if(!isAdmin()) loadHomeDay(); else { $('home-day').style.display='none'; loadHomeReports(); }
@@ -776,10 +818,11 @@ function loadHome(){
   gas('getDashboard',USER.mob,function(r){
     var d=JSON.parse(r); if(!d.ok){toast(d.error,'err');return;}
     var s=d.s; DASH=s;
-    var k=[['g',s.todayOrders,'Aaj ke orders'],['b',s.pending,'Pending orders'],['',s.dispatched,'Dispatched (in transit)'],['gr',s.totalStock.toLocaleString('en-IN'),'Total stock (pcs)']];
-    if(isAdmin()) k.push(['r',s.outOfStock+' / '+s.lowStock,'Out / Low stock items'],['',fmt(s.monthAmt),'Is month ka order value']);
-    else k.push(['',s.monthQty,'Is month ke tyre'],['',fmt(s.monthAmt),'Is month ka order value']);
-    $('kpis').innerHTML=k.map(function(x){ return '<div><div class="kpi '+x[0]+'"><div class="v">'+x[1]+'</div><div class="l">'+x[2]+'</div></div></div>'; }).join('');
+    // [style, value, label, click target]  — target: orders:<filter> / stock / stock:low
+    var k=[['g',s.todayOrders,'Aaj ke orders','orders:TODAY'],['b',s.pending,'Pending orders','orders:PENDING'],['',s.dispatched,'Billed / in transit','orders:BILLED'],['gr',s.totalStock.toLocaleString('en-IN'),'Total stock (pcs)','stock']];
+    if(isAdmin()) k.push(['r',s.outOfStock+' / '+s.lowStock,'Out / Low stock items','stock:low'],['',fmt(s.monthAmt),'Is month ka order value','orders:MONTH']);
+    else k.push(['',s.monthQty,'Is month ke tyre','orders:MONTH'],['',fmt(s.monthAmt),'Is month ka order value','orders:MONTH']);
+    $('kpis').innerHTML=k.map(function(x){ return '<div><div class="kpi go '+x[0]+'" data-kgo="'+x[3]+'"><div class="v">'+x[1]+'</div><div class="l">'+x[2]+' <span style="color:var(--t3)">&rsaquo;</span></div></div></div>'; }).join('');
     renderQA(s.pending);
     var lo=$('home-low'), low=s.low.slice(0,8);
     lo.innerHTML='<div class="h">Low / Out of stock <small>'+s.outOfStock+' out · '+s.lowStock+' low</small></div>'+(low.length?low.map(function(it){ return '<div class="item"><div class="nm"><b>'+esc(iName(it))+'</b><span class="bchip">'+esc(it.brand)+'</span><span class="chip c-'+it.seg+'">'+it.seg+'</span></div><div class="q '+qCls(it.stock)+'">'+it.stock+'</div></div>'; }).join(''):'<div class="empty">Sab stock theek hai</div>')+'<div class="acts" style="margin-top:10px"><button class="btn sm ghost" onclick="go(\'stock\')">Poora stock dekho &rarr;</button>'+(isAdmin()?'<button class="btn sm ghost" onclick="openRM()">✉ RM ko reorder report</button>':'')+'</div>';
@@ -1006,14 +1049,15 @@ $('or-submit').onclick=function(){
 
 /* ═══ ORDERS ═══ */
 function loadOrders(){
-  var tabs=[['OPEN','Open'],['PENDING','New (CRM baaki)'],['CONFIRMED','Confirmed (billing baaki)'],['BILLED','Billed / Dispatched'],['DELIVERED','Delivered'],['UNPAID','Payment baaki'],['CANCELLED','Cancelled'],['ALL','All']];
+  var tabs=[['OPEN','Open'],['TODAY','Aaj'],['MONTH','Is mahine'],['PENDING','New (CRM baaki)'],['CONFIRMED','Confirmed (billing baaki)'],['BILLED','Billed / Dispatched'],['DELIVERED','Delivered'],['UNPAID','Payment baaki'],['CANCELLED','Cancelled'],['ALL','All']];
   $('st-tabs').innerHTML=tabs.map(function(t){return '<button data-stf="'+t[0]+'"'+(ST_F===t[0]?' class="on"':'')+'>'+t[1]+'</button>';}).join('');
   $('orders-list').innerHTML='<div class="empty"><div class="spin" style="margin:0 auto"></div></div>';
   gas('getOrders',USER.mob,function(r){ ORDERS=JSON.parse(r); renderOrders(); });
 }
 $('st-tabs').addEventListener('click',function(e){ var b=e.target.closest('[data-stf]'); if(!b)return; ST_F=b.getAttribute('data-stf'); loadOrders(); });
 function renderOrders(){
-  var l=ORDERS.filter(function(o){ if(ST_F==='ALL')return true; if(ST_F==='OPEN')return o.status==='PENDING'||o.status==='CONFIRMED'||o.status==='BILLED'||o.status==='DISPATCHED'; if(ST_F==='UNPAID') return o.status==='DELIVERED'&&o.payStatus!=='PAID'; if(ST_F==='BILLED') return isOut(o.status); return o.status===ST_F; });
+  var today=todayISO().split('-').reverse().join('/'), mk=today.slice(3);
+  var l=ORDERS.filter(function(o){ if(ST_F==='ALL')return true; if(ST_F==='TODAY') return o.date===today&&o.status!=='CANCELLED'; if(ST_F==='MONTH') return o.date.slice(3)===mk&&o.status!=='CANCELLED'; if(ST_F==='OPEN')return o.status==='PENDING'||o.status==='CONFIRMED'||o.status==='BILLED'||o.status==='DISPATCHED'; if(ST_F==='UNPAID') return o.status==='DELIVERED'&&o.payStatus!=='PAID'; if(ST_F==='BILLED') return isOut(o.status); return o.status===ST_F; });
   $('orders-list').innerHTML=l.length?l.map(orderCard).join(''):'<div class="empty">Koi order nahi</div>';
 }
 function fileLinks(o){
@@ -1128,9 +1172,10 @@ $('sk-tabs').addEventListener('click',function(e){ var b=e.target.closest('[data
 $('sk-search').addEventListener('input',renderStock);
 function renderStock(){
   var q=V('sk-search').toLowerCase();
-  var l=ITEMS.filter(function(it){ if(SK_SEG&&it.seg!==SK_SEG)return false; if(!SK_SEG&&it.seg==='OT'&&!isAdmin())return false; return !q||(it.brand+' '+it.seg+' '+iName(it)).toLowerCase().indexOf(q)>=0; });
+  var l=ITEMS.filter(function(it){ if(SK_SEG&&it.seg!==SK_SEG)return false; if(!SK_SEG&&it.seg==='OT'&&!isAdmin())return false; if(STOCK_LOW&&it.stock>10) return false; return !q||(it.brand+' '+it.seg+' '+iName(it)).toLowerCase().indexOf(q)>=0; });
+  if(STOCK_LOW){ l.sort(function(a,b){return a.stock-b.stock;}); }
   var tot=0; l.forEach(function(it){tot+=it.stock;});
-  $('stock-list').innerHTML='<div class="h">'+l.length+' items <small>'+tot.toLocaleString('en-IN')+' pcs</small></div>'+(l.length?l.map(function(it){ return '<div class="item"'+(isAdmin()?' data-sm="'+it.code+'"':'')+'><div class="nm"><b>'+esc(iName(it))+'</b><span class="bchip">'+esc(it.brand)+'</span><span class="chip c-'+it.seg+'">'+it.seg+'</span> <span>'+fmt(it.price)+'</span></div><div class="q '+qCls(it.stock)+'">'+it.stock+'</div></div>'; }).join(''):'<div class="empty">Kuch nahi mila</div>')+(isAdmin()?'<div class="hint" style="margin-top:8px">Item par tap karo → Stock IN / count set</div>':'');
+  $('stock-list').innerHTML='<div class="h">'+l.length+' items <small>'+tot.toLocaleString('en-IN')+' pcs</small>'+(STOCK_LOW?'<button class="btn xs ghost" style="margin-left:8px" onclick="STOCK_LOW=false;renderStock()">Sirf low/out ✕</button>':'')+'</div>'+(l.length?l.map(function(it){ return '<div class="item"'+(isAdmin()?' data-sm="'+it.code+'"':'')+'><div class="nm"><b>'+esc(iName(it))+'</b><span class="bchip">'+esc(it.brand)+'</span><span class="chip c-'+it.seg+'">'+it.seg+'</span> <span>'+fmt(it.price)+'</span></div><div class="q '+qCls(it.stock)+'">'+it.stock+'</div></div>'; }).join(''):'<div class="empty">Kuch nahi mila</div>')+(isAdmin()?'<div class="hint" style="margin-top:8px">Item par tap karo → Stock IN / count set</div>':'');
 }
 var SM_IT=null, SM_TYPE='IN';
 $('stock-list').addEventListener('click',function(e){
@@ -1231,10 +1276,48 @@ $('crm-confirm-btn').onclick=function(){
   });
 };
 
+/* ═══ DATE RANGE PICKER (RM sales report): quick selects + calendar ═══ */
+var DRP={from:todayISO(),to:todayISO(),view:todayISO().slice(0,7),pick:null,onChange:null};
+function isoOf(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function addDays(iso,n){ var d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return isoOf(d); }
+function dmy(iso){ return iso?iso.split('-').reverse().join('/'):''; }
+function drpQuick(q){
+  var t=todayISO();
+  if(q==='0'){ DRP.from=t; DRP.to=t; }
+  else if(q==='1'){ DRP.from=DRP.to=addDays(t,-1); }
+  else if(q==='M'){ DRP.from=t.slice(0,8)+'01'; DRP.to=t; }
+  else if(q==='PM'){ var d=new Date(t.slice(0,7)+'-01T00:00:00'); d.setDate(0); DRP.to=isoOf(d); DRP.from=isoOf(d).slice(0,8)+'01'; }
+  else { var n=parseInt(q,10); DRP.from=addDays(t,-(n-1)); DRP.to=t; }
+  DRP.view=DRP.to.slice(0,7); DRP.pick=null; drpRender(); if(DRP.onChange) DRP.onChange();
+}
+function drpRender(){
+  var q=document.querySelectorAll('#drp-quick button'); var t=todayISO();
+  for(var i=0;i<q.length;i++){ var k=q[i].getAttribute('data-q'), on=false; if(k==='0') on=(DRP.from===t&&DRP.to===t); else if(k==='1') on=(DRP.from===addDays(t,-1)&&DRP.to===DRP.from); else if(k==='M') on=(DRP.from===t.slice(0,8)+'01'&&DRP.to===t); else if(k!=='PM'){ var n=parseInt(k,10); on=(DRP.from===addDays(t,-(n-1))&&DRP.to===t); } q[i].className=on?'on':''; }
+  var y=+DRP.view.slice(0,4), m=+DRP.view.slice(5,7);
+  $('drp-title').textContent=new Date(y,m-1,1).toLocaleString('en-IN',{month:'long',year:'numeric'});
+  var first=new Date(y,m-1,1), startDow=(first.getDay()+6)%7, days=new Date(y,m,0).getDate();
+  var h=['Mo','Tu','We','Th','Fr','Sa','Su'].map(function(d){return '<span>'+d+'</span>';}).join('');
+  var prevDays=new Date(y,m-1,0).getDate();
+  for(var i=startDow-1;i>=0;i--){ var pd=new Date(y,m-2,prevDays-i); h+='<button class="dim" data-d="'+isoOf(pd)+'">'+(prevDays-i)+'</button>'; }
+  for(var d=1;d<=days;d++){ var iso=DRP.view+'-'+String(d).padStart(2,'0'); var cls=[]; if(iso===DRP.from) cls.push('st'); if(iso===DRP.to) cls.push('en'); if(iso>DRP.from&&iso<DRP.to) cls.push('in'); if(iso===t) cls.push('today'); if(iso>t) cls.push('dim'); h+='<button class="'+cls.join(' ')+'" data-d="'+iso+'">'+d+'</button>'; }
+  var cells=startDow+days, rest=(7-cells%7)%7; for(var r=1;r<=rest;r++){ h+='<button class="dim" data-d="'+isoOf(new Date(y,m,r))+'">'+r+'</button>'; }
+  $('drp-grid').innerHTML=h;
+  $('drp-sel').textContent=(DRP.from===DRP.to?dmy(DRP.from):dmy(DRP.from)+' → '+dmy(DRP.to))+(DRP.pick?' · ab end date chuno':'');
+}
+$('drp-prev').onclick=function(){ var d=new Date(DRP.view+'-01T00:00:00'); d.setMonth(d.getMonth()-1); DRP.view=isoOf(d).slice(0,7); drpRender(); };
+$('drp-next').onclick=function(){ var d=new Date(DRP.view+'-01T00:00:00'); d.setMonth(d.getMonth()+1); DRP.view=isoOf(d).slice(0,7); drpRender(); };
+$('drp-quick').addEventListener('click',function(e){ var b=e.target.closest('[data-q]'); if(b) drpQuick(b.getAttribute('data-q')); });
+$('drp-grid').addEventListener('click',function(e){ var b=e.target.closest('[data-d]'); if(!b) return; var iso=b.getAttribute('data-d'); if(iso>todayISO()) return;
+  if(!DRP.pick){ DRP.pick=iso; DRP.from=iso; DRP.to=iso; drpRender(); return; }
+  if(iso<DRP.pick){ DRP.from=iso; DRP.to=DRP.pick; } else { DRP.from=DRP.pick; DRP.to=iso; }
+  DRP.pick=null; DRP.view=DRP.to.slice(0,7); drpRender(); if(DRP.onChange) DRP.onChange(); });
+
 /* ═══ RM REPORTS (admin): message seedha dikhta hai (Wati template ki shakl me), edit karke bhejo ═══ */
 var RMS=[], RM_TYPE='SALE';
+DRP.onChange=function(){ if(RM_TYPE==='SALE') rmPreview(); };
 function openRM(){
   $('rm-select').innerHTML='<option>Loading...</option>'; $('rm-text').value=''; $('rm-head').textContent=''; $('rm-foot').textContent=''; $('rm-meta').textContent='';
+  drpQuick('0'); $('rm-range').style.display=RM_TYPE==='SALE'?'block':'none';
   openOv('ov-rm');
   gas('getRMs',null,function(r){
     RMS=JSON.parse(r);
@@ -1245,26 +1328,27 @@ function openRM(){
 }
 $('rm-select').addEventListener('change',rmPreview);
 document.querySelectorAll('[data-rmtype]').forEach(function(b){
-  b.addEventListener('click',function(){ RM_TYPE=b.getAttribute('data-rmtype'); var all=document.querySelectorAll('[data-rmtype]'); for(var i=0;i<all.length;i++) all[i].className=(all[i]===b?'on':''); rmPreview(); });
+  b.addEventListener('click',function(){ RM_TYPE=b.getAttribute('data-rmtype'); var all=document.querySelectorAll('[data-rmtype]'); for(var i=0;i<all.length;i++) all[i].className=(all[i]===b?'on':''); $('rm-range').style.display=RM_TYPE==='SALE'?'block':'none'; rmPreview(); });
 });
 // Wati template 'rm_report': "{{1}} Report — {{2}}\n\n{{3}}\n\nAs on {{4}} - Bansal Oil Distributors"
 function rmPreview(){
   var mob=V('rm-select'); if(!mob) return;
   var rm=null; RMS.forEach(function(x){ if(x.mob===mob) rm=x; });
-  $('rm-head').textContent=({SALE:'Sale',REORDER:'Reorder',STOCK:'Stock'}[RM_TYPE])+' Report — '+(rm?rm.company:'');
-  $('rm-foot').textContent='As on '+todayISO().split('-').reverse().join('/')+' - Bansal Oil Distributors';
+  $('rm-head').textContent=({SALE:'Sales',REORDER:'Reorder',STOCK:'Stock'}[RM_TYPE])+' Report — '+(rm?rm.company:'');
+  var rangeTxt=RM_TYPE==='SALE'?(DRP.from===DRP.to?dmy(DRP.from):dmy(DRP.from)+' - '+dmy(DRP.to)):todayISO().split('-').reverse().join('/');
+  $('rm-foot').textContent='As on '+rangeTxt+' - Bansal Oil Distributors';
   $('rm-text').value='Report ban raha hai...'; $('rm-meta').textContent='';
-  gas('previewRMReport',JSON.stringify({rmMob:mob,type:RM_TYPE}),function(r){
+  gas('previewRMReport',JSON.stringify({rmMob:mob,type:RM_TYPE,from:DRP.from,to:DRP.to}),function(r){
     var d=JSON.parse(r);
     if(!d.ok){ $('rm-text').value=''; $('rm-meta').textContent='⚠ '+d.error; return; }
-    $('rm-text').value=d.text; $('rm-meta').textContent=d.count+' '+(RM_TYPE==='SALE'?'orders':'items')+' · '+d.rm+' ('+d.company+') ko jayega'+(d.text.length>1000?' · ⚠ message 1000 akshar se lamba hai, WhatsApp par kat jayega — edit karke chhota karo':'');
+    $('rm-text').value=d.text; $('rm-meta').textContent=d.count+' '+(RM_TYPE==='SALE'?'orders':'items')+' · '+d.rm+' ('+d.company+') ko jayega · WhatsApp par lines " | " se jud kar ek paragraph me jaati hain'+(d.waLen>900?' · ⚠ '+d.waLen+' akshar: 900 ke baad kat jayega, edit karke chhota karo':'');
   });
 }
 $('rm-send').onclick=function(){
   var mob=V('rm-select'); if(!mob){toast('RM select karo','err');return;}
   var text=V('rm-text'); if(!text){toast('Message khali hai','err');return;}
   showLoad('Report bhej raha hai...');
-  gas('sendRMReport',JSON.stringify({by:USER.mob,rmMob:mob,type:RM_TYPE,text:text}),function(r){
+  gas('sendRMReport',JSON.stringify({by:USER.mob,rmMob:mob,type:RM_TYPE,text:text,from:DRP.from,to:DRP.to}),function(r){
     hideLoad(); var d=JSON.parse(r); if(!d.ok){toast(d.error,'err');return;}
     closeOv('ov-rm'); toast('Report bhej diya '+d.sentTo+' ko','ok');
   });
