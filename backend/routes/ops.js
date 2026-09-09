@@ -822,7 +822,8 @@ module.exports = function registerOpsRoutes(app, ctx) {
         }
         if (has) count++;
       }
-      if (!count) return { error: `${rangeTxt} me koi ${rm.company} sale nahi hui` };
+      // Zero sale bhi ek report hai — khali box ki jagah saaf message
+      if (!count) return { count: 0, range: rangeTxt, text: `Sales ${rangeTxt}: koi ${rm.company} order nahi hua. 0 orders, 0 pcs, ₹0.` };
       const itemLines = Object.keys(byItem).map(k => `${k}: ${byItem[k]} pcs`);
       return { count, range: rangeTxt, text: `Sales ${rangeTxt}: ${count} orders, ${qty} pcs, ${wati.fmtR(amt)}.\nItems:\n${itemLines.join('\n')}` };
     }

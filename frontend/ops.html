@@ -1351,8 +1351,8 @@ function rmPreview(){
   $('rm-text').value='Report ban raha hai...'; $('rm-meta').textContent='';
   gas('previewRMReport',JSON.stringify({rmMob:mob,type:RM_TYPE,from:DRP.from,to:DRP.to}),function(r){
     var d=JSON.parse(r);
-    if(!d.ok){ $('rm-text').value=''; $('rm-meta').textContent='⚠ '+d.error; return; }
-    $('rm-text').value=d.text; $('rm-meta').textContent=d.count+' '+(RM_TYPE==='SALE'?'orders':'items')+' · '+d.rm+' ('+d.company+') ko jayega · WhatsApp par lines " | " se jud kar ek paragraph me jaati hain'+(d.waLen>900?' · ⚠ '+d.waLen+' akshar: 900 ke baad kat jayega, edit karke chhota karo':'');
+    if(!d.ok){ $('rm-text').value=''; $('rm-text').placeholder='Report nahi bani: '+d.error; $('rm-meta').textContent='⚠ '+d.error; return; }
+    $('rm-text').value=d.text; $('rm-meta').textContent=(d.count?d.count+' '+(RM_TYPE==='SALE'?'orders':'items'):'0 orders — is range me koi sale nahi')+' · '+d.rm+' ('+d.company+') ko jayega · WhatsApp par lines " | " se jud kar ek paragraph me jaati hain'+(d.waLen>900?' · ⚠ '+d.waLen+' akshar: 900 ke baad kat jayega, edit karke chhota karo':'');
   });
 }
 $('rm-send').onclick=function(){
