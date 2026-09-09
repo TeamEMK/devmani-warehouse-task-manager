@@ -555,6 +555,14 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
   <label class="l">Note</label><input class="inp" id="sm-note" placeholder="Michelin invoice no / physical count...">
   <div style="height:14px"></div>
   <button class="btn gold" id="sm-save">Update Stock</button>
+  <div class="h" style="font-size:14px;margin-top:18px">Item details edit <small>brand galat ho, price badle, Busy naam set karna ho</small></div>
+  <div class="row" style="gap:8px"><div style="flex:1"><label class="l" style="margin-top:0">Brand</label><input class="inp" id="ie-brand" list="brand-list"><datalist id="brand-list"><option value="Michelin"><option value="VK"><option value="Accelon"><option value="Metro"><option value="Neumex"></datalist></div><div style="flex:1"><label class="l" style="margin-top:0">Segment</label><select class="inp" id="ie-seg"><option value="SC">SC Scooter</option><option value="MC">MC Motorcycle</option><option value="RE">RE Royal Enfield</option><option value="PC">PC Car</option><option value="VK">VK Tyre</option><option value="OT">OT Other</option></select></div></div>
+  <div class="row" style="gap:8px"><div style="flex:1"><label class="l">Size</label><input class="inp" id="ie-size"></div><div style="flex:1"><label class="l">Position</label><input class="inp" id="ie-pos" placeholder="F / R / F/R"></div></div>
+  <div class="row" style="gap:8px"><div style="flex:2"><label class="l">Pattern</label><input class="inp" id="ie-pattern"></div><div style="flex:1"><label class="l">TL/TT</label><input class="inp" id="ie-tltt"></div></div>
+  <div class="row" style="gap:8px"><div style="flex:1"><label class="l">Basic price</label><input class="inp" id="ie-basic" type="number"></div><div style="flex:1"><label class="l">App rate</label><input class="inp" id="ie-price" type="number"></div><div style="flex:1"><label class="l">Tube</label><input class="inp" id="ie-tube" type="number"></div></div>
+  <label class="l">Busy Name <small style="font-weight:500;text-transform:none">(Busy Stock Status me jo naam — import match isi se)</small></label><input class="inp" id="ie-busy">
+  <div style="height:10px"></div>
+  <button class="btn ghost" id="ie-save">Item details save</button>
 </div></div>
 
 <!-- BILLING / DELIVERY SHEET (admin): PENDING -> CONFIRMED -> BILLED (bill + maal nikla) -> DELIVERED -> Payment -->
@@ -1182,8 +1190,11 @@ $('stock-list').addEventListener('click',function(e){
   if(!isAdmin()) return; var el=e.target.closest('[data-sm]'); if(!el) return;
   var code=el.getAttribute('data-sm'); SM_IT=null; for(var i=0;i<ITEMS.length;i++) if(ITEMS[i].code===code) SM_IT=ITEMS[i];
   $('sm-title').textContent=SM_IT.code; $('sm-info').innerHTML='<b>'+esc(iName(SM_IT))+'</b><br>Abhi stock: <b>'+SM_IT.stock+' pcs</b>';
-  $('sm-qty').value=''; $('sm-note').value=''; setSmType('IN'); openOv('ov-stock');
+  $('sm-qty').value=''; $('sm-note').value=''; setSmType('IN');
+  $('ie-brand').value=SM_IT.brand||''; $('ie-seg').value=SM_IT.seg||'OT'; $('ie-size').value=SM_IT.size||''; $('ie-pos').value=SM_IT.pos||''; $('ie-pattern').value=SM_IT.pattern||''; $('ie-tltt').value=SM_IT.tltt||''; $('ie-basic').value=SM_IT.basic||''; $('ie-price').value=SM_IT.price||''; $('ie-tube').value=SM_IT.tube||''; $('ie-busy').value=SM_IT.busy||'';
+  openOv('ov-stock');
 });
+$('ie-save').onclick=function(){ if(!SM_IT) return; showLoad('Item save...'); call('editItem',{code:SM_IT.code,brand:V('ie-brand'),seg:V('ie-seg'),cat:({SC:'Scooter',MC:'Motorcycle',RE:'Royal Enfield',PC:'Car',VK:'VK Tyre',OT:'Other'})[V('ie-seg')]||'',size:V('ie-size'),pos:V('ie-pos'),pattern:V('ie-pattern'),tltt:V('ie-tltt'),basic:V('ie-basic'),price:V('ie-price'),tube:V('ie-tube'),busy:V('ie-busy')},function(){ hideLoad(); closeOv('ov-stock'); toast('Item update ho gaya','ok'); ITEMS=[]; loadStock(); }); };
 function setSmType(t){ SM_TYPE=t; var b=document.querySelectorAll('[data-smtype]'); for(var i=0;i<b.length;i++) b[i].className=(b[i].getAttribute('data-smtype')===t?'on':''); $('sm-qlbl').textContent=t==='IN'?'Kitna aaya (pcs)':'Sahi count kitna hai (pcs)'; }
 // Dealer edit (admin)
 var DE_DID=null;

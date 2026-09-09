@@ -125,6 +125,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
       code: r.code, brand: r.brand || '', seg: r.segment, cat: r.category, size: r.size, pos: r.position || '',
       pattern: r.pattern || '', tltt: r.tltt || '', li: r.li || '', price: Number(r.price) || 0,
       tube: Number(r.tube_price) || 0, stock: r.stock | 0, updated: r.updated || '',
+      basic: Number(r.basic_price) || 0, busy: r.busy_name || '',
     }));
   }
   router.post('/getItems', requireOps, rpc(async () => itemsList()));
@@ -152,6 +153,20 @@ module.exports = function registerOpsRoutes(app, ctx) {
       await conn.commit();
       return J({ ok: true, after });
     } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
+  }));
+
+  // Item master edit (admin): brand/segment/category/size/pattern/TL-TT/price/Busy naam.
+  // Stock yahan se nahi badalta (uske liye stockMove).
+  router.post('/editItem', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const [[it]] = await db.query('SELECT * FROM ops_items WHERE code=?', [String(d.code)]);
+    if (!it) return err('Item nahi mila');
+    const s = (v, old) => (v === undefined ? old : String(v).trim());
+    const n = (v, old) => (v === undefined || v === '' ? Number(old) : (parseFloat(v) || 0));
+    const seg = s(d.seg, it.segment).toUpperCase();
+    await db.query('UPDATE ops_items SET brand=?, segment=?, category=?, size=?, position=?, pattern=?, tltt=?, li=?, basic_price=?, price=?, tube_price=?, busy_name=?, updated_at=NOW() WHERE id=?',
+      [s(d.brand, it.brand), seg, s(d.cat, it.category), s(d.size, it.size), s(d.pos, it.position), s(d.pattern, it.pattern), s(d.tltt, it.tltt).toUpperCase(), s(d.li, it.li), n(d.basic, it.basic_price), n(d.price, it.price), n(d.tube, it.tube_price), s(d.busy, it.busy_name), it.id]);
+    return J({ ok: true });
   }));
 
   router.post('/getStockLog', requireOps, rpc(async () => {
