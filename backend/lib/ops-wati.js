@@ -14,8 +14,11 @@
 // Naam bilkul wahi jo sheet wale system me the — taaki approved templates
 // waise hi chalte rahein.
 
-const WATI_BASE = (process.env.WATI_BASE || '').replace(/\/+$/, '');
-const WATI_TOKEN = process.env.WATI_TOKEN || '';
+// Hosting panel me paste karte waqt aam galtiyan: quotes, "Bearer " prefix, aage-peeche space/newline.
+// Yahan saaf kar lete hain taaki 401 sirf sach me galat token par aaye.
+const cleanTok = s => String(s || '').trim().replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').replace(/\s+/g, '');
+const WATI_BASE = cleanTok(process.env.WATI_BASE).replace(/\/+$/, '').replace(/\/api\/v1.*$/, '');
+const WATI_TOKEN = cleanTok(process.env.WATI_TOKEN);
 const ENABLED = !!(WATI_BASE && WATI_TOKEN);
 
 const NOTIFY_NUMBERS = String(process.env.OPS_NOTIFY_NUMBERS || '')
@@ -86,4 +89,17 @@ function retryCount(status) {
 
 function fmtR(n) { return '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN'); }
 
-module.exports = { ENABLED, NOTIFY_NUMBERS, T, MAX_RETRY, watiMob, params, send, retryCount, fmtR };
+// Setup check (admin): token/base kaisa hai (masked) + Wati se templates list — 200 = sab theek
+async function check() {
+  const info = { enabled: ENABLED, base: WATI_BASE, tokenLen: WATI_TOKEN.length, tokenStart: WATI_TOKEN.slice(0, 9), tokenEnd: WATI_TOKEN.slice(-4), notify: NOTIFY_NUMBERS };
+  if (!ENABLED) return { ...info, status: 'NOT_CONFIGURED' };
+  try {
+    const res = await fetch(`${WATI_BASE}/api/v1/getMessageTemplates?pageSize=100`, { headers: { Authorization: `Bearer ${WATI_TOKEN}` } });
+    const text = await res.text();
+    let names = [];
+    try { names = (JSON.parse(text).messageTemplates || []).map(t => `${t.elementName} (${t.status || t.category || ''})`); } catch (_) {}
+    return { ...info, status: res.status, templates: names, need: Object.values(T), raw: res.status === 200 ? '' : text.slice(0, 200) };
+  } catch (e) { return { ...info, status: 'ERR', error: e.message }; }
+}
+
+module.exports = { ENABLED, NOTIFY_NUMBERS, T, MAX_RETRY, watiMob, params, send, retryCount, fmtR, check };

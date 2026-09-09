@@ -637,6 +637,8 @@ module.exports = function registerOpsRoutes(app, ctx) {
       return data.url || (data.fileId ? `https://drive.google.com/file/d/${data.fileId}/view` : '');
     } catch (e) { console.error('ops drive', e.message); return ''; }
   }
+  // Admin check: WhatsApp (Wati) setup — token sahi hai? kaunse templates approved hain?
+  router.post('/watiCheck', requireOps, adminOnly, rpc(async () => J({ ok: true, ...(await wati.check()) })));
   // Admin check: Drive setup chal raha hai ya nahi
   router.post('/driveCheck', requireOps, adminOnly, rpc(async () => {
     const url = process.env.OPS_DRIVE_SCRIPT_URL, secret = process.env.OPS_DRIVE_SECRET;
