@@ -1,20 +1,30 @@
-// Hostinger par deploy: zip upload (TUS) + Node.js build trigger + poll.
-// Zaroori env: HOSTINGER_API_TOKEN, aur pehle se bana hua app.zip (neeche wala git archive command).
+// Hostinger par deploy: git HEAD ka zip banao -> upload (TUS) -> Node.js build trigger -> poll.
+// Yahi asal deploy hai — `git push` se Hostinger par kuch nahi hota (GitHub connect nahi hai).
 //
-// Ye sirf fallback hai — asal deploy ab Hostinger ke GitHub connect se hota hai (hPanel -> Deployments),
-// har main push par Hostinger khud build karta hai. Lokal se zaroorat pade to:
-//   git archive --format=zip --prefix=devmani-warehouse-task-manager/ -o app.zip HEAD
-//   HOSTINGER_API_TOKEN=... node scripts/hostinger-deploy.js
+// Chalao:  npm run deploy        (push + deploy, ~2 min)
+//    ya:   node scripts/hostinger-deploy.js
+// Token: env HOSTINGER_API_TOKEN, warna .env se khud padh leta hai.
 const fs = require('fs');
-const TOKEN = process.env.HOSTINGER_API_TOKEN;
+const { execSync } = require('child_process');
+
+function tokenFromDotenv() {
+  try {
+    const m = fs.readFileSync('.env', 'utf8').match(/^HOSTINGER_API_TOKEN=(.*)$/m);
+    return m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
+  } catch { return ''; }
+}
+const TOKEN = process.env.HOSTINGER_API_TOKEN || tokenFromDotenv();
 const API = 'https://developers.hostinger.com/api/hosting/v1';
 const USERNAME = 'u641984508';
 const DOMAIN = 'devmanierp.com';
 const H = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
 
-if (!TOKEN) { console.error('HOSTINGER_API_TOKEN missing'); process.exit(1); }
+if (!TOKEN) { console.error('HOSTINGER_API_TOKEN missing (env ya .env me daalo)'); process.exit(1); }
 
 (async () => {
+  // Zip hamesha taaza banao — git HEAD se (uncommitted changes deploy nahi hote)
+  execSync('git archive --format=zip --prefix=devmani-warehouse-task-manager/ -o app.zip HEAD', { stdio: 'inherit' });
+  console.log('zip banaya:', execSync('git log --oneline -1').toString().trim());
   // Har run ka apna filename — TUS purani adhuri upload se conflict na kare
   const name = `devmani-deploy-${Date.now()}.zip`;
   const data = fs.readFileSync('app.zip');

@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node backend/start.js",
     "dev": "nodemon backend/server.js",
+    "deploy": "git push origin main && node scripts/hostinger-deploy.js",
     "db:migrate": "node data/scripts/migrate.js",
     "db:seed-admin": "node data/scripts/seed-admin.js",
     "db:import-checklist": "node data/scripts/import-checklist.js",
