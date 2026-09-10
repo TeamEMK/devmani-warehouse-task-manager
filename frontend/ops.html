@@ -479,19 +479,26 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
       <div class="cols2" style="grid-template-columns:320px 1fr">
         <div class="card">
           <div class="h">Tally Bridge — Settings <small>sabke liye ek</small></div>
-          <label class="l" style="margin-top:0">Distributor code</label><input class="inp" id="tb-code" placeholder="e.g. 2818298">
-          <label class="l">CA (item code) reference</label>
-          <div class="hint" id="tb-castatus" style="margin:0 0 6px">Loading…</div>
-          <input type="file" id="tb-cafile" accept=".xlsx" style="font-size:12px;width:100%">
-          <div class="hint">Michelin se mila naya CA/Size file (.xlsx): pehla column CA number, doosra Size. Upload karke Save dabao.</div>
+          <div class="hint" style="margin:0 0 4px">Michelin me 2 Wheeler aur 4 Wheeler ka portal/distributor code alag hai — dono ka apna CA table.</div>
+          <div class="h" style="font-size:14px;margin-top:10px">2 Wheeler <small>Scooter / Motorcycle / Royal Enfield</small></div>
+          <label class="l" style="margin-top:4px">Distributor code (2W)</label><input class="inp" id="tb-code-2W" placeholder="e.g. 2818298">
+          <label class="l">CA (item code) reference — 2W</label>
+          <div class="hint" id="tb-castatus-2W" style="margin:0 0 6px">Loading…</div>
+          <input type="file" id="tb-cafile-2W" accept=".xlsx" style="font-size:12px;width:100%">
+          <div class="h" style="font-size:14px;margin-top:14px">4 Wheeler <small>Car (PCR)</small></div>
+          <label class="l" style="margin-top:4px">Distributor code (4W)</label><input class="inp" id="tb-code-4W" placeholder="e.g. 2834373">
+          <label class="l">CAI (item code) reference — 4W</label>
+          <div class="hint" id="tb-castatus-4W" style="margin:0 0 6px">Loading…</div>
+          <input type="file" id="tb-cafile-4W" accept=".xlsx" style="font-size:12px;width:100%">
+          <div class="hint">Michelin se mila CA/Size file (.xlsx): ek column CA number, doosra Size (order koi bhi). Upload karke Save dabao.</div>
           <div style="height:10px"></div>
           <button class="btn gold" id="tb-save">Settings save karo</button>
           <div class="hint" id="tb-note"></div>
         </div>
         <div class="card">
-          <div class="h">Busy "List of Supply Outward Vouchers" <small>upload → Michelin InvoiceTally template download</small></div>
+          <div class="h">Busy "List of Supply Outward Vouchers" <small>upload → 2W aur 4W InvoiceTally file alag-alag download</small></div>
           <input type="file" id="tb-list" accept=".xlsx" style="font-size:13px;width:100%">
-          <div class="hint">Busy se export ki hui .xlsx chuno. Sirf wahi items aate hain jinka CA match milta hai; car tyre / tube / naya SKU "Skipped" me dikhega. Download asli .xlsx hai, seedha Michelin portal par upload karo.</div>
+          <div class="hint">Busy se export ki hui .xlsx chuno (2W + car items ek saath chalenge). Scooter/Motorcycle/RE items 2W file me, car tyre 4W file me; tube / naya SKU "Skipped" me dikhega. Download asli .xlsx hai, seedha Michelin portal par upload karo.</div>
           <div id="tb-result" style="margin-top:12px"><div class="empty">File upload karte hi yahan preview aur download button aa jayega.</div></div>
         </div>
       </div>
@@ -646,7 +653,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
   <div class="hh"><div class="h">RM ko WhatsApp Report</div><button data-close="ov-rm">&#10005;</button></div>
   <div class="row" style="gap:8px;flex-wrap:wrap">
     <div style="flex:1;min-width:200px"><label class="l" style="margin-top:0">RM</label><select class="inp" id="rm-select"></select></div>
-    <div><label class="l" style="margin-top:0">Report</label><div class="seg-tabs" style="margin:0"><button class="on" data-rmtype="SALE">Sales Report</button><button data-rmtype="REORDER">Reorder</button><button data-rmtype="STOCK">Current Stock</button></div></div>
+    <div><label class="l" style="margin-top:0">Report</label><div class="seg-tabs" style="margin:0"><button class="on" data-rmtype="SALE">Sales Report</button><button data-rmtype="REORDER">Reorder</button><button data-rmtype="STOCK">Current Stock</button><button data-rmtype="OUTSTANDING">Outstanding</button></div></div>
   </div>
   <div id="rm-range" style="margin-top:8px">
     <label class="l" style="margin-top:0">Date range <small style="font-weight:500;text-transform:none">(default: aaj)</small></label>
@@ -1368,14 +1375,15 @@ document.querySelectorAll('[data-rmtype]').forEach(function(b){
 function rmPreview(){
   var mob=V('rm-select'); if(!mob) return;
   var rm=null; RMS.forEach(function(x){ if(x.mob===mob) rm=x; });
-  $('rm-head').textContent=({SALE:'Sales',REORDER:'Reorder',STOCK:'Stock'}[RM_TYPE])+' Report — '+(rm?rm.company:'');
+  $('rm-head').textContent=({SALE:'Sales',REORDER:'Reorder',STOCK:'Stock',OUTSTANDING:'Outstanding'}[RM_TYPE])+' Report — '+(rm?rm.company:'');
   var rangeTxt=RM_TYPE==='SALE'?(DRP.from===DRP.to?dmy(DRP.from):dmy(DRP.from)+' - '+dmy(DRP.to)):todayISO().split('-').reverse().join('/');
   $('rm-foot').textContent='As on '+rangeTxt+' - Bansal Oil Distributors';
   $('rm-text').value='Report ban raha hai...'; $('rm-meta').textContent='';
   gas('previewRMReport',JSON.stringify({rmMob:mob,type:RM_TYPE,from:DRP.from,to:DRP.to}),function(r){
     var d=JSON.parse(r);
     if(!d.ok){ $('rm-text').value=''; $('rm-text').placeholder='Report nahi bani: '+d.error; $('rm-meta').textContent='⚠ '+d.error; return; }
-    $('rm-text').value=d.text; $('rm-meta').textContent=(d.count?d.count+' '+(RM_TYPE==='SALE'?'orders':'items'):'0 orders — is range me koi sale nahi')+' · '+d.rm+' ('+d.company+') ko jayega · WhatsApp par lines " | " se jud kar ek paragraph me jaati hain'+(d.waLen>900?' · ⚠ '+d.waLen+' akshar: 900 ke baad kat jayega, edit karke chhota karo':'');
+    if(RM_TYPE==='OUTSTANDING'&&d.date) $('rm-foot').textContent='As on '+d.date+' - Bansal Oil Distributors';
+    $('rm-text').value=d.text; $('rm-meta').textContent=(d.count?d.count+' '+(RM_TYPE==='SALE'?'orders':RM_TYPE==='OUTSTANDING'?'accounts (Busy Amount Receivable se, sab brands ka mila-jula)':'items'):'0 orders — is range me koi sale nahi')+' · '+d.rm+' ('+d.company+') ko jayega · WhatsApp par lines " | " se jud kar ek paragraph me jaati hain'+(d.waLen>900?' · ⚠ '+d.waLen+' akshar: 900 ke baad kat jayega, edit karke chhota karo':'');
   });
 }
 $('rm-send').onclick=function(){
@@ -1521,39 +1529,49 @@ function trClear(){ ['tr-id','tr-name','tr-mob','tr-veh','tr-city','tr-drv','tr-
 $('tr-clear').onclick=trClear;
 $('tr-save').onclick=function(){ showLoad('Save...'); call('saveTransporter',{id:V('tr-id')||null,name:V('tr-name'),mob:V('tr-mob'),vehicle:V('tr-veh'),city:V('tr-city'),driverName:V('tr-drv'),driverMob:V('tr-drvmob'),note:V('tr-note')},function(){ hideLoad(); toast('Transporter save ho gaya','ok'); trClear(); loadTrList(); }); };
 
-/* ═══ TALLY BRIDGE (admin) ═══ */
-var TB_CA=null, TB_DATA=null;
+/* ═══ TALLY BRIDGE (admin) — 2W (SC/MC/RE) + 4W (car) alag code/CA table, ek Busy file se dono output ═══ */
+var TB_KINDS=['2W','4W'], TB_CA={}, TB_DATA=null;
+function tbStatus(k){ var el=$('tb-castatus-'+k.kind); if(el) el.innerHTML='<b>'+k.caCount+'</b> items loaded ('+esc(k.caSourceLabel)+(k.caUpdatedAt?', '+esc(k.caUpdatedAt):'')+')'; var c=$('tb-code-'+k.kind); if(c) c.value=k.distributorCode||''; }
 function loadTally(){
-  $('tb-castatus').textContent='Loading…';
-  call('tallyGetSettings',{},function(s){ $('tb-code').value=s.distributorCode||''; $('tb-castatus').innerHTML='<b>'+s.caCount+'</b> items loaded ('+esc(s.caSourceLabel)+(s.caUpdatedAt?', '+esc(s.caUpdatedAt):'')+')'; });
+  TB_KINDS.forEach(function(k){ $('tb-castatus-'+k).textContent='Loading…'; });
+  call('tallyGetSettings',{},function(s){ (s.kinds||[]).forEach(tbStatus); });
 }
-$('tb-cafile').addEventListener('change',function(){ var f=this.files[0]; if(!f) return; var rd=new FileReader(); rd.onload=function(){ TB_CA={name:f.name,b64:rd.result.split(',')[1]}; $('tb-castatus').textContent='ready to save: '+f.name+' (Save dabao)'; }; rd.readAsDataURL(f); });
+TB_KINDS.forEach(function(k){
+  $('tb-cafile-'+k).addEventListener('change',function(){ var f=this.files[0]; if(!f) return; var rd=new FileReader(); rd.onload=function(){ TB_CA[k]={name:f.name,b64:rd.result.split(',')[1]}; $('tb-castatus-'+k).textContent='ready to save: '+f.name+' (Save dabao)'; }; rd.readAsDataURL(f); });
+});
 $('tb-save').onclick=function(){
-  var code=V('tb-code'); if(!code){ toast('Distributor code daalo','err'); return; }
+  var kinds={}; TB_KINDS.forEach(function(k){ kinds[k]={distributorCode:V('tb-code-'+k),caFile:TB_CA[k]||null}; });
+  if(!kinds['2W'].distributorCode && !kinds['4W'].distributorCode){ toast('Kam se kam ek distributor code daalo','err'); return; }
   showLoad('Settings save...');
-  call('tallySaveSettings',{distributorCode:code,caFile:TB_CA},function(s){ hideLoad(); TB_CA=null; $('tb-cafile').value=''; $('tb-castatus').innerHTML='<b>'+s.caCount+'</b> items loaded ('+esc(s.caSourceLabel)+', '+esc(s.caUpdatedAt)+')'; $('tb-note').textContent='Save ho gaya — ab sab isi ke saath kaam karenge.'; toast('Settings save ho gayi','ok'); });
+  call('tallySaveSettings',{kinds:kinds},function(s){ hideLoad(); TB_CA={}; TB_KINDS.forEach(function(k){ $('tb-cafile-'+k).value=''; }); (s.kinds||[]).forEach(tbStatus); $('tb-note').textContent='Save ho gaya — ab sab isi ke saath kaam karenge.'; toast('Settings save ho gayi','ok'); });
 };
 $('tb-list').addEventListener('change',function(){
   var f=this.files[0], inp=this; if(!f) return;
   $('tb-result').innerHTML='<div class="empty"><div class="spin" style="margin:0 auto"></div><div>Processing…</div></div>';
+  var codes={}; TB_KINDS.forEach(function(k){ codes[k]=V('tb-code-'+k); });
   var rd=new FileReader(); rd.onload=function(){
-    gas('tallyProcess',JSON.stringify({b64:rd.result.split(',')[1],name:f.name,distributorCode:V('tb-code')}),function(r){
+    gas('tallyProcess',JSON.stringify({b64:rd.result.split(',')[1],name:f.name,codes:codes}),function(r){
       inp.value=''; var d=JSON.parse(r); if(!d.ok){ $('tb-result').innerHTML='<div class="empty" style="color:var(--red)">'+esc(d.error)+'</div>'; return; }
       TB_DATA=d; renderTally(d);
     });
   }; rd.readAsDataURL(f);
 });
+function tbDownload(b64,filename){ var bin=atob(b64), arr=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i); var blob=new Blob([arr],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}); var u=URL.createObjectURL(blob), a=document.createElement('a'); a.href=u; a.download=filename; document.body.appendChild(a); a.click(); setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(u); },1000); }
 function renderTally(d){
   var cols=['DistributorCode','DealerShipName','InvoiceNumber','InvoiceDate','CAI','ItemPricePerUnit','Quantity','TotalAmount','GSTIN','SalesReturnNumber'];
-  var h='<div class="grid2"><div><div class="kpi g"><div class="v">'+d.matchedCount+'</div><div class="l">Rows ready</div></div></div><div><div class="kpi r"><div class="v">'+d.droppedCount+'</div><div class="l">Skipped (no CA match)</div></div></div><div><div class="kpi"><div class="v">'+Number(d.totals.qty).toLocaleString('en-IN')+'</div><div class="l">Total quantity</div></div></div><div><div class="kpi gr"><div class="v">'+fmt(d.totals.amount)+'</div><div class="l">Total amount</div></div></div></div>';
+  var h='<div class="grid2"><div><div class="kpi g"><div class="v">'+d.matchedCount+'</div><div class="l">Rows ready (2W + 4W)</div></div></div><div><div class="kpi r"><div class="v">'+d.droppedCount+'</div><div class="l">Skipped (no CA match)</div></div></div></div>';
   if(!d.matchedCount) h+='<div class="warn">Koi item match nahi hua — CA data ya file format check karo.</div>';
-  else {
-    h+='<button class="btn gold" id="tb-download" style="margin:6px 0 12px">⬇ Filled template download karo (.xlsx)</button>';
-    h+='<div class="h" style="font-size:14px">Preview <small>'+d.preview.length+' of '+d.matchedCount+'</small></div><div class="tblw"><table class="tbl"><thead><tr>'+cols.map(function(c){return '<th>'+c+'</th>';}).join('')+'</tr></thead><tbody>'+d.preview.map(function(r){ return '<tr>'+cols.map(function(c){ return '<td>'+esc(r[c]==null?'':r[c])+'</td>'; }).join('')+'</tr>'; }).join('')+'</tbody></table></div>';
-  }
-  if(d.dropped.length) h+='<div class="h" style="font-size:14px;margin-top:14px">Skipped items <small>CA data me match nahi mila</small></div><div style="max-height:220px;overflow:auto;border:1px solid var(--bdr);border-radius:10px">'+d.dropped.map(function(x){ return '<div class="logrow" style="padding:6px 10px;display:flex;justify-content:space-between;gap:10px"><span>'+esc(x.item)+'</span><span style="color:var(--t3)">'+esc(x.vch||'')+'</span></div>'; }).join('')+'</div>';
+  (d.outputs||[]).forEach(function(o){
+    h+='<div class="card" style="margin-top:10px;padding:12px"><div class="h" style="font-size:14px">'+esc(o.label)+' <small>'+esc(o.sub)+(o.code?' · code '+esc(o.code):'')+'</small></div>';
+    if(!o.matchedCount){ h+='<div class="empty" style="padding:8px">Is file me '+esc(o.label)+' ka koi item nahi</div></div>'; return; }
+    h+='<div class="grid2"><div><div class="kpi"><div class="v">'+o.matchedCount+'</div><div class="l">Rows</div></div></div><div><div class="kpi gr"><div class="v">'+Number(o.totals.qty).toLocaleString('en-IN')+' pcs</div><div class="l">'+fmt(o.totals.amount)+'</div></div></div></div>';
+    if(o.warn) h+='<div class="warn">'+esc(o.warn)+'</div>';
+    h+='<button class="btn gold" data-tbdl="'+esc(o.kind)+'" style="margin:6px 0 12px">⬇ '+esc(o.label)+' InvoiceTally download (.xlsx)</button>';
+    h+='<div class="h" style="font-size:13px">Preview <small>'+o.preview.length+' of '+o.matchedCount+'</small></div><div class="tblw"><table class="tbl"><thead><tr>'+cols.map(function(c){return '<th>'+c+'</th>';}).join('')+'</tr></thead><tbody>'+o.preview.map(function(r){ return '<tr>'+cols.map(function(c){ return '<td>'+esc(r[c]==null?'':r[c])+'</td>'; }).join('')+'</tr>'; }).join('')+'</tbody></table></div></div>';
+  });
+  if(d.dropped.length) h+='<div class="h" style="font-size:14px;margin-top:14px">Skipped items <small>2W ya 4W CA data me match nahi mila</small></div><div style="max-height:220px;overflow:auto;border:1px solid var(--bdr);border-radius:10px">'+d.dropped.map(function(x){ return '<div class="logrow" style="padding:6px 10px;display:flex;justify-content:space-between;gap:10px"><span>'+esc(x.item)+'</span><span style="color:var(--t3)">'+esc(x.vch||'')+'</span></div>'; }).join('')+'</div>';
   $('tb-result').innerHTML=h;
-  var b=$('tb-download'); if(b) b.onclick=function(){ var bin=atob(d.base64), arr=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i); var blob=new Blob([arr],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}); var u=URL.createObjectURL(blob), a=document.createElement('a'); a.href=u; a.download=d.filename; document.body.appendChild(a); a.click(); setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(u); },1000); };
+  var btns=document.querySelectorAll('[data-tbdl]'); for(var i=0;i<btns.length;i++) btns[i].onclick=function(){ var k=this.getAttribute('data-tbdl'), o=null; (TB_DATA.outputs||[]).forEach(function(x){ if(x.kind===k) o=x; }); if(o&&o.base64) tbDownload(o.base64,o.filename); };
 }
 
 /* ═══ EXPENSES ═══ */

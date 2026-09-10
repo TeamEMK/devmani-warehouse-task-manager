@@ -789,21 +789,42 @@ module.exports = function registerOpsRoutes(app, ctx) {
   // text dekh aur badal sakta hai — sendRMReport me `text` aaye to wahi jaata hai.
   // YYYY-MM-DD hi maano, warna null
   const isoD = v => { const m = String(v || '').match(/^(\d{4}-\d{2}-\d{2})/); return m ? m[1] : null; };
+  // Michelin ke chaar segment (Scooter / Motorcycle / Royal Enfield / Car) — stock/reorder
+  // report me isi order me heading ke saath. VK waghera me segment nahi, seedhi list.
+  const SEG_ORDER = ['SC', 'MC', 'RE', 'PC'], SEG_NAME = { SC: 'Scooter', MC: 'Motorcycle', RE: 'Royal Enfield', PC: 'Car' };
+  const itemLabel = it => `${it.size}${it.position ? ' ' + it.position : ''} ${it.pattern} ${it.tltt}`.replace(/\s+/g, ' ').trim();
+  function segLines(items, lineOf) {
+    const bySeg = {}; items.forEach(it => { const sg = SEG_NAME[it.segment] ? it.segment : '_'; (bySeg[sg] = bySeg[sg] || []).push(lineOf(it)); });
+    const segs = SEG_ORDER.filter(sg => bySeg[sg]).concat(bySeg._ ? ['_'] : []);
+    if (segs.length <= 1) return items.map(lineOf); // ek hi segment (ya VK) — heading ki zaroorat nahi
+    const out = []; segs.forEach(sg => { out.push(`[${SEG_NAME[sg] || 'Other'}]`); bySeg[sg].forEach(l => out.push(l)); });
+    return out;
+  }
   async function buildRMReport(rm, type, from, to) {
     if (type === 'STOCK') {
-      // Current stock — us company ke sab items jinka stock > 0, zyada se kam
+      // Current stock — us company ke sab items jinka stock > 0, segment-wise, zyada se kam
       const [items] = await db.query('SELECT * FROM ops_items WHERE UPPER(brand)=? AND stock>0 ORDER BY stock DESC, id', [String(rm.company).toUpperCase()]);
       if (!items.length) return { error: `${rm.company} ka koi stock nahi hai abhi` };
       let total = 0; items.forEach(it => { total += it.stock | 0; });
-      const lines = items.map(it => `${it.size}${it.position ? ' ' + it.position : ''} ${it.pattern} ${it.tltt}`.replace(/\s+/g, ' ').trim() + `: ${it.stock}`);
-      const shown = lines.slice(0, 45);
+      const lines = segLines(items, it => `${itemLabel(it)}: ${it.stock}`);
+      const shown = lines.slice(0, 48);
       return { count: items.length, text: `Current stock: ${items.length} items, ${total} pcs\n${shown.join('\n')}${lines.length > shown.length ? `\n...aur ${lines.length - shown.length} items` : ''}` };
     }
     if (type === 'REORDER') {
       const [items] = await db.query('SELECT * FROM ops_items WHERE UPPER(brand)=? AND stock<=? ORDER BY stock, id LIMIT 30', [String(rm.company).toUpperCase(), LOW_STOCK]);
       if (!items.length) return { error: `Koi item low/out of stock nahi hai ${rm.company} mein abhi` };
-      const lines = items.map(it => `${it.size}${it.position ? ' ' + it.position : ''} ${it.pattern} ${it.tltt}`.trim() + `: ${it.stock} bacha`);
-      return { count: lines.length, text: `${lines.length} items low/out of stock:\n${lines.join('\n')}` };
+      const lines = segLines(items, it => `${itemLabel(it)}: ${it.stock} bacha`);
+      return { count: items.length, text: `${items.length} items low/out of stock:\n${lines.join('\n')}` };
+    }
+    if (type === 'OUTSTANDING') {
+      // Busy "Amount Receivable" import se — sab dealers ka bakaya, zyada se kam (brand-wise alag nahi hota)
+      const [rows] = await db.query('SELECT dealer_name, amount, as_on FROM ops_outstanding WHERE amount>0 ORDER BY amount DESC');
+      if (!rows.length) return { error: 'Outstanding data nahi hai — pehle Busy "Amount Receivable" import karo (Stock/Reports → Busy Import)' };
+      let total = 0; rows.forEach(r => { total += Number(r.amount) || 0; });
+      const asOn = rows[0].as_on || nowIST().dmy;
+      const lines = rows.map(r => `${r.dealer_name}: ${wati.fmtR(r.amount)}`);
+      const shown = lines.slice(0, 30);
+      return { count: rows.length, range: asOn, text: `Outstanding (as on ${asOn}): ${rows.length} accounts, total ${wati.fmtR(total)}\n${shown.join('\n')}${lines.length > shown.length ? `\n...aur ${lines.length - shown.length} accounts` : ''}` };
     }
     if (type === 'SALE') {
       // Date range (default aaj). from/to YYYY-MM-DD
@@ -829,7 +850,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
       const itemLines = Object.keys(byItem).map(k => `${k}: ${byItem[k]} pcs`);
       return { count, range: rangeTxt, text: `Sales ${rangeTxt}: ${count} orders, ${qty} pcs, ${wati.fmtR(amt)}.\nItems:\n${itemLines.join('\n')}` };
     }
-    return { error: 'Type galat — SALE ya REORDER hona chahiye' };
+    return { error: 'Type galat — SALE, REORDER, STOCK ya OUTSTANDING hona chahiye' };
   }
   // WhatsApp template params me newline / tab / 4+ space allowed NAHI hain (Meta reject
   // karta hai) aur poora message ~1024 akshar. Isliye bhejne se pehle ek line banao.
@@ -849,11 +870,11 @@ module.exports = function registerOpsRoutes(app, ctx) {
     const [[rm]] = await db.query('SELECT * FROM ops_rm_list WHERE mobile=?', [clean(d.rmMob)]);
     if (!rm) return err('RM nahi mila');
     const type = String(d.type || '').toUpperCase();
-    if (!['SALE', 'REORDER', 'STOCK'].includes(type)) return err('Type galat — SALE, REORDER ya STOCK hona chahiye');
+    if (!['SALE', 'REORDER', 'STOCK', 'OUTSTANDING'].includes(type)) return err('Type galat — SALE, REORDER, STOCK ya OUTSTANDING hona chahiye');
     let text = String(d.text || '').trim(), count = 0, dateTxt = nowIST().dmy;
     if (!text) { const r = await buildRMReport(rm, type, d.from, d.to); if (r.error) return err(r.error); text = r.text; count = r.count; if (r.range) dateTxt = r.range; }
     else if (type === 'SALE') { const f = isoD(d.from), t = isoD(d.to) || f; if (f) dateTxt = f === t ? dmyOf(f) : `${dmyOf(f)} - ${dmyOf(t)}`; }
-    const label = { SALE: 'Sales', REORDER: 'Reorder', STOCK: 'Stock' }[type];
+    const label = { SALE: 'Sales', REORDER: 'Reorder', STOCK: 'Stock', OUTSTANDING: 'Outstanding' }[type];
     const res = await wati.send(rm.mobile, wati.T.RM_REPORT, [label, rm.company, waParam(text), dateTxt]);
     if (res !== 'SENT') return err('Message send nahi hua: ' + res);
     return J({ ok: true, sentTo: rm.name, count });
