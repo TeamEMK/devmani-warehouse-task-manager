@@ -410,7 +410,7 @@ module.exports = function registerOpsExtra(S) {
   router.post('/busyDriveTest', requireOps, adminOnly, rpc(async () => { try { return J(Object.assign({ ok: true }, await busyDrive.test())); } catch (e) { return err(e.message); } }));
   router.post('/busyDriveSync', requireOps, adminOnly, rpc(async (u, j) => {
     const d = parse(j);
-    const r = await busyDrive.sync({ force: !!d.force, by: u.name || 'admin' });
+    const r = await busyDrive.sync({ force: !!d.force, silent: !!d.silent, by: u.name || 'admin' });
     if (!r.ok) return err(r.error);
     return J(Object.assign({ ok: true }, r, busyDrive.publicView(await busyDrive.settings())));
   }));

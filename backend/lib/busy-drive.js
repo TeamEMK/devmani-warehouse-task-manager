@@ -84,7 +84,8 @@ function makeBusyDrive({ db, nowIST, afterImport }) {
 
   let running = false;
   // by = 'auto' | 'cron' | admin ka naam. force = sab files dobara import
-  async function sync({ force, by } = {}) {
+  // silent = is sync me payment detect ho to WhatsApp mat bhejo (pehli baar / lambe gap ke baad)
+  async function sync({ force, by, silent } = {}) {
     if (running) return { ok: false, error: 'Sync pehle se chal raha hai — thodi der me dekho' };
     running = true;
     const s = await settings(); const state = s.state;
@@ -97,10 +98,11 @@ function makeBusyDrive({ db, nowIST, afterImport }) {
         const prev = state.files[f.id];
         if (!force && prev && prev.modified === f.modified) { skipped++; continue; }
         let r;
-        if (f.kind === 'backup') r = await importBackup(s, f);
+        if (f.kind === 'backup') r = await importBackup(s, f, silent);
         else {
           const g = await callScript(s.url, s.secret, { action: 'get', id: f.id });
           r = await busy.importBusyBuffer(db, Buffer.from(g.b64, 'base64'), 'Drive: ' + (g.name || f.name), nowIST().dmy, kindFromName(f.name));
+          if (silent) await muteNewPayments();
         }
         // ERROR (download/parse fail) ho to state me mat likho — agli baar dobara try hoga
         if (!/^ERROR/.test(String(r.result))) state.files[f.id] = { name: f.name, modified: f.modified, importedAt: nowIST().dmyhm, result: String(r.result).slice(0, 200) };
@@ -112,7 +114,7 @@ function makeBusyDrive({ db, nowIST, afterImport }) {
       state.lastRun = nowIST().dmyhm; state.lastBy = by || 'auto'; state.lastError = '';
       state.lastSummary = files.length ? `${imported.length} file import, ${skipped} unchanged (folder me ${files.length})` : 'Folder me koi spreadsheet file nahi';
       await saveState(state);
-      if (imported.length && afterImport) { try { await afterImport(); } catch (_) {} }
+      if (imported.length && afterImport && !silent) { try { await afterImport(); } catch (_) {} }
       return { ok: true, imported, skipped, total: files.length, lastRun: state.lastRun };
     } catch (e) {
       state.lastRun = nowIST().dmyhm; state.lastBy = by || 'auto'; state.lastError = String(e.message || e).slice(0, 300);
@@ -121,7 +123,9 @@ function makeBusyDrive({ db, nowIST, afterImport }) {
     } finally { running = false; }
   }
   // Busy backup (DATA.ZIP): download -> db1YYYY.bds -> stock + outstanding -> wahi importStock/importOutstanding
-  async function importBackup(s, f) {
+  // Abhi-abhi detect hui payments ko 'notified' maan lo — WhatsApp nahi jayega
+  async function muteNewPayments() { await db.query(`UPDATE ops_payment_log SET notified='Y' WHERE notified='N'`); }
+  async function importBackup(s, f, silent) {
     const stamp = backupStamp(f.backup) || { dmy: nowIST().dmy, label: nowIST().dmyhm };
     const label = `Drive backup ${stamp.label} (${String(f.name).split('/')[1] || 'COMP'})`;
     let result = '', notes = '';
@@ -132,7 +136,8 @@ function makeBusyDrive({ db, nowIST, afterImport }) {
       const keep = new Set(appItems.map(r => busyDb.nb(r.busy_name)));
       const r1 = await busy.importStock(db, busyDb.stockRows(bd, stamp.dmy, keep), stamp.dmy);
       const r2 = await busy.importOutstanding(db, busyDb.outstandingRows(bd, stamp.dmy), stamp.dmy);
-      result = `STOCK: ${r1.updated} items updated | OUTSTANDING: ${r2.count} accounts, as on ${stamp.dmy}` + (r2.payments ? `, ${r2.payments} payment(s) detected` : '') + ` (FY ${bd.fy}, ${bd.itemGroup} items ${bd.items.length}, last voucher ${bd.lastVoucherDate})`;
+      if (silent && r2.payments) await muteNewPayments();
+      result = `STOCK: ${r1.updated} items updated | OUTSTANDING: ${r2.count} accounts, as on ${stamp.dmy}` + (r2.payments ? `, ${r2.payments} payment(s) detected${silent ? ' (WhatsApp nahi bheja)' : ''}` : '') + ` (FY ${bd.fy}, ${bd.itemGroup} items ${bd.items.length}, last voucher ${bd.lastVoucherDate})`;
       notes = [r1.unmatched.length ? 'Busy tyre items jo app me nahi: ' + r1.unmatched.join(' | ') : '', r2.unmatched.join(' | ')].filter(Boolean).join(' || ');
     } catch (e) { result = 'ERROR: ' + String(e.message || e).slice(0, 250); }
     await db.query('INSERT INTO ops_import_log (file_name,result,notes) VALUES (?,?,?)', [label.slice(0, 200), result, notes.slice(0, 60000)]);
