@@ -46,7 +46,16 @@ function folder_() {
   if (m) { try { return DriveApp.getFolderById(m[0]); } catch (e) {} }
   var it = DriveApp.getFoldersByName(FOLDER);
   if (it.hasNext()) return it.next();
-  throw new Error('Folder "' + FOLDER + '" Drive me nahi mila — Code.gs me FOLDER theek karo');
+  // Naam se na mile to: jahan Busy ki "Stock Status" / "Amount Receivable" wali sabse nayi file padi hai, wahi folder
+  var found = null, foundAt = 0;
+  var fs = DriveApp.searchFiles("(title contains 'Stock' or title contains 'Receivable' or title contains 'Outstanding') and trashed = false");
+  while (fs.hasNext()) {
+    var f = fs.next(); if (!isSheetLike_(f.getName(), f.getMimeType())) continue;
+    var ts = f.getLastUpdated().getTime(); if (ts <= foundAt) continue;
+    var ps = f.getParents(); if (ps.hasNext()) { found = ps.next(); foundAt = ts; }
+  }
+  if (found) return found;
+  throw new Error('Folder "' + FOLDER + '" Drive me nahi mila aur Stock/Receivable wali koi file bhi nahi — Code.gs me FOLDER theek karo');
 }
 function isSheetLike_(name, mime) {
   return /\.xlsx?$/i.test(name) || mime === GSHEET || mime === XLSX || /excel|spreadsheet/i.test(mime || '');
