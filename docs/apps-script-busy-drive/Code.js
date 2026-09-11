@@ -124,21 +124,33 @@ function convertToSheet_(file) {
 }
 
 function out_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
-function doGet() { return out_({ ok: true, service: 'michelin-ops-busy-drive' }); }
+// GET (query params) aur POST (JSON body) dono chalte hain. Server GET use karta hai:
+// POST par Google 302 redirect deta hai aur kabhi-kabhi body kho kar doGet chal jaata tha.
+function doGet(e) {
+  var p = (e && e.parameter) || {};
+  if (!p.action) return out_({ ok: true, service: 'michelin-ops-busy-drive' });
+  return handle_(p);
+}
 function doPost(e) {
+  var d = {}; try { d = JSON.parse(e.postData.contents || '{}'); } catch (err) { return out_({ ok: false, error: 'bad json' }); }
+  return handle_(d);
+}
+function handle_(d) {
   try {
-    var d = JSON.parse(e.postData.contents || '{}');
     if (!d.secret || d.secret !== SECRET) return out_({ ok: false, error: 'bad secret' });
     if (d.action === 'ping') { var f = folder_(); return out_({ ok: true, folder: f.getName(), url: f.getUrl(), count: listFiles_().length }); }
     if (d.action === 'list') return out_({ ok: true, files: listFiles_() });
     // raw: kisi bhi file ke bytes (base64), offset/length se tukdon me (bade DATA.ZIP ke liye)
     if (d.action === 'raw') {
       if (!d.id) return out_({ ok: false, error: 'id missing' });
+      // Bytes ko JS me copy karna bhaari hai (12M push) — poora base64 ek baar banao, phir string ka tukda.
+      // offset 3 ka multiple hona chahiye (base64 me 3 byte = 4 char); CHUNK 12MB = 3 ka multiple.
       var rf = DriveApp.getFileById(String(d.id)), bytes = rf.getBlob().getBytes(), size = bytes.length;
-      var off = Math.max(0, +d.offset || 0), len = Math.min(+d.length || CHUNK, CHUNK, size - off);
-      var part = bytes;
-      if (!(off === 0 && len === size)) { part = []; for (var i = off; i < off + len; i++) part.push(bytes[i]); }  // Java byte[] par .slice nahi chalta
-      return out_({ ok: true, name: rf.getName(), size: size, offset: off, length: len, b64: Utilities.base64Encode(part) });
+      var off = Math.max(0, +d.offset || 0); off -= off % 3;
+      var len = Math.min(+d.length || CHUNK, CHUNK, size - off); if (off + len < size) len -= len % 3;
+      var full = Utilities.base64Encode(bytes);
+      var b64 = (off === 0 && len === size) ? full : full.substring(off / 3 * 4, (off + len >= size) ? full.length : (off + len) / 3 * 4);
+      return out_({ ok: true, name: rf.getName(), size: size, offset: off, length: len, b64: b64 });
     }
     if (d.action === 'get') { if (!d.id) return out_({ ok: false, error: 'id missing' }); var g = getXlsx_(String(d.id)); return out_({ ok: true, name: g.name, b64: g.b64 }); }
     return out_({ ok: false, error: 'unknown action' });

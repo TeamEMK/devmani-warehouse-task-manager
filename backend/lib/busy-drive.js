@@ -21,15 +21,21 @@ const SYNC_EVERY_MIN = 30;
 // File ke naam se kind — auto-detect par bharosa kam rahe
 const kindFromName = name => (/stock/i.test(name) ? 'STOCK' : /receiv|outstand|debtor|balance/i.test(name) ? 'OUT' : '');
 
-async function callScript(url, secret, body) {
-  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 90 * 1000);
-  let resp, text;
+// GET + query params (POST par Google 302 redirect me body kho kar doGet chal jaata tha — kabhi-kabhi).
+// Jawab me `service` aaye (doGet ka default) ya ok na ho to ek baar aur try.
+async function callScript(url, secret, body, attempt = 0) {
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 120 * 1000);
+  let text;
   try {
-    resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ secret }, body)), redirect: 'follow', signal: ctl.signal });
+    const qs = new URLSearchParams(Object.assign({ secret }, body)).toString();
+    const resp = await fetch(url + (url.includes('?') ? '&' : '?') + qs, { method: 'GET', redirect: 'follow', signal: ctl.signal });
     text = await resp.text();
-  } catch (e) { throw new Error('Script tak pahunch nahi paye: ' + (e.name === 'AbortError' ? 'timeout' : e.message)); }
-  finally { clearTimeout(t); }
+  } catch (e) {
+    if (attempt < 1) return callScript(url, secret, body, attempt + 1);
+    throw new Error('Script tak pahunch nahi paye: ' + (e.name === 'AbortError' ? 'timeout' : e.message));
+  } finally { clearTimeout(t); }
   let data; try { data = JSON.parse(text); } catch (_) { throw new Error('Script ne JSON nahi diya — Apps Script me authorize() chalao aur "Anyone" access ke saath deploy karo'); }
+  if (data.service && attempt < 1) return callScript(url, secret, body, attempt + 1); // doGet default jawab = request kho gayi
   if (!data.ok) throw new Error(data.error || 'script error');
   return data;
 }
@@ -40,7 +46,7 @@ async function downloadRaw(url, secret, id, expectedSize) {
   do {
     const r = await callScript(url, secret, { action: 'raw', id, offset: off, length: 12 * 1024 * 1024 });
     const buf = Buffer.from(r.b64 || '', 'base64');
-    if (!buf.length) throw new Error('Download me khali tukda aaya');
+    if (!buf.length) throw new Error(`Download me khali tukda aaya (offset ${off}, size ${r.size})`);
     parts.push(buf); size = r.size; off += buf.length;
   } while (off < size);
   return Buffer.concat(parts);
