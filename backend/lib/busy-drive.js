@@ -9,9 +9,12 @@
 //   - sync(): list -> jo file pichli baar ke baad badli, use utha kar
 //     ops-busy.importBusyBuffer se import (wahi log, wahi payment detection)
 //   - har file ka { modified, result } state me — same file dobara import nahi hoti
+// Do tarah ki file: (a) seedhi xlsx export, (b) Busy ka auto-backup "<date time>/COMPBOD/DATA.ZIP"
+// (kind 'backup') — use tukdon me download karke busy-db se seedha stock + outstanding nikalte hain.
 // Chalta hai: har 30 min (in-process), /api/ops/cron par, aur UI ke "Abhi sync karo" se.
 
 const busy = require('./ops-busy');
+const busyDb = require('./busy-db');
 
 const KEYS = { url: 'busyDrive.scriptUrl', secret: 'busyDrive.secret', enabled: 'busyDrive.enabled', state: 'busyDrive.state' };
 const SYNC_EVERY_MIN = 30;
@@ -29,6 +32,24 @@ async function callScript(url, secret, body) {
   let data; try { data = JSON.parse(text); } catch (_) { throw new Error('Script ne JSON nahi diya — Apps Script me authorize() chalao aur "Anyone" access ke saath deploy karo'); }
   if (!data.ok) throw new Error(data.error || 'script error');
   return data;
+}
+
+// Bada file tukdon me (Apps Script ek response me ~50MB se zyada nahi de sakta)
+async function downloadRaw(url, secret, id, expectedSize) {
+  const parts = []; let off = 0, size = expectedSize || 0;
+  do {
+    const r = await callScript(url, secret, { action: 'raw', id, offset: off, length: 12 * 1024 * 1024 });
+    const buf = Buffer.from(r.b64 || '', 'base64');
+    if (!buf.length) throw new Error('Download me khali tukda aaya');
+    parts.push(buf); size = r.size; off += buf.length;
+  } while (off < size);
+  return Buffer.concat(parts);
+}
+// "2026-09-11 (02 00 PM)" -> { dmy: '11-09-2026', label: '11-09-2026 02:00 PM' }
+function backupStamp(folderName) {
+  const m = /^(\d{4})-(\d{2})-(\d{2}) \((\d{1,2}) (\d{2}) (AM|PM)\)/i.exec(String(folderName || ''));
+  if (!m) return null;
+  return { dmy: `${m[3]}-${m[2]}-${m[1]}`, label: `${m[3]}-${m[2]}-${m[1]} ${m[4].padStart(2, '0')}:${m[5]} ${m[6].toUpperCase()}` };
 }
 
 function makeBusyDrive({ db, nowIST, afterImport }) {
@@ -75,9 +96,14 @@ function makeBusyDrive({ db, nowIST, afterImport }) {
       for (const f of files) {
         const prev = state.files[f.id];
         if (!force && prev && prev.modified === f.modified) { skipped++; continue; }
-        const g = await callScript(s.url, s.secret, { action: 'get', id: f.id });
-        const r = await busy.importBusyBuffer(db, Buffer.from(g.b64, 'base64'), 'Drive: ' + (g.name || f.name), nowIST().dmy, kindFromName(f.name));
-        state.files[f.id] = { name: f.name, modified: f.modified, importedAt: nowIST().dmyhm, result: String(r.result).slice(0, 160) };
+        let r;
+        if (f.kind === 'backup') r = await importBackup(s, f);
+        else {
+          const g = await callScript(s.url, s.secret, { action: 'get', id: f.id });
+          r = await busy.importBusyBuffer(db, Buffer.from(g.b64, 'base64'), 'Drive: ' + (g.name || f.name), nowIST().dmy, kindFromName(f.name));
+        }
+        // ERROR (download/parse fail) ho to state me mat likho — agli baar dobara try hoga
+        if (!/^ERROR/.test(String(r.result))) state.files[f.id] = { name: f.name, modified: f.modified, importedAt: nowIST().dmyhm, result: String(r.result).slice(0, 200) };
         imported.push({ name: f.name, result: r.result, notes: r.notes });
       }
       // Jo files folder se hat gayin unka state bhi hatao
@@ -93,6 +119,24 @@ function makeBusyDrive({ db, nowIST, afterImport }) {
       await saveState(state).catch(() => {});
       return { ok: false, error: state.lastError };
     } finally { running = false; }
+  }
+  // Busy backup (DATA.ZIP): download -> db1YYYY.bds -> stock + outstanding -> wahi importStock/importOutstanding
+  async function importBackup(s, f) {
+    const stamp = backupStamp(f.backup) || { dmy: nowIST().dmy, label: nowIST().dmyhm };
+    const label = `Drive backup ${stamp.label} (${String(f.name).split('/')[1] || 'COMP'})`;
+    let result = '', notes = '';
+    try {
+      const zip = await downloadRaw(s.url, s.secret, f.id, f.size);
+      const bd = busyDb.readBusyBackup(zip);
+      const [appItems] = await db.query('SELECT busy_name FROM ops_items WHERE busy_name<>\'\'');
+      const keep = new Set(appItems.map(r => busyDb.nb(r.busy_name)));
+      const r1 = await busy.importStock(db, busyDb.stockRows(bd, stamp.dmy, keep), stamp.dmy);
+      const r2 = await busy.importOutstanding(db, busyDb.outstandingRows(bd, stamp.dmy), stamp.dmy);
+      result = `STOCK: ${r1.updated} items updated | OUTSTANDING: ${r2.count} accounts, as on ${stamp.dmy}` + (r2.payments ? `, ${r2.payments} payment(s) detected` : '') + ` (FY ${bd.fy}, ${bd.itemGroup} items ${bd.items.length}, last voucher ${bd.lastVoucherDate})`;
+      notes = [r1.unmatched.length ? 'Busy tyre items jo app me nahi: ' + r1.unmatched.join(' | ') : '', r2.unmatched.join(' | ')].filter(Boolean).join(' || ');
+    } catch (e) { result = 'ERROR: ' + String(e.message || e).slice(0, 250); }
+    await db.query('INSERT INTO ops_import_log (file_name,result,notes) VALUES (?,?,?)', [label.slice(0, 200), result, notes.slice(0, 60000)]);
+    return { result, notes };
   }
   // Scheduler ke liye: enabled ho tabhi
   async function syncIfEnabled(by) {

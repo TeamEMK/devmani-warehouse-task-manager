@@ -28,30 +28,32 @@ Last updated: 11-Sep-2026
 | **Stock Status** (item-wise closing qty) | `ops_items.stock` + `ops_stock_log` (type `BUSY`) | Item ka **Busy Name** (`ops_items.busy_name`) |
 | **Amount Receivable** (party-wise balance) | `ops_outstanding` (poora snapshot replace) + `ops_payment_log` | Dealer ka **Busy Name** (`ops_dealers.busy_name`), nahi to dealer ka naam |
 
-> **11-Sep-2026 se LIVE: Drive folder se automatic import (Section 0).** Busy PC se exports Devmaniwarehouses@gmail.com ke Drive folder me aate hain (din me ~3 baar); app har 30 min wahan se nayi/badli file utha kar khud import karta hai. Neeche ka manual upload ab backup rasta hai.
+> **11-Sep-2026 se LIVE: Busy ke Drive backup se automatic import (Section 0).** Busy PC ka auto-backup (din me 3 baar: ~10 AM, ~2 PM, ~6:45 PM) Devmaniwarehouses@gmail.com ke Drive folder me jaata hai. App har 30 min wahan se naya backup uthata hai, Busy ki database khud padhta hai aur stock + outstanding update karta hai — koi export/upload nahi. Neeche ka manual upload ab backup rasta hai.
 
-## 0. Drive folder se automatic import (chal raha hai)
+## 0. Drive backup se automatic import (chal raha hai)
 
 ```
- Busy PC  --(Drive sync / export)-->  Drive folder "Busy"  <--(Apps Script web app: list/get)--  App (har 30 min)
-          (Devmaniwarehouses@gmail.com)                                                         -> importBusy wahi logic
+ Busy PC --auto backup--> Drive "BusyBackUp_WIN-DHLNE3"/<date time>/COMPBOD/DATA.ZIP
+                                   ^ Apps Script web app (list / raw)   <-- App har 30 min (backend/lib/busy-drive.js)
+                          DATA.ZIP -> db1<FY>.bds (Access) -> mdb-reader (backend/lib/busy-db.js)
+                          -> stock rows + outstanding rows -> wahi importStock / importOutstanding
 ```
 
 **Kaise kaam karta hai**
-- Devmaniwarehouses account me ek Apps Script web app hai (`docs/apps-script-busy-drive/Code.js`): `list` = folder ki spreadsheet files (naam, kab badli), `get` = file ka xlsx (purana .xls ya Google Sheet ho to xlsx me convert karke). Secret ke bina jawab nahi deta.
-- App (`backend/lib/busy-drive.js`) har 30 min (boot ke 2 min baad pehli baar) `list` maangta hai; jis file ka "modified" pichli baar se alag hai use `get` karke `importBusyBuffer` me deta hai — wahi stock update / outstanding replace / payment detection / `ops_import_log` (file naam `Drive: ...` se). File ke naam me `stock` ho to STOCK, `receiv`/`outstand` ho to OUT, warna auto-detect.
-- Same file dobara import nahi hoti (har file ka modified-time `app_settings` → `busyDrive.state` me). Folder me 3 baar overwrite hui file = 3 import, bas.
-- `/api/ops/cron?key=...` par bhi chalta hai (serverless / bahar se trigger ke liye). Sync ek baar me ek hi chalta hai.
+- Drive folder (`1WhOsHzNDg80lfJAMWlivjzPb1LOaOR3d`) me Busy ke backup subfolders `2026-09-11 (02 00 PM)` jaise naam se aate hain; har ek me company folder (`COMPBOD` = Bansal Oil Distributors) me `DATA.ZIP` (~25MB). Apps Script (`docs/apps-script-busy-drive/Code.js`, Devmaniwarehouses account me deployed) `list` me sabse naya backup deta hai aur `raw` se file 12MB ke tukdon me.
+- App ZIP me se sirf `db1<FY>.bds` (sabse naya saal, jaise db12026.bds = FY 2026-27) nikaalta hai aur `mdb-reader` (Access reader, npm) se padhta hai. Formula (Busy ke data par verify: trial balance 0, 155 items par DailySum se match):
+  - **stock(item)** = `Folio1.D1` (opening qty) + Σ `Tran2` lines RecType 2 `Value1` (qty; sale negative). Sirf item group **Tyre** (aur uske sub-groups, jaise AUTO MARKET) ke items.
+  - **outstanding(party)** = −(`Folio1.D1` (opening, Dr negative) + Σ `Tran2` lines RecType 1 `Value1`). Sirf **Sundry Debtors** group ke accounts, 0 wale chhod kar (Cr balance = negative = advance).
+  - `Master1`: MasterType 2 = account, 6 = item, 1 = account group, 5 = item group.
+- Ye rows `importStock` / `importOutstanding` me jaati hain — matching (Busy Name), stock log, outstanding replace, payment detection + WhatsApp, `ops_import_log` (file naam `Drive backup 11-09-2026 02:00 PM (COMPBOD)`) sab pehle jaisa. Stock rows me Busy ke wahi tyre items jinka stock ≠ 0 ya jo app me hain; baaki "Busy tyre items jo app me nahi" notes me.
+- Same backup dobara import nahi hota (file id + modified `app_settings` → `busyDrive.state` me). `/api/ops/cron?key=...` par bhi chalta hai.
+- Folder me seedhi `.xlsx` (Stock Status / Amount Receivable export) rakh do to wo bhi pehle jaisa import ho jaati hai.
 
-**Setup (ek baar) — app me admin: Stock/Reports → Busy Import → "Drive se auto-import" → Settings**
-1. "Naya banao" se secret banao → Save.
-2. Devmaniwarehouses@gmail.com se script.google.com → New project → `docs/apps-script-busy-drive/Code.js` paste (Code.gs), Project settings me "Show appsscript.json" on karke `appsscript.json` bhi paste.
-3. Code.gs me `FOLDER` = Busy wale folder ka naam (ya link), `SECRET` = step 1 wala.
-4. Function `authorize` Run → Allow. Log me folder + file count aana chahiye.
-5. Deploy → New deployment → Web app → Execute as **Me**, access **Anyone** → Deploy → URL copy → app me "Apps Script web app URL" me paste → "Auto-import chalu" tick → Save → **Test connection** → **Abhi sync karo**.
-6. Code kabhi badlo to Deploy → Manage deployments → Edit → New version (warna purana chalta rahega).
+**Setup (ho chuka 11-Sep-2026)**
+- Apps Script project "Michelin Ops - Busy Drive Bridge" Devmaniwarehouses@gmail.com me (clasp se push/deploy; local clasp project scratchpad me). Code me `FOLDER` = folder id, `COMPANY = 'COMPBOD'`, `SECRET` app ki settings wala. Code badle to `clasp push -f` + `clasp redeploy <deploymentId>` (naya `deploy` = naya URL).
+- App me: Stock/Reports → Busy Import → "Drive se auto-import" → Settings: web app URL + secret, "Auto-import chalu" → Save → Test connection (folder + latest backup dikhna chahiye) → Abhi sync karo.
 
-**Dekhne ki jagah:** usi sheet me status (chalu/band, last sync, kaunsi file kab import hui, error), Reports → Busy Import me poori log. Auto band karna ho to tick hata kar Save; "Abhi sync karo" phir bhi chalega.
+**Dhyan**: pehli sync par purane (manual xlsx) snapshot se jo bhi balance kam mila wo "payment" maana jayega → dealer + DSR ko WhatsApp. Baad me sirf asli farak.
 
 Busy khud koi public API nahi deta (busy.in ka FAQ bhi yahi kehta hai: "API integration option hai, par third-party application chahiye, channel partner se lo"). Isliye data nikalne ke teen hi practical raste hain:
 
@@ -228,7 +230,7 @@ Kuch vendors Busy PC par apna agent install karke REST API dete hain — jaise *
 | Phase | Kya | Kab / kitna kaam |
 |---|---|---|
 | 1 | Manual: Busy `ALT+E` -> app me upload. Dealers/items ke Busy Name theek karo taaki unmatched zero ho. | Backup rasta |
-| 2 (LIVE 11-Sep-2026) | **Section 0**: Drive folder + Apps Script web app, app har 30 min khud import kare. Operator sirf export kare (Drive me). | Ho gaya |
+| 2 (LIVE 11-Sep-2026) | **Section 0**: Busy ka Drive auto-backup + Apps Script web app; app har 30 min backup padh kar khud import kare. Operator ko kuch nahi karna. | Ho gaya |
 | 3 (agar chahiye) | **Option B**: SQL se seedha, tab jab Busy PC par SQL mode confirm ho aur invoice-level data bhi chahiye ho. | 2–4 din, Busy partner se baat ke baad |
 
 Phase 2 se pehle Busy PC se ye info le aao — isi se Phase 3 ka faisla hoga:

@@ -26,9 +26,14 @@
      { action:'ping' }            -> { ok, folder, url, count }
      { action:'list' }            -> { ok, files:[{ id, name, mime, size, modified }] }  (nayi pehle)
      { action:'get', id }         -> { ok, name, b64 }   (hamesha .xlsx — .xls / Google Sheet convert ho jaati hai)
+     { action:'raw', id, offset, length } -> { ok, name, size, offset, length, b64 }  (Busy backup DATA.ZIP tukdon me)
+   list me Busy auto-backup ka sabse naya "<date time>/COMPBOD/DATA.ZIP" bhi aata hai (kind 'backup').
    ═══════════════════════════════════════════════════════════════ */
 var FOLDER = 'Busy';           // folder ka naam, ya folder ka link / ID
 var SECRET = 'CHANGE-ME';      // app ki Busy Import -> Drive settings wala secret
+
+var COMPANY = 'COMPBOD';       // Busy backup me company folder (COMPBOD = Bansal Oil Distributors)
+var CHUNK = 12 * 1024 * 1024;  // raw download ek baar me itne bytes (base64 ke baad ~16MB)
 
 var XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 var GSHEET = 'application/vnd.google-apps.spreadsheet';
@@ -60,15 +65,40 @@ function folder_() {
 function isSheetLike_(name, mime) {
   return /\.xlsx?$/i.test(name) || mime === GSHEET || mime === XLSX || /excel|spreadsheet/i.test(mime || '');
 }
+// Folder me do tarah ki cheez ho sakti hai:
+//   (a) seedhi spreadsheet files (Stock Status / Amount Receivable export)  -> kind 'xlsx'
+//   (b) Busy auto-backup ke date-time subfolders "2026-09-11 (02 00 PM)" -> <COMPANY>/DATA.ZIP -> kind 'backup'
+//       sirf sabse naya backup list hota hai (purane ka koi kaam nahi)
 function listFiles_() {
-  var files = folder_().getFiles(), out = [];
+  var root = folder_(), files = root.getFiles(), out = [];
   while (files.hasNext()) {
     var f = files.next(), mt = f.getMimeType(), nm = f.getName();
     if (!isSheetLike_(nm, mt)) continue;
-    out.push({ id: f.getId(), name: nm, mime: mt, size: f.getSize(), modified: f.getLastUpdated().toISOString() });
+    out.push({ id: f.getId(), name: nm, mime: mt, size: f.getSize(), modified: f.getLastUpdated().toISOString(), kind: 'xlsx' });
   }
+  var bk = latestBackup_(root);
+  if (bk) out.push(bk);
   out.sort(function (a, b) { return a.modified < b.modified ? 1 : -1; });
   return out;
+}
+// "2026-09-11 (02 00 PM)" -> ms; parse na ho to folder ka lastUpdated
+function stampOf_(folder) {
+  var m = /^(\d{4})-(\d{2})-(\d{2}) \((\d{1,2}) (\d{2}) (AM|PM)\)/i.exec(folder.getName());
+  if (!m) return folder.getLastUpdated().getTime();
+  var h = (+m[4] % 12) + (m[6].toUpperCase() === 'PM' ? 12 : 0);
+  return Date.UTC(+m[1], +m[2] - 1, +m[3], h, +m[5]);
+}
+function latestBackup_(root) {
+  var subs = root.getFolders(), list = [];
+  while (subs.hasNext()) { var sf = subs.next(); list.push({ f: sf, t: stampOf_(sf) }); }
+  list.sort(function (a, b) { return b.t - a.t; });
+  for (var i = 0; i < Math.min(list.length, 3); i++) {   // naya backup adhoora ho sakta hai (upload chal raha) — agla dekho
+    var cf = list[i].f.getFoldersByName(COMPANY); if (!cf.hasNext()) continue;
+    var zf = cf.next().getFilesByName('DATA.ZIP'); if (!zf.hasNext()) continue;
+    var z = zf.next(); if (z.getSize() < 100000) continue;
+    return { id: z.getId(), name: list[i].f.getName() + '/' + COMPANY + '/DATA.ZIP', mime: z.getMimeType(), size: z.getSize(), modified: z.getLastUpdated().toISOString(), kind: 'backup', backup: list[i].f.getName() };
+  }
+  return null;
 }
 // File -> xlsx bytes. Google Sheet / purana .xls ho to Google Sheet ke raste xlsx export.
 function getXlsx_(id) {
@@ -101,6 +131,15 @@ function doPost(e) {
     if (!d.secret || d.secret !== SECRET) return out_({ ok: false, error: 'bad secret' });
     if (d.action === 'ping') { var f = folder_(); return out_({ ok: true, folder: f.getName(), url: f.getUrl(), count: listFiles_().length }); }
     if (d.action === 'list') return out_({ ok: true, files: listFiles_() });
+    // raw: kisi bhi file ke bytes (base64), offset/length se tukdon me (bade DATA.ZIP ke liye)
+    if (d.action === 'raw') {
+      if (!d.id) return out_({ ok: false, error: 'id missing' });
+      var rf = DriveApp.getFileById(String(d.id)), bytes = rf.getBlob().getBytes(), size = bytes.length;
+      var off = Math.max(0, +d.offset || 0), len = Math.min(+d.length || CHUNK, CHUNK, size - off);
+      var part = bytes;
+      if (!(off === 0 && len === size)) { part = []; for (var i = off; i < off + len; i++) part.push(bytes[i]); }  // Java byte[] par .slice nahi chalta
+      return out_({ ok: true, name: rf.getName(), size: size, offset: off, length: len, b64: Utilities.base64Encode(part) });
+    }
     if (d.action === 'get') { if (!d.id) return out_({ ok: false, error: 'id missing' }); var g = getXlsx_(String(d.id)); return out_({ ok: true, name: g.name, b64: g.b64 }); }
     return out_({ ok: false, error: 'unknown action' });
   } catch (err) {

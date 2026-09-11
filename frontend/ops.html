@@ -646,14 +646,14 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
   <input type="file" id="busy-file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="font-size:13px;width:100%">
   <div class="hint">Auto na pehchane to upar file type chun kar dobara upload karo. Poori import report: Reports → Busy Import.</div>
   <!-- Drive se auto-import (Devmaniwarehouses account ka Busy folder, Apps Script web app ke through) -->
-  <div class="h" style="font-size:14px;margin-top:16px">Drive se auto-import <small>Busy folder har 30 min check</small></div>
+  <div class="h" style="font-size:14px;margin-top:16px">Drive se auto-import <small>Busy ka auto-backup (Drive) har 30 min check — stock + outstanding seedha Busy data se</small></div>
   <div class="hint" id="bd-status" style="margin:0 0 8px">Loading…</div>
   <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm gold" id="bd-sync">&#8635; Abhi sync karo</button><button class="btn sm ghost" id="bd-test">Test connection</button><button class="btn sm ghost" id="bd-toggle">&#9881; Settings</button></div>
   <div id="bd-settings" style="display:none;margin-top:8px;background:var(--bg);border-radius:10px;padding:10px 12px">
     <label class="l" style="margin-top:0">Apps Script web app URL</label><input class="inp" id="bd-url" placeholder="https://script.google.com/macros/s/.../exec">
     <label class="l">Secret <small style="font-weight:500;text-transform:none">(yahi Code.gs me SECRET me daalna hai)</small></label>
     <div class="row" style="gap:6px"><input class="inp" id="bd-secret" style="flex:1;font-family:monospace"><button class="btn sm ghost" id="bd-gen" style="white-space:nowrap">Naya banao</button></div>
-    <label class="l" style="display:flex;align-items:center;gap:8px;text-transform:none;font-weight:600"><input type="checkbox" id="bd-enabled" style="width:18px;height:18px"> Auto-import chalu (har 30 min, aur har sync par nayi/badli file hi import)</label>
+    <label class="l" style="display:flex;align-items:center;gap:8px;text-transform:none;font-weight:600"><input type="checkbox" id="bd-enabled" style="width:18px;height:18px"> Auto-import chalu (har 30 min; Busy ka naya backup aate hi (10 AM / 2 PM / shaam) stock aur outstanding update)</label>
     <div class="hint">Setup (ek baar): Devmaniwarehouses@gmail.com se script.google.com kholo → repo ki <b>docs/apps-script-busy-drive/Code.js</b> paste karo → FOLDER (Busy folder ka naam) aur SECRET (upar wala) bharo → <b>authorize</b> run karo → Deploy → Web app (Anyone) → URL yahan paste → Save → Test connection.</div>
     <button class="btn sm gold" id="bd-save" style="margin-top:8px">Save</button>
   </div>
