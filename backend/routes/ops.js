@@ -1007,10 +1007,13 @@ module.exports = function registerOpsRoutes(app, ctx) {
   }
 
   // Cron endpoint (serverless ke liye) + in-process scheduler
+  let opsExtra = null; // neeche ops-extra se milta hai (Busy Drive sync)
   router.get('/cron', async (req, res) => {
     if (process.env.CRON_SECRET && req.query.key !== process.env.CRON_SECRET && req.headers['x-cron-secret'] !== process.env.CRON_SECRET) return res.status(403).json({ error: 'Forbidden' });
     await scanOrders(); await scanPayments().catch(e => console.error('ops scanPayments', e.message)); await dailySummary().catch(e => console.error('ops summary', e.message));
-    res.json({ ok: true });
+    let drive = null;
+    if (opsExtra && opsExtra.busyDriveSync) drive = await opsExtra.busyDriveSync('cron').catch(e => ({ ok: false, error: e.message }));
+    res.json({ ok: true, drive });
   });
   if (!IS_SERVERLESS && wati.ENABLED) {
     setInterval(() => { scanOrders(); scanPayments().catch(e => console.error('ops scanPayments', e.message)); dailySummary().catch(e => console.error('ops summary', e.message)); }, 5 * 60 * 1000);
@@ -1021,10 +1024,10 @@ module.exports = function registerOpsRoutes(app, ctx) {
 
   // v2 features (reports, attendance, route plan, expenses, payment reminders) —
   // alag file me, par same router aur same helpers par.
-  require('./ops-extra')({
+  opsExtra = require('./ops-extra')({
     router, db, requireOps, adminOnly, rpc, J, err, clean, nb, nowIST, dmyOf, FMT, isAdmin,
-    ordersFor, orderByOid, logged, wati, pushToDrive, IS_SERVERLESS,
-  });
+    ordersFor, orderByOid, logged, wati, pushToDrive, IS_SERVERLESS, scanPayments,
+  }) || null;
 
   app.use('/api/ops', router);
 };

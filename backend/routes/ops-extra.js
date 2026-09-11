@@ -10,7 +10,7 @@
 // dikhta hai: delivery pending, payment pending, DSR performance, tracking.
 
 module.exports = function registerOpsExtra(S) {
-  const { router, db, requireOps, adminOnly, rpc, J, err, clean, nowIST, dmyOf, FMT, isAdmin, logged, wati, pushToDrive, IS_SERVERLESS } = S;
+  const { router, db, requireOps, adminOnly, rpc, J, err, clean, nowIST, dmyOf, FMT, isAdmin, logged, wati, pushToDrive, IS_SERVERLESS, scanPayments } = S;
   const parse = j => (typeof j === 'string' ? JSON.parse(j) : (j || {}));
   const isoDate = v => { const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[1]}-${m[2]}-${m[3]}` : null; };
 
@@ -395,9 +395,35 @@ module.exports = function registerOpsExtra(S) {
     return J({ ok: true, outputs, matchedCount: r.matchedCount, droppedCount: r.droppedCount, dropped: r.dropped });
   }));
 
+  // ══════════ BUSY DRIVE AUTO-IMPORT ══════════
+  // Devmaniwarehouses Drive folder (Apps Script web app, docs/apps-script-busy-drive) se
+  // Busy exports har 30 min khud import. Settings app_settings me (busyDrive.*).
+  const busyDrive = require('../lib/busy-drive').makeBusyDrive({ db, nowIST, afterImport: () => (scanPayments ? scanPayments() : null) });
+  router.post('/busyDriveGet', requireOps, adminOnly, rpc(async () => J(Object.assign({ ok: true }, busyDrive.publicView(await busyDrive.settings())))));
+  router.post('/busyDriveSave', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = parse(j);
+    const url = d.url === undefined ? undefined : String(d.url || '').trim();
+    if (url && !/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) return err('URL script.google.com wala hona chahiye (Deploy → Web app → URL)');
+    const s = await busyDrive.saveSettings({ url, secret: d.secret, enabled: d.enabled });
+    return J(Object.assign({ ok: true }, busyDrive.publicView(s)));
+  }));
+  router.post('/busyDriveTest', requireOps, adminOnly, rpc(async () => { try { return J(Object.assign({ ok: true }, await busyDrive.test())); } catch (e) { return err(e.message); } }));
+  router.post('/busyDriveSync', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = parse(j);
+    const r = await busyDrive.sync({ force: !!d.force, by: u.name || 'admin' });
+    if (!r.ok) return err(r.error);
+    return J(Object.assign({ ok: true }, r, busyDrive.publicView(await busyDrive.settings())));
+  }));
+  if (!IS_SERVERLESS) {
+    const tick = () => busyDrive.syncIfEnabled('auto').then(r => { if (r && !r.skipped) console.log('  Busy Drive sync:', r.ok ? `${r.imported.length} import, ${r.skipped} unchanged` : r.error); }).catch(e => console.error('busy drive', e.message));
+    setTimeout(tick, 2 * 60 * 1000); // boot ke 2 min baad pehli baar
+    setInterval(tick, busyDrive.SYNC_EVERY_MIN * 60 * 1000);
+  }
+
   // Chhota helper: ops users list (admin ko filters ke liye)
   router.post('/getUsers', requireOps, adminOnly, rpc(async () => {
     const [rows] = await db.query('SELECT name, mobile, role, active FROM ops_users ORDER BY role=\'DSR\' DESC, name');
     return rows.map(r => ({ name: r.name, mob: r.mobile, role: String(r.role).toUpperCase(), active: !!r.active }));
   }));
+  return { busyDriveSync: by => busyDrive.syncIfEnabled(by) };
 };
