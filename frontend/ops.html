@@ -909,6 +909,7 @@ function renderBusyDrive(d){
   BD=d;
   var st='';
   if(!d.url||!d.secret) st='<span style="color:var(--amber)">Setup baaki hai</span> — Settings kholo, secret banao, Apps Script deploy karke URL daalo.';
+  else if(d.running) st='<b style="color:var(--blue)">Sync chal raha hai…</b> (1-3 min)'+(d.lastRun?' · last '+esc(d.lastRun):'');
   else st=(d.enabled?'<b style="color:var(--green)">Chalu</b> · har '+d.everyMin+' min':'<b style="color:var(--amber)">Band</b> (auto nahi chalega, "Abhi sync" chalega)')+(d.lastRun?' · last sync '+esc(d.lastRun)+' ('+esc(d.lastBy)+')':' · abhi tak sync nahi hua')+(d.lastSummary?'<br>'+esc(d.lastSummary):'')+(d.lastError?'<br><span style="color:var(--red)">⚠ '+esc(d.lastError)+'</span>':'');
   $('bd-status').innerHTML=st;
   $('bd-url').value=d.url||''; $('bd-secret').value=d.secret||''; $('bd-enabled').checked=!!d.enabled;
@@ -919,7 +920,16 @@ $('bd-toggle').onclick=function(){ var s=$('bd-settings'); s.style.display=s.sty
 $('bd-gen').onclick=function(){ var a=new Uint8Array(18); (window.crypto||window.msCrypto).getRandomValues(a); var h=''; for(var i=0;i<a.length;i++) h+=('0'+a[i].toString(16)).slice(-2); $('bd-secret').value=h; toast('Naya secret bana — Save karo aur yahi Code.gs me daalo'); };
 $('bd-save').onclick=function(){ showLoad('Save...'); call('busyDriveSave',{url:V('bd-url'),secret:V('bd-secret'),enabled:$('bd-enabled').checked},function(d){ hideLoad(); renderBusyDrive(d); toast('Drive settings save ho gayi','ok'); }); };
 $('bd-test').onclick=function(){ showLoad('Drive script se baat ho rahi hai...'); call('busyDriveTest',{},function(d){ hideLoad(); toast('Folder "'+d.folder+'" mila — '+d.count+' spreadsheet file(s)','ok'); $('bd-files').innerHTML='<div class="logrow"><b>Folder:</b> <a class="doclink" target="_blank" href="'+esc(d.folderUrl)+'">'+esc(d.folder)+'</a> · '+d.count+' file(s)</div>'+(d.files||[]).map(function(f){ return '<div class="logrow">'+esc(f.name)+' <span style="color:var(--t3)">· '+esc(istOf(f.modified))+' · '+Math.round((f.size||0)/1024)+' KB</span></div>'; }).join(''); }); };
-function bdSync(silent){ showLoad('Drive se backup utha kar import ho raha hai (1-2 min)...'); call('busyDriveSync',{force:false,silent:!!silent},function(d){ hideLoad(); renderBusyDrive(d); toast(d.imported.length?d.imported.length+' file import: '+d.imported.map(function(x){return x.result;}).join(' · '):'Koi naya backup/file nahi ('+d.skipped+' unchanged)',d.imported.length?'ok':''); loadImportLog(); ITEMS=[]; }); }
+// Sync background me chalta hai (1-3 min); har 5 sec status poll, lastRun badle to result dikhao
+var BD_POLL=null;
+function bdSync(silent){
+  var before=BD?BD.lastRun:''; showLoad('Drive se Busy backup utha kar import ho raha hai (1-3 min)...');
+  call('busyDriveSync',{force:false,silent:!!silent},function(d){
+    renderBusyDrive(d); if(!d.started && !d.running){ hideLoad(); return; }
+    if(BD_POLL) clearInterval(BD_POLL);
+    BD_POLL=setInterval(function(){ call('busyDriveGet',{},function(g){ if(g.running || g.lastRun===before) return; clearInterval(BD_POLL); BD_POLL=null; hideLoad(); renderBusyDrive(g); toast(g.lastError?'Sync fail: '+g.lastError:'Sync ho gaya — '+g.lastSummary, g.lastError?'err':'ok'); loadImportLog(); ITEMS=[]; }); },5000);
+  });
+}
 $('bd-sync-silent').onclick=function(){ bdSync(true); };
 $('bd-sync').onclick=function(){ bdSync(false); };
 function loadImportLog(){

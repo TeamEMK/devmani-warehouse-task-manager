@@ -408,11 +408,16 @@ module.exports = function registerOpsExtra(S) {
     return J(Object.assign({ ok: true }, busyDrive.publicView(s)));
   }));
   router.post('/busyDriveTest', requireOps, adminOnly, rpc(async () => { try { return J(Object.assign({ ok: true }, await busyDrive.test())); } catch (e) { return err(e.message); } }));
+  // Sync 1-3 min leta hai (backup download + parse) — hosting proxy 60s par kaat deta hai, isliye
+  // background me shuru karke turant jawab; UI busyDriveGet se poll karta hai (running / lastRun).
   router.post('/busyDriveSync', requireOps, adminOnly, rpc(async (u, j) => {
     const d = parse(j);
-    const r = await busyDrive.sync({ force: !!d.force, silent: !!d.silent, by: u.name || 'admin' });
-    if (!r.ok) return err(r.error);
-    return J(Object.assign({ ok: true }, r, busyDrive.publicView(await busyDrive.settings())));
+    if (busyDrive.isRunning()) return J(Object.assign({ ok: true, started: false }, busyDrive.publicView(await busyDrive.settings())));
+    const s0 = await busyDrive.settings();
+    if (!s0.url || !s0.secret) return err('Drive script URL / secret set nahi (Settings)');
+    busyDrive.sync({ force: !!d.force, silent: !!d.silent, by: u.name || 'admin' }).catch(e => console.error('busy drive sync', e.message));
+    await new Promise(r => setTimeout(r, 300));
+    return J(Object.assign({ ok: true, started: true }, busyDrive.publicView(await busyDrive.settings())));
   }));
   if (!IS_SERVERLESS) {
     const tick = () => busyDrive.syncIfEnabled('auto').then(r => { if (r && !r.skipped) console.log('  Busy Drive sync:', r.ok ? `${r.imported.length} import, ${r.skipped} unchanged` : r.error); }).catch(e => console.error('busy drive', e.message));

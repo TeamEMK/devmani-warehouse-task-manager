@@ -78,7 +78,7 @@ function makeBusyDrive({ db, nowIST, afterImport }) {
   // UI ke liye: settings + files ki list (state se), nayi pehle
   function publicView(s) {
     const files = Object.keys(s.state.files).map(id => Object.assign({ id }, s.state.files[id])).sort((a, b) => (a.modified < b.modified ? 1 : -1));
-    return { url: s.url, secret: s.secret, enabled: s.enabled, everyMin: SYNC_EVERY_MIN, lastRun: s.state.lastRun, lastBy: s.state.lastBy, lastError: s.state.lastError, lastSummary: s.state.lastSummary, files };
+    return { url: s.url, secret: s.secret, enabled: s.enabled, everyMin: SYNC_EVERY_MIN, running, lastRun: s.state.lastRun, lastBy: s.state.lastBy, lastError: s.state.lastError, lastSummary: s.state.lastSummary, files };
   }
   async function test() {
     const s = await settings();
@@ -155,7 +155,7 @@ function makeBusyDrive({ db, nowIST, afterImport }) {
     if (!s.enabled || !s.url || !s.secret) return { ok: true, skipped: true };
     return sync({ by });
   }
-  return { settings, saveSettings, publicView, test, sync, syncIfEnabled, SYNC_EVERY_MIN, kindFromName };
+  return { settings, saveSettings, publicView, test, sync, syncIfEnabled, isRunning: () => running, SYNC_EVERY_MIN, kindFromName };
 }
 
 module.exports = { makeBusyDrive, callScript, kindFromName, KEYS, SYNC_EVERY_MIN };

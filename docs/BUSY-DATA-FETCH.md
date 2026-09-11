@@ -53,7 +53,8 @@ Last updated: 11-Sep-2026
 - Apps Script project "Michelin Ops - Busy Drive Bridge" Devmaniwarehouses@gmail.com me (clasp se push/deploy; local clasp project scratchpad me). Code me `FOLDER` = folder id, `COMPANY = 'COMPBOD'`, `SECRET` app ki settings wala. Code badle to `clasp push -f` + `clasp redeploy <deploymentId>` (naya `deploy` = naya URL).
 - App me: Stock/Reports → Busy Import → "Drive se auto-import" → Settings: web app URL + secret, "Auto-import chalu" → Save → Test connection (folder + latest backup dikhna chahiye) → Abhi sync karo.
 
-**Dhyan**: pehli sync par purane (manual xlsx) snapshot se jo bhi balance kam mila wo "payment" maana jayega → dealer + DSR ko WhatsApp. Baad me sirf asli farak.
+**Dhyan**: sync me jo dealer balance pichle snapshot se kam mila wo "payment" maana jaata hai → dealer + DSR ko WhatsApp. Lambe gap ke baad (ya pehli baar) **"Sync bina WhatsApp"** button use karo — payments log me aati hain par message nahi jaata. (Prod par pehla sync 11-Sep-2026 17:17 isi tarah hua: 21 items, 66 accounts, 11 payments muted; uske baad auto on.)
+Sync 1-3 min leta hai aur background me chalta hai (hosting proxy 60s par request kaat deta hai) — UI har 5 sec status poll karta hai; Apps Script ko GET query-params se call kiya jaata hai (POST par Google ka redirect kabhi body kho deta tha).
 
 Busy khud koi public API nahi deta (busy.in ka FAQ bhi yahi kehta hai: "API integration option hai, par third-party application chahiye, channel partner se lo"). Isliye data nikalne ke teen hi practical raste hain:
 
