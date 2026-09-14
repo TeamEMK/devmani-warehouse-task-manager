@@ -151,7 +151,7 @@ function makeBusyDrive({ db, nowIST, afterImport }) {
       const keep = new Set(appItems.map(r => busyDb.nb(r.busy_name)));
       const r1 = await busy.importStock(db, busyDb.stockRows(bd, stamp.dmy, keep), stamp.dmy);
       const r2 = await busy.importOutstanding(db, busyDb.outstandingRows(bd, stamp.dmy), stamp.dmy);
-      if (silent && r2.payments) await muteNewPayments();
+      if (silent) await muteNewPayments(); // silent = is waqt jo bhi payment message pending hai, sab mute
       // v4: party ledger + analysis (statement, Michelin/VK split, due-from), IMS snapshot, Busy invoice no. -> orders
       const extra = [];
       try { await storeLedger(bd); extra.push(`ledger ${bd.ledger.length} lines`); } catch (e) { extra.push('ledger ERR ' + e.message.slice(0, 80)); }
