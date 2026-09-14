@@ -128,6 +128,25 @@ module.exports = function registerOpsRoutes(app, ctx) {
     } catch (e) { res.type('json').send(err(e.message)); }
   });
   router.post('/logout', (req, res) => { res.clearCookie(COOKIE, { path: '/' }); res.json({ ok: true }); });
+  // SSO: main app (devmanierp.com/app) me logged-in user -> ops_users (main_user_id / phone se link) -> ops cookie.
+  // Main app ka admin bina ops row ke aaye to ops ADMIN row khud ban jaati hai; baaki ko Users page se Ops role dena hoga.
+  router.get('/sso', async (req, res) => {
+    try {
+      const opsAccess = require('../lib/ops-access');
+      const token = req.cookies?.token; if (!token) return res.json({ ok: false, error: 'Main app me login nahi' });
+      let dec; try { dec = jwt.verify(token, JWT_SECRET); } catch (_) { return res.json({ ok: false, error: 'Main app session expire' }); }
+      const [[mu]] = await db.query('SELECT id, name, email, role, phone FROM users WHERE id=?', [dec.userId]);
+      if (!mu) return res.json({ ok: false, error: 'Main app user nahi mila' });
+      let ou = await opsAccess.opsUserForMain(db, mu);
+      if (!ou && String(mu.role).toLowerCase() === 'admin') { await opsAccess.upsertOpsForMain(db, mu, { opsRole: 'ADMIN', perms: [] }); ou = await opsAccess.opsUserForMain(db, mu); }
+      if (!ou) return res.json({ ok: false, error: 'Michelin Ops ka access nahi — Users page me is user ko Ops role do' });
+      if (!ou.active) return res.json({ ok: false, error: 'Michelin Ops access band hai — Users page me Ops role set karo' });
+      const u = await userByMobile(ou.mobile); if (!u) return res.json({ ok: false, error: 'Ops user inactive' });
+      const t = jwt.sign({ mob: u.mob, ops: 1 }, JWT_SECRET, { expiresIn: '90d' });
+      res.cookie(COOKIE, t, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 90 * 86400 * 1000, path: '/' });
+      res.json({ ok: true, user: { mob: u.mob, name: u.name, role: u.role, username: u.username, perms: u.perms, hasPassword: u.hasPassword, sso: true } });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
   router.get('/me', requireOps, (req, res) => res.json({ ok: true, user: { mob: req.opsUser.mob, name: req.opsUser.name, role: req.opsUser.role, username: req.opsUser.username, perms: req.opsUser.perms, hasPassword: req.opsUser.hasPassword } }));
 
   // ══════════ ITEMS / STOCK ══════════

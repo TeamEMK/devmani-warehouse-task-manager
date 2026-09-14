@@ -116,7 +116,6 @@
     <div class="nav-item" onclick="navigate('ops',this,'track')"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg><span class="nav-label-text">DSR Tracking</span></div>
     <div class="nav-item" onclick="navigate('ops',this,'route')"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg><span class="nav-label-text">Route Plan</span></div>
     <div class="nav-item" onclick="navigate('ops',this,'tally')"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg><span class="nav-label-text">Tally Bridge</span></div>
-    <div class="nav-item" onclick="navigate('ops',this,'access')"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg><span class="nav-label-text">Access</span></div>
     <div class="nav-item" onclick="navigate('ops',this,'masters')"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg><span class="nav-label-text">Masters</span></div>
     <div class="nav-item" onclick="navigate('ops',this,'exp')"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="nav-label-text">Expenses</span></div>
     </div>
@@ -1337,6 +1336,29 @@
           <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:500;cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" class="woff-cb" value="6" style="accent-color:var(--primary)"/> Sat</label>
         </div>
       </div>
+    </div>
+    <!-- Michelin Ops access (v4): ops_users row is user se linked -->
+    <div class="form-group" style="border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--card)">
+      <label style="margin:0 0 6px">Michelin Ops access <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(devmanierp.com/ops — Bansal Oil)</span></label>
+      <div class="form-row">
+        <div class="form-group" style="margin:0"><label>Ops role</label>
+          <select id="uOpsRole" onchange="_opsRoleChanged()">
+            <option value="">— No access —</option>
+            <option value="ADMIN">Admin (sab)</option>
+            <option value="CRM">CRM</option>
+            <option value="BILLING">Billing</option>
+            <option value="ACCOUNTS">Accounts</option>
+            <option value="RM">RM</option>
+            <option value="DSR">DSR (field)</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0"><label>Ops password <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(sirf phone se /ops kholne ke liye; blank = same)</span></label><input type="text" id="uOpsPass" placeholder="optional" autocomplete="off"/></div>
+      </div>
+      <div id="uOpsPermsWrap" style="display:none;margin-top:8px">
+        <label style="margin:0 0 4px">Pages <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(kuch tick na ho = role ka default)</span></label>
+        <div id="uOpsPerms" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+      <div id="uOpsHint" style="font-size:11px;color:var(--muted-foreground);margin-top:6px">Is app me login karne par Michelin Ops bina doosre login ke khul jaata hai. WhatsApp Number upar wala hi Ops me use hota hai.</div>
     </div>
     <!-- Extra Off Section -->
     <div class="form-group">

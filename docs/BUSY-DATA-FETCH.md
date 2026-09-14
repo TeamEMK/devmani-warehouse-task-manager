@@ -70,7 +70,7 @@ App me:
 - WhatsApp sheet: "Account statement bhi bhejna hai?" → haan to date range → message + PDF. **WhatsApp provider ab Waumfy hai** (14-Sep-2026; Masters → WhatsApp me provider + API key, `app_settings` `wa.*`): message ka text app me `ops-wati.js` TEXTS se banta hai (Wati template ki zaroorat nahi), PDF seedha base64 file ke roop me jaata hai (`send-message` type pdf). Link bhi message me rehta hai (45 din valid, `/api/ops/statement/<token>.pdf`). Wati chuno to purane template naam + `sendSessionFile` wala raasta chalta hai.
 - **IMS** page: min/max level (admin edit), status color (OUT/LOW/OK/OVER), avg/day (snapshot ke girne se), days cover, day-by-day grid.
 - **Stock** page: tabs All / Michelin (SC+MC+RE+PC) / VK / Other; filters segment, pattern, TL/TT, stock status, sort; qty color min/max se.
-- **Access** page: username + password + page ticks per user. Login ab username/mobile + password; jab tak password set na ho, password = mobile number.
+- **Access**: main app (devmanierp.com/app) ke **Users** page me user edit → "Michelin Ops access" (Ops role, pages, ops password). Main app me login hone par Ops iframe me bina doosre login ke khulta hai (`/api/ops/sso`, `ops_users.main_user_id`). Field (DSR) seedha /ops par username/mobile + password se; jab tak password set na ho, password = mobile number.
 
 Busy khud koi public API nahi deta (busy.in ka FAQ bhi yahi kehta hai: "API integration option hai, par third-party application chahiye, channel partner se lo"). Isliye data nikalne ke teen hi practical raste hain:
 

@@ -9,6 +9,7 @@ const bcrypt = require('bcryptjs');
 
 module.exports = function registerUsersRoutes(app, ctx) {
   const { db, requireAuth, requireAdmin, segmentFilter, authCacheDrop } = ctx;
+  const opsAccess = require('../lib/ops-access');
 
   app.get('/api/users', requireAuth, async (req, res) => {
     try {
@@ -16,6 +17,8 @@ module.exports = function registerUsersRoutes(app, ctx) {
       const params = seg.param ? [seg.param] : [];
       const [rows] = await db.query(
         `SELECT id,name,email,notification_email,role,view_only,phone,department,week_off,extra_off,staff_type FROM users WHERE 1=1${seg.clause} ORDER BY role DESC,name ASC`, params);
+      // Michelin Ops access (ops_users) — Users page me role/pages dikhane ke liye
+      try { const om = await opsAccess.opsInfoMap(db, rows); rows.forEach(r => { r.ops = om[r.id] || null; }); } catch (e) { console.error('ops info', e.message); }
       res.json(rows);
     } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
   });
@@ -30,8 +33,9 @@ module.exports = function registerUsersRoutes(app, ctx) {
       // jaate hain aur login me se ek hi milta hai.
       const [ex] = await db.query('SELECT id FROM users WHERE LOWER(email)=LOWER(?)', [email]);
       if (ex[0]) return res.status(400).json({ error: 'Email already exists' });
-      await db.query('INSERT INTO users (name,email,notification_email,password,role,view_only,phone,department,week_off,extra_off,staff_type) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+      const [ins] = await db.query('INSERT INTO users (name,email,notification_email,password,role,view_only,phone,department,week_off,extra_off,staff_type) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
         [name, email, notification_email||'', bcrypt.hashSync(password,10), role||'user', viewOnly, phone||null, department||'', week_off||'', extra_off||'', staffType]);
+      if (req.body.ops_role !== undefined) await opsAccess.upsertOpsForMain(db, { id: ins.insertId, name, email, phone }, { opsRole: req.body.ops_role, perms: req.body.ops_perms, password: req.body.ops_password });
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
   });
@@ -54,6 +58,7 @@ module.exports = function registerUsersRoutes(app, ctx) {
       // Yahin dono badal sakte hain, isliye cache turant saaf — warna
       // force-logout ya view-only lagne me der lagti.
       authCacheDrop(req.params.id);
+      if (req.body.ops_role !== undefined) await opsAccess.upsertOpsForMain(db, { id: Number(req.params.id), name, email, phone }, { opsRole: req.body.ops_role, perms: req.body.ops_perms, password: req.body.ops_password });
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
   });

@@ -321,7 +321,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
     <div style="height:12px"></div>
     <button class="btn gold" id="lg-btn">Login &rarr;</button>
     <div class="hint" id="lg-err"></div>
-    <div class="hint">Password admin ne Access page se set kiya hai. Set na hua ho to password = aapka mobile number.</div>
+    <div class="hint">Office staff: devmanierp.com/app me login karo, Michelin Ops wahin khul jayega. Field (DSR): username/mobile + password (admin ne Users page me set kiya; set na ho to password = mobile number).</div>
   </div>
 </div>
 
@@ -425,28 +425,6 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
       <div class="card" id="ims-list"></div>
     </div>
 
-    <!-- ACCESS (v4, admin): users ka username / password / page access -->
-    <div class="pg" id="pg-access">
-      <div class="cols2">
-        <div class="card">
-          <div class="h">Users &amp; Access <small>kaun kaunse page dekh sakta hai</small></div>
-          <div id="ac-list"></div>
-        </div>
-        <div class="card">
-          <div class="h" id="ac-form-h">User add / edit</div>
-          <div class="row" style="gap:8px"><div style="flex:1"><label class="l" style="margin-top:0">Naam</label><input class="inp" id="ac-name"></div><div style="flex:1"><label class="l" style="margin-top:0">Mobile (WhatsApp)</label><input class="inp" id="ac-mob" type="tel" maxlength="10"></div></div>
-          <div class="row" style="gap:8px"><div style="flex:1"><label class="l">Username (login)</label><input class="inp" id="ac-user" placeholder="khali = mobile number" autocomplete="off"></div><div style="flex:1"><label class="l">Password <small style="font-weight:500;text-transform:none">(khali = badlo mat)</small></label><input class="inp" id="ac-pass" type="text" autocomplete="off" placeholder="naya password"></div></div>
-          <div class="row" style="gap:8px;align-items:flex-end"><div style="flex:1"><label class="l">Role</label><select class="inp" id="ac-role"><option value="DSR">DSR (field)</option><option value="CRM">CRM</option><option value="BILLING">Billing</option><option value="ACCOUNTS">Accounts</option><option value="RM">RM</option><option value="ADMIN">Admin</option></select></div><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;padding-bottom:12px"><input type="checkbox" id="ac-active" checked> Active</label></div>
-          <label class="l">Pages <small style="font-weight:500;text-transform:none">(tick = dikhega; kuch bhi tick na ho to role ka default)</small></label>
-          <div id="ac-perms"></div>
-          <div class="row" style="gap:6px;margin-top:4px"><button class="btn xs ghost" id="ac-def">Role default</button><button class="btn xs ghost" id="ac-all">Sab</button><button class="btn xs ghost" id="ac-none">Koi nahi</button></div>
-          <div style="height:10px"></div>
-          <div class="row" style="gap:8px"><button class="btn gold" id="ac-save">Save</button><button class="btn ghost" id="ac-clear">Naya user</button></div>
-          <div class="hint">Login ab username + password se hai. Jab tak password set na ho, user apne mobile number ko password bana kar login kar sakta hai. DSR role ko sirf field pages milte hain (API bhi wahi allow karta hai).</div>
-        </div>
-      </div>
-    </div>
-
     <!-- DEALERS (admin) -->
     <div class="pg" id="pg-dealers">
       <input class="inp" id="de-search" placeholder="Search dealer..." style="margin-bottom:8px">
@@ -505,7 +483,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
       <div class="cols2">
         <div class="card">
           <div class="h">Users <small>DSR, CRM, Admin... — CRM role walon ko har naye order ka WhatsApp</small></div>
-          <div class="hint" style="margin:0 0 8px">Username / password / page access ab <a href="#" onclick="go('access');return false;"><b>Access</b></a> page par set hota hai.</div>
+          <div class="hint" style="margin:0 0 8px">Ops access (role, pages, password) ab main app ke <b>Users</b> page se milta hai (user edit → "Michelin Ops access"). Yahan sirf purani list dikhti hai.</div>
           <div id="us-list"></div>
           <div class="h" style="font-size:14px;margin-top:14px">User add / edit</div>
           <div class="row" style="gap:8px"><div style="flex:1"><label class="l" style="margin-top:0">Mobile</label><input class="inp" id="us-mob" type="tel" maxlength="10"></div><div style="flex:1"><label class="l" style="margin-top:0">Naam</label><input class="inp" id="us-name"></div></div>
@@ -893,7 +871,7 @@ function startApp(){
   $('who').innerHTML=esc(USER.role==='DSR'?'DSR':USER.role)+'<b>'+esc(USER.name)+'</b>';
   $('who2').innerHTML='Michelin Ops login: <b>'+esc(USER.name)+'</b> ('+esc(USER.role==='DSR'?'DSR':USER.role)+')';
   // v4: pages user ki permissions se (Access page). Admin sab; DSR ko admin-only pages API par waise bhi band hain.
-  var ALLNAV=[['home','⌂','Home'],['order','➕','Order'],['orders','☰','Orders'],['crm','☎','CRM'],['stock','▣','Stock'],['ims','▦','IMS'],['dealers','☺','Dealers'],['reports','▤','Reports'],['track','◎','DSR Tracking'],['day','☀','Day'],['route','➜','Route Plan'],['exp','₹','Expenses'],['tally','⇄','Tally Bridge'],['masters','⚙','Masters'],['access','🔑','Access']];
+  var ALLNAV=[['home','⌂','Home'],['order','➕','Order'],['orders','☰','Orders'],['crm','☎','CRM'],['stock','▣','Stock'],['ims','▦','IMS'],['dealers','☺','Dealers'],['reports','▤','Reports'],['track','◎','DSR Tracking'],['day','☀','Day'],['route','➜','Route Plan'],['exp','₹','Expenses'],['tally','⇄','Tally Bridge'],['masters','⚙','Masters']];
   var allowed=(USER.perms&&USER.perms.length)?USER.perms:(isAdmin()?ALLNAV.map(function(n){return n[0];}):['home','order','orders','stock','day','route','exp']);
   if(!isAdmin()) allowed=allowed.filter(function(p){ return ['home','order','orders','stock','ims','day','route','exp'].indexOf(p)>=0; });
   if(isAdmin()) allowed=allowed.filter(function(p){ return p!=='day'; });
@@ -916,7 +894,7 @@ function go(p){
   // Back button (home ke alawa har page par) + parent Task Manager ko batao (title/sidebar highlight)
   $('backBtn').style.display=$('backBtn2').style.display=(p==='home'?'none':'inline-flex');
   if(EMBEDDED){ try{ window.parent.postMessage({opsPage:p},'*'); }catch(e){} }
-  ({home:loadHome,order:loadOrderPg,orders:loadOrders,crm:loadCRM,stock:loadStock,ims:loadIMS,dealers:loadDealersPg,reports:loadReports,day:loadDay,route:loadRoutePg,track:loadTrack,exp:loadExp,masters:loadMasters,tally:loadTally,access:loadAccess})[p]();
+  ({home:loadHome,order:loadOrderPg,orders:loadOrders,crm:loadCRM,stock:loadStock,ims:loadIMS,dealers:loadDealersPg,reports:loadReports,day:loadDay,route:loadRoutePg,track:loadTrack,exp:loadExp,masters:loadMasters,tally:loadTally})[p]();
 }
 $('bnav').addEventListener('click',function(e){ var b=e.target.closest('button'); if(b) go(b.getAttribute('data-pg')); });
 // Parent (Task Manager sidebar) hash badalta hai -> wahi page
@@ -1596,33 +1574,6 @@ function renderIMS(){
 }
 $('ims-save').onclick=function(){ var rows=Object.keys(IMS_DIRTY).map(function(k){return IMS_DIRTY[k];}); if(!rows.length) return; showLoad('Levels save...'); call('saveItemLevels',{rows:rows},function(){ hideLoad(); toast(rows.length+' items ke levels save','ok'); ITEMS=[]; loadIMS(); }); };
 
-/* ═══ ACCESS (v4, admin) ═══ */
-var AC=null, AC_EDIT=null;
-function loadAccess(){
-  call('getAccess',{},function(d){
-    AC=d; renderPermBoxes(d.pages,[]);
-    $('ac-list').innerHTML=tbl([
-      {h:'User',f:function(r){ return '<b>'+esc(r.name)+'</b><br><span style="color:var(--t3);font-size:11px">'+esc(r.mob)+' · login: <b>'+esc(r.username)+'</b>'+(r.hasPassword?'':' · <span style="color:var(--amber)">password = mobile</span>')+'</span>'; }},
-      {h:'Role',f:function(r){ return '<span class="st st-'+(r.role==='DSR'?'DISPATCHED':'CONFIRMED')+'">'+esc(r.role)+'</span>'+(r.active?'':'<br><span class="neg">Band</span>'); }},
-      {h:'Pages',f:function(r){ var p=r.perms.length?r.perms:r.defaultPerms; return '<span style="font-size:11px">'+p.map(function(x){return esc(x);}).join(', ')+(r.perms.length?'':' <span style="color:var(--t3)">(default)</span>')+'</span>'; }},
-      {h:'',f:function(r){ return '<button class="btn xs ghost" data-acedit="'+esc(r.mob)+'">Edit</button>'; }}
-    ],d.users,'Koi user nahi');
-    $('ac-list').querySelectorAll('[data-acedit]').forEach(function(b){ b.onclick=function(){ var m=b.getAttribute('data-acedit'), r=null; d.users.forEach(function(x){ if(x.mob===m) r=x; }); if(!r) return; AC_EDIT=r; $('ac-form-h').textContent='Edit: '+r.name; $('ac-name').value=r.name; $('ac-mob').value=r.mob; $('ac-user').value=r.username===r.mob?'':r.username; $('ac-pass').value=''; $('ac-role').value=r.role; $('ac-active').checked=r.active; renderPermBoxes(d.pages,r.perms.length?r.perms:r.defaultPerms); $('ac-name').scrollIntoView({behavior:'smooth',block:'center'}); }; });
-  });
-}
-var PAGE_LABEL={home:'Home',order:'Order',orders:'Orders',crm:'CRM',stock:'Stock',ims:'IMS',dealers:'Dealers',reports:'Reports',track:'DSR Tracking',day:'Day',route:'Route Plan',exp:'Expenses',tally:'Tally Bridge',masters:'Masters',access:'Access'};
-function renderPermBoxes(pages,sel){ $('ac-perms').innerHTML=pages.map(function(p){ return '<label class="perm"><input type="checkbox" value="'+p+'"'+(sel.indexOf(p)>=0?' checked':'')+'> '+esc(PAGE_LABEL[p]||p)+'</label>'; }).join(''); }
-function permsSel(){ var out=[]; $('ac-perms').querySelectorAll('input:checked').forEach(function(x){ out.push(x.value); }); return out; }
-$('ac-def').onclick=function(){ var role=V('ac-role'); var def=role==='ADMIN'?AC.pages:(role==='DSR'?['home','order','orders','stock','day','route','exp']:['home','order','orders','crm','stock','ims','dealers','reports','track','route','exp','tally','masters']); renderPermBoxes(AC.pages,def); };
-$('ac-all').onclick=function(){ renderPermBoxes(AC.pages,AC.pages); };
-$('ac-none').onclick=function(){ renderPermBoxes(AC.pages,[]); };
-$('ac-role').addEventListener('change',function(){ if(!AC_EDIT) $('ac-def').click(); });
-$('ac-clear').onclick=function(){ AC_EDIT=null; $('ac-form-h').textContent='User add / edit'; ['ac-name','ac-mob','ac-user','ac-pass'].forEach(function(i){ $(i).value=''; }); $('ac-role').value='DSR'; $('ac-active').checked=true; $('ac-def').click(); };
-$('ac-save').onclick=function(){
-  showLoad('Save...');
-  call('saveAccess',{mob:V('ac-mob'),name:V('ac-name'),username:V('ac-user'),password:V('ac-pass'),role:V('ac-role'),active:$('ac-active').checked,perms:permsSel()},function(){ hideLoad(); toast('User save ho gaya','ok'); $('ac-clear').click(); RT_USERS=[]; EX_USERS=[]; loadAccess(); });
-};
-
 /* ═══ REPORTS (admin) ═══ */
 var RP_TAB='delivery', RP=null;
 function loadReports(){
@@ -1840,8 +1791,12 @@ $('ex-save').onclick=function(){
 /* ═══ AUTO LOGIN — cookie se; ?m=<mobile> link se bhi (WhatsApp shortcut) ═══ */
 (function(){
   // (v4) ?m=<mobile> wala bina-password login hata diya
-  fetch(API+'me',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
-    if(d&&d.ok){ USER=d.user; startApp(); } else showLogin();
+  // Main app ke andar (iframe) -> main app ki login se hi Ops login (sso); seedha /ops khola ho to apni cookie, warna login box
+  var first = EMBEDDED ? fetch(API+'sso',{credentials:'same-origin'}) : fetch(API+'me',{credentials:'same-origin'});
+  first.then(function(r){return r.json();}).then(function(d){
+    if(d&&d.ok){ USER=d.user; startApp(); return; }
+    if(EMBEDDED){ return fetch(API+'me',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(m){ if(m&&m.ok){ USER=m.user; startApp(); } else { showLogin(); if(d&&d.error) $('lg-err').textContent=d.error; } }); }
+    showLogin();
   }).catch(showLogin);
 })();
 </script>

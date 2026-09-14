@@ -82,6 +82,7 @@ function renderText(template, vals) {
 // 10 digit -> 91xxxxxxxxxx; pehle se 91 laga ho to waise hi; warna ''.
 function watiMob(m) {
   const d = String(m || '').replace(/\D/g, '');
+  if (d.startsWith('0')) return ''; // synthetic (main app user bina phone) — WhatsApp nahi
   if (d.length === 10) return '91' + d;
   if (d.length === 12 && d.startsWith('91')) return d;
   return '';

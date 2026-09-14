@@ -38,7 +38,7 @@ const SEED_OPS = path.join(MIGR, 'seed-ops.sql');
 const OPS_V2_COLUMNS = {
   // v4 (14-Sep-2026): IMS levels, username/password login + page access, Busy auto invoice
   ops_items: { min_level: 'int NOT NULL DEFAULT 0', max_level: 'int NOT NULL DEFAULT 0' },
-  ops_users: { username: "varchar(60) NOT NULL DEFAULT ''", password_hash: "varchar(100) NOT NULL DEFAULT ''", perms: "varchar(1000) NOT NULL DEFAULT ''" },
+  ops_users: { username: "varchar(60) NOT NULL DEFAULT ''", password_hash: "varchar(100) NOT NULL DEFAULT ''", perms: "varchar(1000) NOT NULL DEFAULT ''", main_user_id: 'int DEFAULT NULL' },
   ops_orders: {
     driver_mobile: "varchar(10) NOT NULL DEFAULT ''",
     payment_status: "varchar(10) NOT NULL DEFAULT 'PENDING'",

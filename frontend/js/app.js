@@ -435,7 +435,7 @@ window.addEventListener('message', (ev) => {
   const pageEl = document.getElementById('page-ops'); if (!pageEl || !pageEl.classList.contains('active')) return;
   const h = String(d.opsPage);
   try { localStorage.setItem('opsSub', h); } catch (e) {}
-  document.getElementById('topbarTitle').textContent = 'Michelin Ops · ' + ({home:'Dashboard',order:'New Order',orders:'Orders',crm:'CRM Calls',stock:'Stock',dealers:'Dealers',reports:'Reports',track:'DSR Tracking',route:'Route Plan',exp:'Expenses',masters:'Masters',ims:'IMS',access:'Access',day:'Day',tally:'Tally Bridge'}[h] || h);
+  document.getElementById('topbarTitle').textContent = 'Michelin Ops · ' + ({home:'Dashboard',order:'New Order',orders:'Orders',crm:'CRM Calls',stock:'Stock',dealers:'Dealers',reports:'Reports',track:'DSR Tracking',route:'Route Plan',exp:'Expenses',masters:'Masters',ims:'IMS',day:'Day',tally:'Tally Bridge'}[h] || h);
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const el = [...document.querySelectorAll('#sec-ops .nav-item')].find(n => (n.getAttribute('onclick') || '').includes(`'${h}')`));
   if (el) el.classList.add('active');
@@ -490,7 +490,7 @@ function navigate(page, el, sub) {
       if (!f.src) f.src = f.dataset.src + '#' + h;
       else { try { f.contentWindow.location.replace(f.dataset.src + '#' + h); } catch (e) { f.src = f.dataset.src + '#' + h; } }
     }
-    document.getElementById('topbarTitle').textContent = 'Michelin Ops · ' + ({home:'Dashboard',order:'New Order',orders:'Orders',crm:'CRM Calls',stock:'Stock',dealers:'Dealers',reports:'Reports',track:'DSR Tracking',route:'Route Plan',exp:'Expenses',masters:'Masters',ims:'IMS',access:'Access',tally:'Tally Bridge'}[h] || h);
+    document.getElementById('topbarTitle').textContent = 'Michelin Ops · ' + ({home:'Dashboard',order:'New Order',orders:'Orders',crm:'CRM Calls',stock:'Stock',dealers:'Dealers',reports:'Reports',track:'DSR Tracking',route:'Route Plan',exp:'Expenses',masters:'Masters',ims:'IMS',tally:'Tally Bridge'}[h] || h);
   }
   // navigate() core app ka hissa hai, yaani client ki copy me bhi jaata hai —
   // par ncLoadLog generator ke markers ke andar hai aur wahan hota hi nahi.
@@ -2717,7 +2717,7 @@ function renderUsersTable(users) {
       <td style="color:var(--muted-foreground)">${u.email}</td>
       <td style="color:var(--muted-foreground)">${u.phone||'—'}</td>
       <td style="color:var(--muted-foreground)">${u.department||'—'}${u.staff_type==='factory'?' <span style="font-size:10px;background:color-mix(in srgb,var(--warning) 12%,transparent);color:var(--warning);padding:1px 6px;border-radius:8px;font-weight:600">🏭 Factory</span>':''}</td>
-      <td><span class="role-badge ${u.role}">${roleLabel(u.role)}</span>${Number(u.view_only)===1?' <span class="status-badge revised" title="Can view everything, cannot make changes">👁 View only</span>':''}</td>
+      <td><span class="role-badge ${u.role}">${roleLabel(u.role)}</span>${u.ops&&u.ops.active?` <span class="status-badge" title="Michelin Ops access" style="font-size:10px">🛞 Ops ${u.ops.role}</span>`:''}${Number(u.view_only)===1?' <span class="status-badge revised" title="Can view everything, cannot make changes">👁 View only</span>':''}</td>
       <td style="white-space:nowrap">
         <button class="action-btn edit" onclick="openEditUser(${u.id})">Edit</button>
         <button class="action-btn" style="background:var(--accent);color:var(--accent-foreground);margin-left:6px" onclick="openSetPassword(${u.id})">Set Password</button>
@@ -2869,8 +2869,22 @@ async function saveNewDepartment() {
   showToast('Department added!');
 }
 
+// Michelin Ops access block (user modal)
+const OPS_PAGES = [['home','Home'],['order','Order'],['orders','Orders'],['crm','CRM'],['stock','Stock'],['ims','IMS'],['dealers','Dealers'],['reports','Reports'],['track','DSR Tracking'],['day','Day'],['route','Route Plan'],['exp','Expenses'],['tally','Tally Bridge'],['masters','Masters']];
+function _setOps(ops) {
+  const role = ops && ops.active ? ops.role : '';
+  document.getElementById('uOpsRole').value = role;
+  document.getElementById('uOpsPass').value = '';
+  const sel = ops && ops.perms ? ops.perms : [];
+  document.getElementById('uOpsPerms').innerHTML = OPS_PAGES.map(p => `<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:500;cursor:pointer;text-transform:none;letter-spacing:0;border:1px solid var(--border);border-radius:14px;padding:2px 8px"><input type="checkbox" class="ops-pg" value="${p[0]}" ${sel.includes(p[0])?'checked':''} style="accent-color:var(--primary)"/> ${p[1]}</label>`).join('');
+  _opsRoleChanged();
+}
+function _opsRoleChanged() { document.getElementById('uOpsPermsWrap').style.display = document.getElementById('uOpsRole').value ? 'block' : 'none'; }
+function _getOpsPerms() { return [...document.querySelectorAll('.ops-pg:checked')].map(x => x.value); }
+
 function openAddUser() {
   document.getElementById('userModalTitle').textContent='Add User';
+  _setOps(null);
   ['editUserId','uName','uEmail','uNotifEmail','uPhone','uPassword'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('uRole').value='user';
   setUserViewOnly(false); // naya user by default full access
@@ -2905,6 +2919,7 @@ function openEditUser(id) {
   document.getElementById('uPhone').value=u.phone||'';
   document.getElementById('uPassword').value='';
   document.getElementById('uRole').value=u.role||'user';
+  _setOps(u.ops||null);
   document.getElementById('pwdOptional').style.display='inline';
   document.getElementById('bulkUserSection').style.display='none'; // edit me bulk add ka matlab nahi
   document.getElementById('userErr').style.display='none';
@@ -2991,6 +3006,9 @@ async function saveUser() {
   // 'office' hi hain — par feature wapas laao to ye pehle theek karna.
   const body={name,email,notification_email,role,view_only,phone,department,week_off,extra_off};
   if (password) body.password=password;
+  body.ops_role=document.getElementById('uOpsRole').value; body.ops_perms=_getOpsPerms();
+  const opsPass=document.getElementById('uOpsPass').value; if (opsPass) body.ops_password=opsPass;
+  if (body.ops_role && body.ops_role!=='ADMIN' && !phone) { err.textContent='Michelin Ops access ke liye WhatsApp Number (mobile) zaroori hai'; err.style.display='block'; return; }
   const r = id ? await api(`/api/users/${id}`,'PUT',body) : await api('/api/users','POST',body);
   if (r.error) { err.textContent=r.error; err.style.display='block'; return; }
   closeModal('userModal');
