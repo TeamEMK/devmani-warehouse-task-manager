@@ -34,8 +34,12 @@ async function callScript(url, secret, body, attempt = 0) {
     if (attempt < 1) return callScript(url, secret, body, attempt + 1);
     throw new Error('Script tak pahunch nahi paye: ' + (e.name === 'AbortError' ? 'timeout' : e.message));
   } finally { clearTimeout(t); }
-  let data; try { data = JSON.parse(text); } catch (_) { throw new Error('Script ne JSON nahi diya — Apps Script me authorize() chalao aur "Anyone" access ke saath deploy karo'); }
-  if (data.service && attempt < 1) return callScript(url, secret, body, attempt + 1); // doGet default jawab = request kho gayi
+  let data; try { data = JSON.parse(text); } catch (_) {
+    // Google kabhi-kabhi HTML error page deta hai (busy / transient) — 3 baar tak dobara
+    if (attempt < 3) { await new Promise(r => setTimeout(r, 4000 * (attempt + 1))); return callScript(url, secret, body, attempt + 1); }
+    const hint = /<title>([^<]{0,80})/i.exec(text); throw new Error('Script ne JSON nahi diya' + (hint ? ' (' + hint[1].trim() + ')' : '') + ' — 3 retry ke baad bhi; agli baar phir try hoga');
+  }
+  if (data.service && attempt < 3) return callScript(url, secret, body, attempt + 1); // doGet default jawab = request kho gayi
   if (!data.ok) throw new Error(data.error || 'script error');
   return data;
 }
@@ -134,20 +138,72 @@ function makeBusyDrive({ db, nowIST, afterImport }) {
   async function importBackup(s, f, silent) {
     const stamp = backupStamp(f.backup) || { dmy: nowIST().dmy, label: nowIST().dmyhm };
     const label = `Drive backup ${stamp.label} (${String(f.name).split('/')[1] || 'COMP'})`;
+    let bd;
+    try { const zip = await downloadRaw(s.url, s.secret, f.id, f.size); bd = busyDb.readBusyBackup(zip); }
+    catch (e) { const result = 'ERROR: ' + String(e.message || e).slice(0, 250); await db.query('INSERT INTO ops_import_log (file_name,result,notes) VALUES (?,?,?)', [label.slice(0, 200), result, '']); return { result, notes: '' }; }
+    return applyBackup(bd, stamp, silent, label);
+  }
+  // Padha hua Busy data -> app (stock, outstanding, ledger, snapshot, invoice) + import log. Test me seedha bhi call hota hai.
+  async function applyBackup(bd, stamp, silent, label) {
     let result = '', notes = '';
     try {
-      const zip = await downloadRaw(s.url, s.secret, f.id, f.size);
-      const bd = busyDb.readBusyBackup(zip);
       const [appItems] = await db.query('SELECT busy_name FROM ops_items WHERE busy_name<>\'\'');
       const keep = new Set(appItems.map(r => busyDb.nb(r.busy_name)));
       const r1 = await busy.importStock(db, busyDb.stockRows(bd, stamp.dmy, keep), stamp.dmy);
       const r2 = await busy.importOutstanding(db, busyDb.outstandingRows(bd, stamp.dmy), stamp.dmy);
       if (silent && r2.payments) await muteNewPayments();
-      result = `STOCK: ${r1.updated} items updated | OUTSTANDING: ${r2.count} accounts, as on ${stamp.dmy}` + (r2.payments ? `, ${r2.payments} payment(s) detected${silent ? ' (WhatsApp nahi bheja)' : ''}` : '') + ` (FY ${bd.fy}, ${bd.itemGroup} items ${bd.items.length}, last voucher ${bd.lastVoucherDate})`;
+      // v4: party ledger + analysis (statement, Michelin/VK split, due-from), IMS snapshot, Busy invoice no. -> orders
+      const extra = [];
+      try { await storeLedger(bd); extra.push(`ledger ${bd.ledger.length} lines`); } catch (e) { extra.push('ledger ERR ' + e.message.slice(0, 80)); }
+      try { await snapshotStock(stamp.dmy.split('-').reverse().join('-')); } catch (e) { extra.push('snapshot ERR ' + e.message.slice(0, 80)); }
+      try { const n = await autoInvoice(bd); if (n) extra.push(`${n} order(s) ko Busy invoice no. mila`); } catch (e) { extra.push('invoice ERR ' + e.message.slice(0, 80)); }
+      result = `STOCK: ${r1.updated} items updated | OUTSTANDING: ${r2.count} accounts, as on ${stamp.dmy}` + (r2.payments ? `, ${r2.payments} payment(s) detected${silent ? ' (WhatsApp nahi bheja)' : ''}` : '') + ` (FY ${bd.fy}, ${bd.itemGroup} items ${bd.items.length}, last voucher ${bd.lastVoucherDate}${extra.length ? '; ' + extra.join(', ') : ''})`;
       notes = [r1.unmatched.length ? 'Busy tyre items jo app me nahi: ' + r1.unmatched.join(' | ') : '', r2.unmatched.join(' | ')].filter(Boolean).join(' || ');
     } catch (e) { result = 'ERROR: ' + String(e.message || e).slice(0, 250); }
     await db.query('INSERT INTO ops_import_log (file_name,result,notes) VALUES (?,?,?)', [label.slice(0, 200), result, notes.slice(0, 60000)]);
     return { result, notes };
+  }
+  // Busy ledger (Sundry Debtors) + party analysis — poora replace (ek hi FY)
+  async function storeLedger(bd) {
+    await db.query('DELETE FROM ops_busy_ledger');
+    const CH = 500;
+    for (let i = 0; i < bd.ledger.length; i += CH) {
+      const part = bd.ledger.slice(i, i + CH);
+      await db.query('INSERT INTO ops_busy_ledger (party_name, vch_date, vch_type, vch_no, series, narration, dr, cr, fy) VALUES ?',
+        [part.map(l => [String(l.party || '').slice(0, 200), l.date.toISOString().slice(0, 10), l.vchType | 0, String(l.vchNo || '').slice(0, 60), String(l.series || '').slice(0, 60), String(l.narration || '').slice(0, 200), l.dr, l.cr, bd.fy | 0])]);
+    }
+    await db.query('DELETE FROM ops_busy_party');
+    for (let i = 0; i < bd.analysis.length; i += CH) {
+      const part = bd.analysis.slice(i, i + CH);
+      await db.query('INSERT INTO ops_busy_party (party_name, opening, balance, michelin_amt, vk_amt, other_amt, due_from, last_sale, last_receipt, fy) VALUES ?',
+        [part.map(a => [String(a.name || '').slice(0, 200), a.opening, a.balance, a.michelin, a.vk, a.other, a.dueFrom, a.lastSale, a.lastReceipt, bd.fy | 0])]);
+    }
+  }
+  // IMS: aaj (backup ki date) ka stock snapshot har item ka
+  async function snapshotStock(isoDay) {
+    await db.query('INSERT INTO ops_stock_daily (item_code, day, stock) SELECT code, ?, stock FROM ops_items ON DUPLICATE KEY UPDATE stock=VALUES(stock)', [isoDay]);
+  }
+  // Busy sale voucher -> app order ka invoice no. (party same, bill date billed/order date ke -3..+10 din me, sabse paas wali)
+  async function autoInvoice(bd) {
+    const [orders] = await db.query(`SELECT o.oid, o.dealer_name, o.amount, DATE(COALESCE(o.billed_at, o.order_date)) AS d, dl.busy_name FROM ops_orders o LEFT JOIN ops_dealers dl ON dl.did=o.did WHERE o.status IN ('BILLED','DISPATCHED','DELIVERED') AND (o.invoice_no='' OR o.invoice_no IS NULL)`);
+    if (!orders.length) return 0;
+    const [usedRows] = await db.query(`SELECT invoice_no FROM ops_orders WHERE invoice_no<>''`);
+    const used = new Set(usedRows.map(r => busyDb.nb(r.invoice_no)));
+    const byParty = {};
+    for (const sv of bd.sales) { if (!sv.no || used.has(busyDb.nb(sv.no))) continue; (byParty[busyDb.nb(sv.party)] = byParty[busyDb.nb(sv.party)] || []).push(sv); }
+    let n = 0;
+    for (const o of orders) {
+      const keys = [busyDb.nb(o.busy_name), busyDb.nb(o.dealer_name), busyDb.nb(o.dealer_name).replace(/\s*\(.*\)$/, '')].filter(Boolean);
+      let cands = []; for (const k of keys) if (byParty[k]) { cands = byParty[k]; break; }
+      if (!cands.length || !o.d) continue;
+      const od = new Date(o.d).getTime();
+      let best = null, bestDiff = Infinity;
+      for (const sv of cands) { const diff = (new Date(sv.date).getTime() - od) / 86400000; if (diff < -3 || diff > 10) continue; const score = Math.abs(diff) + (Math.abs(sv.amount - Number(o.amount)) / Math.max(1, Number(o.amount)) > 0.15 ? 5 : 0); if (score < bestDiff) { bestDiff = score; best = sv; } }
+      if (!best) continue;
+      await db.query(`UPDATE ops_orders SET invoice_no=?, invoice_auto=1 WHERE oid=? AND (invoice_no='' OR invoice_no IS NULL)`, [best.no.slice(0, 50), o.oid]);
+      used.add(busyDb.nb(best.no)); cands.splice(cands.indexOf(best), 1); n++;
+    }
+    return n;
   }
   // Scheduler ke liye: enabled ho tabhi
   async function syncIfEnabled(by) {
@@ -155,7 +211,7 @@ function makeBusyDrive({ db, nowIST, afterImport }) {
     if (!s.enabled || !s.url || !s.secret) return { ok: true, skipped: true };
     return sync({ by });
   }
-  return { settings, saveSettings, publicView, test, sync, syncIfEnabled, isRunning: () => running, SYNC_EVERY_MIN, kindFromName };
+  return { settings, saveSettings, publicView, test, sync, syncIfEnabled, snapshotStock, applyBackup, isRunning: () => running, SYNC_EVERY_MIN, kindFromName };
 }
 
 module.exports = { makeBusyDrive, callScript, kindFromName, KEYS, SYNC_EVERY_MIN };

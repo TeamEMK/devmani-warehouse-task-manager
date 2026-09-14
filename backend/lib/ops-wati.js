@@ -36,6 +36,7 @@ const T = {
   DRIVER: 'driver_dispatch',                  // driver ko: dealer, address, dealerMob, items, gps
   RM_REPORT: 'rm_report',                     // RM ko: "Sale"/"Reorder", company, text, date
   PAY_REMINDER: 'michelin_payment_reminder',  // dealer + DSR: dealer, oid, amount, due date (NAYA template — Wati dashboard me banana hoga)
+  OUTSTANDING: 'michelin_outstanding',        // dealer ko: dealer, total bakaya, due-from date, statement line/link (NAYA template — Wati dashboard me banana hoga)
 };
 const MAX_RETRY = 10;
 
@@ -81,6 +82,23 @@ async function send(number, template, vals) {
   }
 }
 
+// Session file (PDF waghera) — sirf tab jaata hai jab dealer ne pichle 24 ghante me kuch likha ho
+// (WhatsApp ka niyam). Template ke saath link to hamesha jaata hai; ye extra koshish hai.
+async function sendFile(number, buf, filename, caption) {
+  const to = watiMob(number);
+  if (!to) return 'BAD_NUMBER';
+  if (!ENABLED) return 'FAIL:WATI_NOT_CONFIGURED';
+  try {
+    const fd = new FormData();
+    fd.append('file', new Blob([buf], { type: 'application/pdf' }), filename);
+    const res = await fetch(`${WATI_BASE}/api/v1/sendSessionFile/${to}?caption=${encodeURIComponent(caption || '')}`, { method: 'POST', headers: { Authorization: `Bearer ${WATI_TOKEN}` }, body: fd });
+    const text = await res.text();
+    if (res.status !== 200) return `FAIL:HTTP${res.status}`;
+    let body = {}; try { body = JSON.parse(text || '{}'); } catch (_) {}
+    return body.result === true || body.result === 'success' ? 'SENT' : 'FAIL:' + String(body.info || text).slice(0, 80);
+  } catch (e) { return 'FAIL:' + String(e.message || e).slice(0, 80); }
+}
+
 // "FAIL:xyz #3" -> 3
 function retryCount(status) {
   const m = String(status || '').match(/#(\d+)$/);
@@ -102,4 +120,4 @@ async function check() {
   } catch (e) { return { ...info, status: 'ERR', error: e.message }; }
 }
 
-module.exports = { ENABLED, NOTIFY_NUMBERS, T, MAX_RETRY, watiMob, params, send, retryCount, fmtR, check };
+module.exports = { ENABLED, NOTIFY_NUMBERS, T, MAX_RETRY, watiMob, params, send, sendFile, retryCount, fmtR, check };

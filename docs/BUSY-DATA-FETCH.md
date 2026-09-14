@@ -5,7 +5,7 @@
 > Busy me export kahan se nikalta hai, app kya karta hai, aur ise bina haath lagaye (automatic) karne ke
 > kaun-kaun se raste hain.
 
-Last updated: 11-Sep-2026
+Last updated: 14-Sep-2026
 
 ---
 
@@ -55,6 +55,22 @@ Last updated: 11-Sep-2026
 
 **Dhyan**: sync me jo dealer balance pichle snapshot se kam mila wo "payment" maana jaata hai → dealer + DSR ko WhatsApp. Lambe gap ke baad (ya pehli baar) **"Sync bina WhatsApp"** button use karo — payments log me aati hain par message nahi jaata. (Prod par pehla sync 11-Sep-2026 17:17 isi tarah hua: 21 items, 66 accounts, 11 payments muted; uske baad auto on.)
 Sync 1-3 min leta hai aur background me chalta hai (hosting proxy 60s par request kaat deta hai) — UI har 5 sec status poll karta hai; Apps Script ko GET query-params se call kiya jaata hai (POST par Google ka redirect kabhi body kho deta tha).
+
+### 0.1 v4 (14-Sep-2026): ledger, outstanding report, statement, IMS, auto invoice
+
+Backup import ab ye bhi karta hai (`busy-drive.js` → `applyBackup`):
+- **`ops_busy_ledger`**: Sundry Debtors ki har account line (date, voucher type/no, series, Dr/Cr) — poora replace har import par. Voucher types: 9 Sale, 3 Sale Return, 14 Receipt, 16 Payment, 19 Journal.
+- **`ops_busy_party`**: party-wise opening, balance, **Michelin / VK split** (bakaya ko sabse nayi sale bills par FIFO lagaya; series naam me "Michelin" = Michelin, baaki VK/other; opening/journal se bacha = other), **due-from** (sabse purana bill jo abhi khula hai), last sale / last receipt.
+- **`ops_stock_daily`**: har item ka us din ka stock (IMS ka day-by-day). Raat 23:45 par bhi snapshot (in-process).
+- **Busy invoice no. → app order**: BILLED/DISPATCHED/DELIVERED order jinka invoice khali hai, unhe usi party ka sale voucher (bill date order/billed date ke -3..+10 din me, sabse paas) mil jaata hai → `invoice_no` + `invoice_auto=1`.
+- Payment WhatsApp ab **sirf tab** jab naya balance > 0 (0 ya advance/Cr par message nahi, log me `notified='Y'`).
+
+App me:
+- **Reports → Busy Outstanding**: Due from (din ke saath), Account name (mobile/DSR/last payment), VK amount, Michelin amount, Total, **WhatsApp** button (0/advance walon par nahi) + **Statement** (PDF preview).
+- WhatsApp sheet: "Account statement bhi bhejna hai?" → haan to date range → message + PDF. Template **`michelin_outstanding`** Wati me banana hai (params: `{{1}}` dealer, `{{2}}` bakaya, `{{3}}` due-from, `{{4}}` statement line/link). PDF file seedha `sendSessionFile` se tab jaati hai jab 24-ghante session khula ho; warna link (45 din valid, `/api/ops/statement/<token>.pdf`).
+- **IMS** page: min/max level (admin edit), status color (OUT/LOW/OK/OVER), avg/day (snapshot ke girne se), days cover, day-by-day grid.
+- **Stock** page: tabs All / Michelin (SC+MC+RE+PC) / VK / Other; filters segment, pattern, TL/TT, stock status, sort; qty color min/max se.
+- **Access** page: username + password + page ticks per user. Login ab username/mobile + password; jab tak password set na ho, password = mobile number.
 
 Busy khud koi public API nahi deta (busy.in ka FAQ bhi yahi kehta hai: "API integration option hai, par third-party application chahiye, channel partner se lo"). Isliye data nikalne ke teen hi practical raste hain:
 

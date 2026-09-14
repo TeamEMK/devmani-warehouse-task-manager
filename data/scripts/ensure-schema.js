@@ -30,11 +30,15 @@ const SEED_CHECKLIST = path.join(MIGR, 'seed-checklist.sql');
 // EXISTS), aur sheet ka data sirf tab jab ops_items khali ho.
 const OPS_SCHEMA = path.join(MIGR, '005_ops.sql');
 const OPS_SCHEMA_V2 = path.join(MIGR, '006_ops_v2.sql');
+const OPS_SCHEMA_V4 = path.join(MIGR, '007_ops_v4.sql');
 const SEED_OPS = path.join(MIGR, 'seed-ops.sql');
 
 // MySQL me ADD COLUMN IF NOT EXISTS nahi hai — information_schema se poochh kar
 // sirf missing columns jodte hain. Har boot par chalta hai, idempotent.
 const OPS_V2_COLUMNS = {
+  // v4 (14-Sep-2026): IMS levels, username/password login + page access, Busy auto invoice
+  ops_items: { min_level: 'int NOT NULL DEFAULT 0', max_level: 'int NOT NULL DEFAULT 0' },
+  ops_users: { username: "varchar(60) NOT NULL DEFAULT ''", password_hash: "varchar(100) NOT NULL DEFAULT ''", perms: "varchar(1000) NOT NULL DEFAULT ''" },
   ops_orders: {
     driver_mobile: "varchar(10) NOT NULL DEFAULT ''",
     payment_status: "varchar(10) NOT NULL DEFAULT 'PENDING'",
@@ -47,6 +51,7 @@ const OPS_V2_COLUMNS = {
     transporter: "varchar(120) NOT NULL DEFAULT ''",
     lr_no: "varchar(60) NOT NULL DEFAULT ''",
     billed_at: 'datetime DEFAULT NULL',
+    invoice_auto: 'tinyint NOT NULL DEFAULT 0',   // v4: Busy voucher se invoice no. khud bhara
   },
   ops_dealers: {
     credit_limit: 'decimal(14,2) NOT NULL DEFAULT 0',
@@ -125,6 +130,11 @@ async function ensureSchema() {
     if (fs.existsSync(OPS_SCHEMA_V2)) {
       for (const st of splitStatements(OPS_SCHEMA_V2)) {
         try { await db.query(st); } catch (err) { console.log('   ops v2 schema skip:', err.message.slice(0, 120)); }
+      }
+    }
+    if (fs.existsSync(OPS_SCHEMA_V4)) {
+      for (const st of splitStatements(OPS_SCHEMA_V4)) {
+        try { await db.query(st); } catch (err) { console.log('   ops v4 schema skip:', err.message.slice(0, 120)); }
       }
     }
     await ensureColumns();

@@ -88,7 +88,12 @@ label.l{display:block;font-size:11px;font-weight:700;color:var(--t2);margin:10px
 .item .nm b{display:block;font-size:14px;}
 .item .nm span{font-size:11px;color:var(--t3);}
 .item .q{font-family:'Bebas Neue',sans-serif;font-size:24px;line-height:1;text-align:right;min-width:52px;}
-.q.z{color:var(--red);}.q.lo{color:var(--amber);}.q.ok{color:var(--navy);}
+.q.z{color:var(--red);}.q.lo{color:var(--amber);}.q.ok{color:var(--navy);}.q.ov{color:var(--blue);}
+.lv{display:inline-block;padding:2px 8px;border-radius:12px;font-size:10.5px;font-weight:800;}.lv.OUT{background:#fde8e8;color:#b91c1c;}.lv.LOW{background:#fff4e0;color:#b45309;}.lv.OK{background:#e6f6ec;color:#15803d;}.lv.OVER{background:#e6f0ff;color:#1d4ed8;}
+.ims-grid td.c{text-align:center;font-size:11px;padding:4px 3px;min-width:34px;}.ims-grid td.c.OUT{background:#fde8e8;color:#b91c1c;}.ims-grid td.c.LOW{background:#fff4e0;color:#b45309;}.ims-grid td.c.OK{background:#e6f6ec;color:#15803d;}.ims-grid td.c.OVER{background:#e6f0ff;color:#1d4ed8;}.ims-grid td.c.na{color:var(--t3);}
+.ims-grid input{width:56px;padding:3px 5px;font-size:12px;border:1px solid var(--bdr);border-radius:6px;text-align:right;}
+.flt{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}.flt select{width:auto;padding:6px 8px;font-size:12px;}
+.perm{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;padding:3px 8px;border:1px solid var(--bdr);border-radius:14px;margin:2px 3px 2px 0;background:#fff;}.perm input{margin:0;}
 .seg-tabs{display:flex;overflow-x:auto;padding-bottom:4px;margin-bottom:8px;}
 .seg-tabs button{flex-shrink:0;border:1.5px solid var(--bdr);background:#fff;border-radius:20px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--t2);margin-right:6px;}
 .seg-tabs button.on{background:var(--navy);color:#fff;border-color:var(--navy);}
@@ -309,11 +314,14 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
   <div class="box">
     <div class="logo">MICHELIN OPS</div>
     <div class="tag">BANSAL OIL DISTRIBUTORS · HISAR</div>
-    <label class="l">Apna mobile number</label>
-    <input class="inp" id="lg-mob" type="tel" maxlength="10" placeholder="10-digit number" style="font-size:20px;letter-spacing:2px;text-align:center;">
+    <label class="l">Username</label>
+    <input class="inp" id="lg-user" placeholder="username ya mobile" autocomplete="username" style="font-size:16px;">
+    <label class="l">Password</label>
+    <input class="inp" id="lg-pass" type="password" placeholder="password" autocomplete="current-password" style="font-size:16px;">
     <div style="height:12px"></div>
     <button class="btn gold" id="lg-btn">Login &rarr;</button>
     <div class="hint" id="lg-err"></div>
+    <div class="hint">Password admin ne Access page se set kiya hai. Set na hua ho to password = aapka mobile number.</div>
   </div>
 </div>
 
@@ -392,7 +400,51 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
     <div class="pg" id="pg-stock">
       <div class="row" style="gap:8px;margin-bottom:8px;align-items:stretch"><input class="inp" id="sk-search" placeholder="Search size / pattern..." style="flex:1"><button class="btn sm ghost" id="sk-busy" style="display:none;white-space:nowrap">⇪ Busy Import</button><button class="btn sm ghost" id="sk-rm" style="display:none;white-space:nowrap">✉ RM Report</button></div>
       <div class="seg-tabs" id="sk-tabs"></div>
+      <div class="flt" id="sk-flt">
+        <select class="inp" id="sk-seg"><option value="">Sab segment</option><option value="SC">Scooter</option><option value="MC">Motorcycle</option><option value="RE">Royal Enfield</option><option value="PC">Car</option></select>
+        <select class="inp" id="sk-pattern"><option value="">Sab pattern</option></select>
+        <select class="inp" id="sk-tltt"><option value="">TL / TT</option><option value="TL">TL</option><option value="TT">TT</option></select>
+        <select class="inp" id="sk-status"><option value="">Sab stock</option><option value="OUT">Out of stock</option><option value="LOW">Low (min se kam)</option><option value="OK">OK</option><option value="OVER">Max se zyada</option></select>
+        <select class="inp" id="sk-sort"><option value="name">Naam se</option><option value="stockAsc">Stock kam → zyada</option><option value="stockDesc">Stock zyada → kam</option></select>
+      </div>
       <div class="card" id="stock-list"></div>
+    </div>
+
+    <!-- IMS (v4): min/max level, din-wise stock, color coding -->
+    <div class="pg" id="pg-ims">
+      <div class="grid2" id="ims-kpi"></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+        <input class="inp" id="ims-search" placeholder="Search item..." style="flex:1;min-width:160px">
+        <select class="inp" id="ims-brand" style="width:auto"><option value="">Sab brand</option><option value="Michelin">Michelin</option><option value="VK">VK</option></select>
+        <select class="inp" id="ims-status" style="width:auto"><option value="">Sab</option><option value="OUT">Out</option><option value="LOW">Below min</option><option value="OK">OK</option><option value="OVER">Above max</option></select>
+        <select class="inp" id="ims-days" style="width:auto"><option value="7">7 din</option><option value="14" selected>14 din</option><option value="30">30 din</option></select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px"><input type="checkbox" id="ims-grid"> Day-by-day</label>
+        <button class="btn sm gold" id="ims-save" style="display:none">Levels save karo</button>
+      </div>
+      <div class="hint" style="margin:0 0 8px"><span class="lv OUT">OUT</span> stock 0 · <span class="lv LOW">LOW</span> min level se kam (min set na ho to ≤10) · <span class="lv OK">OK</span> · <span class="lv OVER">OVER</span> max level se zyada. Avg/day = pichle dino me stock jitna gira (Busy backup snapshot se). Din-wise stock har Busy backup import par save hota hai.</div>
+      <div class="card" id="ims-list"></div>
+    </div>
+
+    <!-- ACCESS (v4, admin): users ka username / password / page access -->
+    <div class="pg" id="pg-access">
+      <div class="cols2">
+        <div class="card">
+          <div class="h">Users &amp; Access <small>kaun kaunse page dekh sakta hai</small></div>
+          <div id="ac-list"></div>
+        </div>
+        <div class="card">
+          <div class="h" id="ac-form-h">User add / edit</div>
+          <div class="row" style="gap:8px"><div style="flex:1"><label class="l" style="margin-top:0">Naam</label><input class="inp" id="ac-name"></div><div style="flex:1"><label class="l" style="margin-top:0">Mobile (WhatsApp)</label><input class="inp" id="ac-mob" type="tel" maxlength="10"></div></div>
+          <div class="row" style="gap:8px"><div style="flex:1"><label class="l">Username (login)</label><input class="inp" id="ac-user" placeholder="khali = mobile number" autocomplete="off"></div><div style="flex:1"><label class="l">Password <small style="font-weight:500;text-transform:none">(khali = badlo mat)</small></label><input class="inp" id="ac-pass" type="text" autocomplete="off" placeholder="naya password"></div></div>
+          <div class="row" style="gap:8px;align-items:flex-end"><div style="flex:1"><label class="l">Role</label><select class="inp" id="ac-role"><option value="DSR">DSR (field)</option><option value="CRM">CRM</option><option value="BILLING">Billing</option><option value="ACCOUNTS">Accounts</option><option value="RM">RM</option><option value="ADMIN">Admin</option></select></div><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;padding-bottom:12px"><input type="checkbox" id="ac-active" checked> Active</label></div>
+          <label class="l">Pages <small style="font-weight:500;text-transform:none">(tick = dikhega; kuch bhi tick na ho to role ka default)</small></label>
+          <div id="ac-perms"></div>
+          <div class="row" style="gap:6px;margin-top:4px"><button class="btn xs ghost" id="ac-def">Role default</button><button class="btn xs ghost" id="ac-all">Sab</button><button class="btn xs ghost" id="ac-none">Koi nahi</button></div>
+          <div style="height:10px"></div>
+          <div class="row" style="gap:8px"><button class="btn gold" id="ac-save">Save</button><button class="btn ghost" id="ac-clear">Naya user</button></div>
+          <div class="hint">Login ab username + password se hai. Jab tak password set na ho, user apne mobile number ko password bana kar login kar sakta hai. DSR role ko sirf field pages milte hain (API bhi wahi allow karta hai).</div>
+        </div>
+      </div>
     </div>
 
     <!-- DEALERS (admin) -->
@@ -453,6 +505,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
       <div class="cols2">
         <div class="card">
           <div class="h">Users <small>DSR, CRM, Admin... — CRM role walon ko har naye order ka WhatsApp</small></div>
+          <div class="hint" style="margin:0 0 8px">Username / password / page access ab <a href="#" onclick="go('access');return false;"><b>Access</b></a> page par set hota hai.</div>
           <div id="us-list"></div>
           <div class="h" style="font-size:14px;margin-top:14px">User add / edit</div>
           <div class="row" style="gap:8px"><div style="flex:1"><label class="l" style="margin-top:0">Mobile</label><input class="inp" id="us-mob" type="tel" maxlength="10"></div><div style="flex:1"><label class="l" style="margin-top:0">Naam</label><input class="inp" id="us-name"></div></div>
@@ -692,6 +745,23 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
   <button class="btn gold" id="rm-send">WhatsApp Bhejo &rarr;</button>
 </div></div>
 
+<!-- OUTSTANDING WHATSAPP (v4, admin): message + optional account statement PDF -->
+<div class="ov" id="ov-outs"><div class="sheet">
+  <div class="hh"><div class="h">Outstanding WhatsApp</div><button data-close="ov-outs">&#10005;</button></div>
+  <div id="ow-info" style="font-size:13px;background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:8px;"></div>
+  <label class="l" style="margin-top:0">Dealer ka WhatsApp number</label><input class="inp" id="ow-mob" type="tel" maxlength="10">
+  <label class="l">Account statement bhi bhejna hai?</label>
+  <div class="row" style="gap:14px;font-size:13px"><label style="display:flex;align-items:center;gap:6px"><input type="radio" name="ow-st" id="ow-st-no" checked> Nahi, sirf bakaya</label><label style="display:flex;align-items:center;gap:6px"><input type="radio" name="ow-st" id="ow-st-yes"> Haan, statement PDF ke saath</label></div>
+  <div id="ow-dates" style="display:none">
+    <div class="row" style="gap:8px"><div style="flex:1"><label class="l">From</label><input class="inp" type="date" id="ow-from"></div><div style="flex:1"><label class="l">To</label><input class="inp" type="date" id="ow-to"></div></div>
+    <button class="btn sm ghost" id="ow-preview" style="margin-top:8px">PDF dekho</button>
+  </div>
+  <div class="hint">Message Wati template "michelin_outstanding" se jaata hai: dealer, bakaya, due-from, statement link. PDF file seedha tab jaati hai jab dealer ne pichle 24 ghante me WhatsApp par kuch likha ho; warna link se khulti hai.</div>
+  <div class="hint" id="ow-result"></div>
+  <div style="height:8px"></div>
+  <button class="btn gold" id="ow-send">WhatsApp Bhejo &rarr;</button>
+</div></div>
+
 <!-- DAY START / END SHEET -->
 <div class="ov" id="ov-day"><div class="sheet">
   <div class="hh"><div class="h" id="dy-title">Day Start</div><button data-close="ov-day">&#10005;</button></div>
@@ -794,10 +864,11 @@ function isMichelin2W(seg){ return seg==='SC'||seg==='MC'; }
 /* ═══ LOGIN ═══ */
 function showLogin(){ USER=null; $('appView').style.display='none'; $('loginView').style.display='flex'; }
 function doLogin(){
-  var m=V('lg-mob').replace(/\D/g,'');
-  if(m.length!==10){ $('lg-err').textContent='10-digit number daalo'; return; }
+  var u=V('lg-user').trim(), p=V('lg-pass');
+  if(!u){ $('lg-err').textContent='Username ya mobile daalo'; return; }
+  if(!p){ $('lg-err').textContent='Password daalo'; return; }
   showLoad('Login...');
-  gas('login',m,function(r){
+  gas('login',JSON.stringify({user:u,password:p}),function(r){
     hideLoad(); var d=JSON.parse(r);
     if(!d.ok){ $('lg-err').textContent=d.error; return; }
     USER=d.user;
@@ -805,7 +876,7 @@ function doLogin(){
   });
 }
 $('lg-btn').onclick=doLogin;
-$('lg-mob').addEventListener('keyup',function(e){ if(e.keyCode===13) doLogin(); });
+$('lg-pass').addEventListener('keyup',function(e){ if(e.keyCode===13) doLogin(); }); $('lg-user').addEventListener('keyup',function(e){ if(e.keyCode===13) $('lg-pass').focus(); });
 $('backBtn').onclick=$('backBtn2').onclick=function(){ go('home'); };
 $('logoutBtn').onclick=$('logoutBtn2').onclick=function(){ fetch(API+'logout',{method:'POST',credentials:'same-origin'}).then(function(){ location.href='/ops'; }); };
 
@@ -814,13 +885,13 @@ function startApp(){
   $('loginView').style.display='none'; $('appView').style.display='flex';
   $('who').innerHTML=esc(USER.role==='DSR'?'DSR':USER.role)+'<b>'+esc(USER.name)+'</b>';
   $('who2').innerHTML='Michelin Ops login: <b>'+esc(USER.name)+'</b> ('+esc(USER.role==='DSR'?'DSR':USER.role)+')';
-  var nav=[['home','⌂','Home'],['order','➕','Order'],['orders','☰','Orders']];
-  if(isAdmin()) nav.push(['crm','☎','CRM']);
-  nav.push(['stock','▣','Stock']);
-  if(isAdmin()) nav.push(['dealers','☺','Dealers'],['reports','▤','Reports'],['track','◎','DSR Tracking']);
-  else nav.push(['day','☀','Day']);
-  nav.push(['route','➜','Route Plan'],['exp','₹','Expenses']);
-  if(isAdmin()) nav.push(['tally','⇄','Tally Bridge'],['masters','⚙','Masters']);
+  // v4: pages user ki permissions se (Access page). Admin sab; DSR ko admin-only pages API par waise bhi band hain.
+  var ALLNAV=[['home','⌂','Home'],['order','➕','Order'],['orders','☰','Orders'],['crm','☎','CRM'],['stock','▣','Stock'],['ims','▦','IMS'],['dealers','☺','Dealers'],['reports','▤','Reports'],['track','◎','DSR Tracking'],['day','☀','Day'],['route','➜','Route Plan'],['exp','₹','Expenses'],['tally','⇄','Tally Bridge'],['masters','⚙','Masters'],['access','🔑','Access']];
+  var allowed=(USER.perms&&USER.perms.length)?USER.perms:(isAdmin()?ALLNAV.map(function(n){return n[0];}):['home','order','orders','stock','day','route','exp']);
+  if(!isAdmin()) allowed=allowed.filter(function(p){ return ['home','order','orders','stock','ims','day','route','exp'].indexOf(p)>=0; });
+  if(isAdmin()) allowed=allowed.filter(function(p){ return p!=='day'; });
+  if(allowed.indexOf('home')<0) allowed.unshift('home');
+  var nav=ALLNAV.filter(function(n){ return allowed.indexOf(n[0])>=0; });
   PAGES={}; nav.forEach(function(n){ PAGES[n[0]]=1; });
   $('bnav').innerHTML=nav.map(function(n){ return '<button data-pg="'+n[0]+'"><span class="ic">'+n[1]+'</span>'+n[2]+'</button>'; }).join('');
   // DSR: din chal raha ho to location pings shuru
@@ -838,7 +909,7 @@ function go(p){
   // Back button (home ke alawa har page par) + parent Task Manager ko batao (title/sidebar highlight)
   $('backBtn').style.display=$('backBtn2').style.display=(p==='home'?'none':'inline-flex');
   if(EMBEDDED){ try{ window.parent.postMessage({opsPage:p},'*'); }catch(e){} }
-  ({home:loadHome,order:loadOrderPg,orders:loadOrders,crm:loadCRM,stock:loadStock,dealers:loadDealersPg,reports:loadReports,day:loadDay,route:loadRoutePg,track:loadTrack,exp:loadExp,masters:loadMasters,tally:loadTally})[p]();
+  ({home:loadHome,order:loadOrderPg,orders:loadOrders,crm:loadCRM,stock:loadStock,ims:loadIMS,dealers:loadDealersPg,reports:loadReports,day:loadDay,route:loadRoutePg,track:loadTrack,exp:loadExp,masters:loadMasters,tally:loadTally,access:loadAccess})[p]();
 }
 $('bnav').addEventListener('click',function(e){ var b=e.target.closest('button'); if(b) go(b.getAttribute('data-pg')); });
 // Parent (Task Manager sidebar) hash badalta hai -> wahi page
@@ -1242,21 +1313,31 @@ $('su-acts').addEventListener('click',function(e){
 });
 
 /* ═══ STOCK ═══ */
+// v4: tabs = brand (Michelin = Scooter+Motorcycle+RE+Car ek saath), filters alag row me
+var MICH_SEGS=['SC','MC','RE','PC'];
 function loadStock(){
-  var segs=[['','All'],['SC','Scooter'],['MC','Motorcycle'],['RE','Royal Enfield'],['PC','Car'],['VK','VK Tyre']]; if(isAdmin()) segs.push(['OT','Other']);
+  var segs=[['','All'],['MICHELIN','Michelin'],['VK','VK Tyre']]; if(isAdmin()) segs.push(['OT','Other']);
   $('sk-tabs').innerHTML=segs.map(function(s){return '<button data-seg="'+s[0]+'"'+(SK_SEG===s[0]?' class="on"':'')+'>'+s[1]+'</button>';}).join('');
+  $('sk-seg').style.display=(SK_SEG===''||SK_SEG==='MICHELIN')?'inline-block':'none';
   $('sk-busy').style.display=$('sk-rm').style.display=isAdmin()?'inline-flex':'none';
   $('stock-list').innerHTML='<div class="empty"><div class="spin" style="margin:0 auto"></div></div>';
   gas('getItems',null,function(r){ ITEMS=JSON.parse(r); renderStock(); });
 }
 $('sk-tabs').addEventListener('click',function(e){ var b=e.target.closest('[data-seg]'); if(!b)return; SK_SEG=b.getAttribute('data-seg'); loadStock(); });
 $('sk-search').addEventListener('input',renderStock);
+['sk-seg','sk-pattern','sk-tltt','sk-status','sk-sort'].forEach(function(id){ $(id).addEventListener('change',renderStock); });
+function skStatus(it){ var mn=it.min|0, mx=it.max|0; if(it.stock<=0) return 'OUT'; if(mn?it.stock<mn:it.stock<=10) return 'LOW'; if(mx&&it.stock>mx) return 'OVER'; return 'OK'; }
+function qCls2(it){ var s=skStatus(it); return s==='OUT'?'z':s==='LOW'?'lo':s==='OVER'?'ov':'ok'; }
+function inTab(it){ if(SK_SEG==='MICHELIN') return MICH_SEGS.indexOf(it.seg)>=0; if(SK_SEG) return it.seg===SK_SEG; return isAdmin()||it.seg!=='OT'; }
 function renderStock(){
-  var q=V('sk-search').toLowerCase();
-  var l=ITEMS.filter(function(it){ if(SK_SEG&&it.seg!==SK_SEG)return false; if(!SK_SEG&&it.seg==='OT'&&!isAdmin())return false; if(STOCK_LOW&&it.stock>10) return false; return !q||(it.brand+' '+it.seg+' '+iName(it)).toLowerCase().indexOf(q)>=0; });
-  if(STOCK_LOW){ l.sort(function(a,b){return a.stock-b.stock;}); }
+  var q=V('sk-search').toLowerCase(), fseg=V('sk-seg'), fpat=V('sk-pattern'), ftl=V('sk-tltt'), fst=V('sk-status'), sort=V('sk-sort');
+  // pattern list tab ke hisaab se
+  var pats={}; ITEMS.forEach(function(it){ if(inTab(it)&&it.pattern) pats[it.pattern]=1; });
+  var pl=Object.keys(pats).sort(); if($('sk-pattern').options.length!==pl.length+1||($('sk-pattern').getAttribute('data-tab')!==SK_SEG)){ $('sk-pattern').innerHTML='<option value="">Sab pattern</option>'+pl.map(function(p){return '<option value="'+esc(p)+'"'+(p===fpat?' selected':'')+'>'+esc(p)+'</option>';}).join(''); $('sk-pattern').setAttribute('data-tab',SK_SEG); fpat=V('sk-pattern'); }
+  var l=ITEMS.filter(function(it){ if(!inTab(it))return false; if(fseg&&it.seg!==fseg)return false; if(fpat&&it.pattern!==fpat)return false; if(ftl&&String(it.tltt).toUpperCase().indexOf(ftl)<0)return false; if(fst&&skStatus(it)!==fst)return false; if(STOCK_LOW&&skStatus(it)==='OK') return false; return !q||(it.brand+' '+it.seg+' '+iName(it)).toLowerCase().indexOf(q)>=0; });
+  if(STOCK_LOW||sort==='stockAsc'){ l.sort(function(a,b){return a.stock-b.stock;}); } else if(sort==='stockDesc'){ l.sort(function(a,b){return b.stock-a.stock;}); }
   var tot=0; l.forEach(function(it){tot+=it.stock;});
-  $('stock-list').innerHTML='<div class="h">'+l.length+' items <small>'+tot.toLocaleString('en-IN')+' pcs</small>'+(STOCK_LOW?'<button class="btn xs ghost" style="margin-left:8px" onclick="STOCK_LOW=false;renderStock()">Sirf low/out ✕</button>':'')+'</div>'+(l.length?l.map(function(it){ return '<div class="item"'+(isAdmin()?' data-sm="'+it.code+'"':'')+'><div class="nm"><b>'+esc(iName(it))+'</b><span class="bchip">'+esc(it.brand)+'</span><span class="chip c-'+it.seg+'">'+it.seg+'</span> <span>'+fmt(it.price)+'</span></div><div class="q '+qCls(it.stock)+'">'+it.stock+'</div></div>'; }).join(''):'<div class="empty">Kuch nahi mila</div>')+(isAdmin()?'<div class="hint" style="margin-top:8px">Item par tap karo → Stock IN / count set</div>':'');
+  $('stock-list').innerHTML='<div class="h">'+l.length+' items <small>'+tot.toLocaleString('en-IN')+' pcs</small>'+(STOCK_LOW?'<button class="btn xs ghost" style="margin-left:8px" onclick="STOCK_LOW=false;renderStock()">Sirf low/out ✕</button>':'')+'</div>'+(l.length?l.map(function(it){ return '<div class="item"'+(isAdmin()?' data-sm="'+it.code+'"':'')+'><div class="nm"><b>'+esc(iName(it))+'</b><span class="bchip">'+esc(it.brand)+'</span><span class="chip c-'+it.seg+'">'+it.seg+'</span> <span>'+fmt(it.price)+'</span>'+((it.min|0)||(it.max|0)?' <span style="color:var(--t3);font-size:10.5px">min '+(it.min|0)+' · max '+(it.max|0)+'</span>':'')+'</div><div class="q '+qCls2(it)+'" title="'+skStatus(it)+'">'+it.stock+'</div></div>'; }).join(''):'<div class="empty">Kuch nahi mila</div>')+(isAdmin()?'<div class="hint" style="margin-top:8px">Item par tap karo → Stock IN / count set · Rang: <span class="q z">0</span> out, <span class="q lo">low</span> min se kam, <span class="q ov">over</span> max se zyada (levels IMS page par)</div>':'');
 }
 var SM_IT=null, SM_TYPE='IN';
 $('stock-list').addEventListener('click',function(e){
@@ -1439,6 +1520,102 @@ $('rm-send').onclick=function(){
   });
 };
 
+/* ═══ OUTSTANDING REPORT (v4): Busy party analysis + WhatsApp + statement ═══ */
+var OUTS=[], OUTS_ROW=null;
+function loadOutsReport(){
+  call('getOutstandingReport',{},function(d){
+    OUTS=d.rows; var tot=0,tm=0,tv=0; d.rows.forEach(function(r){ tot+=r.amount; tm+=r.michelin; tv+=r.vk; });
+    var c=$('outs-card'); if(!c) return;
+    c.innerHTML='<div class="h">Busy Outstanding <small>'+d.rows.length+' accounts · total '+fmt(tot)+' · Michelin '+fmt(tm)+' · VK/other '+fmt(tv)+(d.rows[0]?' · as on '+esc(d.rows[0].asOn):'')+'</small><span style="flex:1"></span><input class="inp" id="outs-q" placeholder="Search..." style="width:160px;padding:6px 8px;font-size:12px"></div>'+(d.ledgerRows?'':'<div class="warn">Busy ledger abhi import nahi hua — agla Drive sync hone do (Busy Import → Abhi sync), tab Michelin/VK split aur due-from dikhega.</div>')+'<div id="outs-tbl"></div><div class="hint">Due from = sabse purana bill jo abhi bhi bakaya hai (bakaya latest bills par lagaya, FIFO). Michelin = "Michelin" series ke bills, VK/other = baaki. 0 ya advance walon ko message nahi jaata.</div>';
+    renderOuts(); $('outs-q').addEventListener('input',renderOuts);
+  });
+}
+function renderOuts(){
+  var q=(V('outs-q')||'').toLowerCase(); var l=OUTS.filter(function(r){ return !q||(r.name+' '+r.mobile+' '+r.dsr).toLowerCase().indexOf(q)>=0; });
+  $('outs-tbl').innerHTML=tbl([
+    {h:'Due from',f:function(r){ return r.dueFrom?esc(r.dueFrom)+(r.dueDays!=null?'<br><span style="color:'+(r.dueDays>45?'var(--red)':r.dueDays>30?'var(--amber)':'var(--t3)')+';font-size:11px">'+r.dueDays+' din</span>':''):'<span style="color:var(--t3)">—</span>'; }},
+    {h:'Account name',f:function(r){ return '<b>'+esc(r.name)+'</b><br><span style="color:var(--t3);font-size:11px">'+esc(r.mobile||'mobile nahi')+(r.dsr?' · '+esc(r.dsr):'')+(r.lastReceipt?' · last pay '+esc(r.lastReceipt):'')+'</span>'; }},
+    {h:'VK amount',f:function(r){ return r.vk?fmt(r.vk):'—'; },r:1},
+    {h:'Michelin amount',f:function(r){ return r.michelin?fmt(r.michelin):'—'; },r:1},
+    {h:'Total outstanding',f:function(r){ return '<b style="color:'+(r.amount<0?'var(--green)':'inherit')+'">'+fmt(r.amount)+(r.amount<0?' Cr':'')+'</b>'; },r:1},
+    {h:'',f:function(r){ return (r.amount>0?'<button class="btn xs gold" data-owa="'+esc(r.name)+'">WhatsApp</button> ':'')+'<button class="btn xs ghost" data-ost="'+esc(r.name)+'">Statement</button>'+(r.lastSent?'<br><span style="color:var(--t3);font-size:10px">sent '+esc(r.lastSent)+'</span>':''); }}
+  ],l,'Outstanding data nahi — Busy sync chalao');
+  $('outs-tbl').querySelectorAll('[data-owa]').forEach(function(b){ b.onclick=function(){ openOutsWa(b.getAttribute('data-owa')); }; });
+  $('outs-tbl').querySelectorAll('[data-ost]').forEach(function(b){ b.onclick=function(){ var n=b.getAttribute('data-ost'); window.open(API+'statement-preview?party='+encodeURIComponent(n),'_blank'); }; });
+}
+function fyStartISO(){ var d=new Date(); var y=d.getMonth()>=3?d.getFullYear():d.getFullYear()-1; return y+'-04-01'; }
+function openOutsWa(name){
+  OUTS_ROW=null; OUTS.forEach(function(r){ if(r.name===name) OUTS_ROW=r; }); if(!OUTS_ROW) return;
+  var r=OUTS_ROW;
+  $('ow-info').innerHTML='<b>'+esc(r.name)+'</b> · bakaya <b>'+fmt(r.amount)+'</b>'+(r.dueFrom?' · due from '+esc(r.dueFrom):'')+'<br>Michelin '+fmt(r.michelin)+' · VK/other '+fmt(r.vk);
+  $('ow-mob').value=r.mobile||''; $('ow-st-no').checked=true; $('ow-dates').style.display='none'; $('ow-from').value=fyStartISO(); $('ow-to').value=todayISO(); $('ow-result').textContent='';
+  openOv('ov-outs');
+}
+document.querySelectorAll('input[name="ow-st"]').forEach(function(x){ x.addEventListener('change',function(){ $('ow-dates').style.display=$('ow-st-yes').checked?'block':'none'; }); });
+$('ow-preview').onclick=function(){ if(!OUTS_ROW) return; window.open(API+'statement-preview?party='+encodeURIComponent(OUTS_ROW.name)+'&from='+V('ow-from')+'&to='+V('ow-to'),'_blank'); };
+$('ow-send').onclick=function(){
+  if(!OUTS_ROW) return; var withSt=$('ow-st-yes').checked;
+  if(withSt && (!V('ow-from')||!V('ow-to'))){ toast('Statement ki date range daalo','err'); return; }
+  showLoad('WhatsApp bhej rahe hain...');
+  call('sendOutstandingWa',{party:OUTS_ROW.name,mobile:V('ow-mob'),withStatement:withSt,from:V('ow-from'),to:V('ow-to')},function(d){
+    hideLoad(); $('ow-result').innerHTML='Bhej diya '+esc(d.sentTo)+' ko'+(d.url?' · <a class="doclink" target="_blank" href="'+esc(d.url)+'">statement PDF link</a>':'')+(d.note?'<br><span style="color:var(--amber)">'+esc(d.note)+'</span>':''); toast('Outstanding message gaya','ok'); loadOutsReport();
+  });
+};
+
+/* ═══ IMS (v4) ═══ */
+var IMS=null, IMS_DIRTY={};
+function loadIMS(){ $('ims-list').innerHTML='<div class="empty"><div class="spin" style="margin:0 auto"></div></div>'; call('getIMS',{days:V('ims-days')},function(d){ IMS=d; IMS_DIRTY={}; $('ims-save').style.display='none'; renderIMS(); }); }
+['ims-search','ims-brand','ims-status','ims-grid'].forEach(function(id){ $(id).addEventListener(id==='ims-search'?'input':'change',renderIMS); });
+$('ims-days').addEventListener('change',loadIMS);
+function renderIMS(){
+  if(!IMS) return; var q=V('ims-search').toLowerCase(), fb=V('ims-brand'), fs=V('ims-status'), grid=$('ims-grid').checked;
+  var c=IMS.counts; $('ims-kpi').innerHTML='<div><div class="kpi r"><div class="v">'+c.out+'</div><div class="l">Out of stock</div></div></div><div><div class="kpi g"><div class="v">'+c.low+'</div><div class="l">Below min / low</div></div></div><div><div class="kpi gr"><div class="v">'+c.ok+'</div><div class="l">OK</div></div></div><div><div class="kpi b"><div class="v">'+c.over+'</div><div class="l">Above max</div></div></div>';
+  var l=IMS.items.filter(function(it){ if(fb&&it.brand!==fb) return false; if(fs&&it.status!==fs) return false; return !q||(it.brand+' '+it.seg+' '+it.name).toLowerCase().indexOf(q)>=0; });
+  var order={OUT:0,LOW:1,OVER:2,OK:3}; l.sort(function(a,b){ return order[a.status]-order[b.status]||a.stock-b.stock; });
+  var days=IMS.days, dh=days.map(function(d){ return '<th class="c" title="'+d+'">'+d.slice(8)+'/'+d.slice(5,7)+'</th>'; }).join('');
+  var lvl=function(it,v){ if(v==null) return 'na'; if(v<=0) return 'OUT'; if(it.min?v<it.min:v<=10) return 'LOW'; if(it.max&&v>it.max) return 'OVER'; return 'OK'; };
+  var h='<div class="tblw"><table class="tbl ims-grid"><thead><tr><th>Item</th><th class="r">Stock</th>'+(isAdmin()?'<th class="r">Min</th><th class="r">Max</th>':'<th class="r">Min / Max</th>')+'<th class="r">Avg/day</th><th class="r">Days cover</th><th>Status</th>'+(grid?dh:'')+'</tr></thead><tbody>';
+  l.forEach(function(it){
+    h+='<tr><td><b>'+esc(it.name)+'</b><br><span style="color:var(--t3);font-size:11px">'+esc(it.brand)+' · '+esc(SEGN[it.seg]||it.seg)+'</span></td><td class="r"><b class="q '+(it.status==='OUT'?'z':it.status==='LOW'?'lo':it.status==='OVER'?'ov':'ok')+'">'+it.stock+'</b></td>';
+    if(isAdmin()) h+='<td class="r"><input type="number" min="0" value="'+(it.min||'')+'" data-lv="min" data-code="'+esc(it.code)+'" placeholder="0"></td><td class="r"><input type="number" min="0" value="'+(it.max||'')+'" data-lv="max" data-code="'+esc(it.code)+'" placeholder="0"></td>';
+    else h+='<td class="r">'+(it.min||'—')+' / '+(it.max||'—')+'</td>';
+    h+='<td class="r">'+(it.avg?it.avg:'—')+'</td><td class="r">'+(it.cover!=null?(it.cover>999?'999+':it.cover)+' din':'—')+'</td><td><span class="lv '+it.status+'">'+it.status+'</span></td>';
+    if(grid) h+=it.days.map(function(v){ var lv=lvl(it,v); return '<td class="c '+lv+'">'+(v==null?'·':v)+'</td>'; }).join('');
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>'+(l.length?'':'<div class="empty">Kuch nahi mila</div>');
+  $('ims-list').innerHTML=h;
+  $('ims-list').querySelectorAll('[data-lv]').forEach(function(inp){ inp.addEventListener('input',function(){ var code=inp.getAttribute('data-code'); var it=null; IMS.items.forEach(function(x){ if(x.code===code) it=x; }); if(!it) return; it[inp.getAttribute('data-lv')]=parseInt(inp.value,10)||0; IMS_DIRTY[code]={code:code,min:it.min,max:it.max}; $('ims-save').style.display='inline-flex'; }); });
+}
+$('ims-save').onclick=function(){ var rows=Object.keys(IMS_DIRTY).map(function(k){return IMS_DIRTY[k];}); if(!rows.length) return; showLoad('Levels save...'); call('saveItemLevels',{rows:rows},function(){ hideLoad(); toast(rows.length+' items ke levels save','ok'); ITEMS=[]; loadIMS(); }); };
+
+/* ═══ ACCESS (v4, admin) ═══ */
+var AC=null, AC_EDIT=null;
+function loadAccess(){
+  call('getAccess',{},function(d){
+    AC=d; renderPermBoxes(d.pages,[]);
+    $('ac-list').innerHTML=tbl([
+      {h:'User',f:function(r){ return '<b>'+esc(r.name)+'</b><br><span style="color:var(--t3);font-size:11px">'+esc(r.mob)+' · login: <b>'+esc(r.username)+'</b>'+(r.hasPassword?'':' · <span style="color:var(--amber)">password = mobile</span>')+'</span>'; }},
+      {h:'Role',f:function(r){ return '<span class="st st-'+(r.role==='DSR'?'DISPATCHED':'CONFIRMED')+'">'+esc(r.role)+'</span>'+(r.active?'':'<br><span class="neg">Band</span>'); }},
+      {h:'Pages',f:function(r){ var p=r.perms.length?r.perms:r.defaultPerms; return '<span style="font-size:11px">'+p.map(function(x){return esc(x);}).join(', ')+(r.perms.length?'':' <span style="color:var(--t3)">(default)</span>')+'</span>'; }},
+      {h:'',f:function(r){ return '<button class="btn xs ghost" data-acedit="'+esc(r.mob)+'">Edit</button>'; }}
+    ],d.users,'Koi user nahi');
+    $('ac-list').querySelectorAll('[data-acedit]').forEach(function(b){ b.onclick=function(){ var m=b.getAttribute('data-acedit'), r=null; d.users.forEach(function(x){ if(x.mob===m) r=x; }); if(!r) return; AC_EDIT=r; $('ac-form-h').textContent='Edit: '+r.name; $('ac-name').value=r.name; $('ac-mob').value=r.mob; $('ac-user').value=r.username===r.mob?'':r.username; $('ac-pass').value=''; $('ac-role').value=r.role; $('ac-active').checked=r.active; renderPermBoxes(d.pages,r.perms.length?r.perms:r.defaultPerms); $('ac-name').scrollIntoView({behavior:'smooth',block:'center'}); }; });
+  });
+}
+var PAGE_LABEL={home:'Home',order:'Order',orders:'Orders',crm:'CRM',stock:'Stock',ims:'IMS',dealers:'Dealers',reports:'Reports',track:'DSR Tracking',day:'Day',route:'Route Plan',exp:'Expenses',tally:'Tally Bridge',masters:'Masters',access:'Access'};
+function renderPermBoxes(pages,sel){ $('ac-perms').innerHTML=pages.map(function(p){ return '<label class="perm"><input type="checkbox" value="'+p+'"'+(sel.indexOf(p)>=0?' checked':'')+'> '+esc(PAGE_LABEL[p]||p)+'</label>'; }).join(''); }
+function permsSel(){ var out=[]; $('ac-perms').querySelectorAll('input:checked').forEach(function(x){ out.push(x.value); }); return out; }
+$('ac-def').onclick=function(){ var role=V('ac-role'); var def=role==='ADMIN'?AC.pages:(role==='DSR'?['home','order','orders','stock','day','route','exp']:['home','order','orders','crm','stock','ims','dealers','reports','track','route','exp','tally','masters']); renderPermBoxes(AC.pages,def); };
+$('ac-all').onclick=function(){ renderPermBoxes(AC.pages,AC.pages); };
+$('ac-none').onclick=function(){ renderPermBoxes(AC.pages,[]); };
+$('ac-role').addEventListener('change',function(){ if(!AC_EDIT) $('ac-def').click(); });
+$('ac-clear').onclick=function(){ AC_EDIT=null; $('ac-form-h').textContent='User add / edit'; ['ac-name','ac-mob','ac-user','ac-pass'].forEach(function(i){ $(i).value=''; }); $('ac-role').value='DSR'; $('ac-active').checked=true; $('ac-def').click(); };
+$('ac-save').onclick=function(){
+  showLoad('Save...');
+  call('saveAccess',{mob:V('ac-mob'),name:V('ac-name'),username:V('ac-user'),password:V('ac-pass'),role:V('ac-role'),active:$('ac-active').checked,perms:permsSel()},function(){ hideLoad(); toast('User save ho gaya','ok'); $('ac-clear').click(); RT_USERS=[]; EX_USERS=[]; loadAccess(); });
+};
+
 /* ═══ REPORTS (admin) ═══ */
 var RP_TAB='delivery', RP=null;
 function loadReports(){
@@ -1459,7 +1636,7 @@ function renderReport(){
     h='<div class="card"><div class="h">Payment Pending <small>delivered but unpaid · '+d.paymentPending.length+' orders · '+fmt(tp)+'</small></div>'+tbl([{h:'Order',f:function(r){return '<b>'+esc(r.oid)+'</b><br><span style="color:var(--t3)">'+esc(r.date)+(r.inv?' · Inv '+esc(r.inv):'')+'</span>';}},{h:'Dealer',f:function(r){return esc(r.dname)+'<br><span style="color:var(--t3)">'+esc(r.dmob)+' · '+esc(r.dsr)+'</span>';}},{h:'Amount',f:function(r){return '<b>'+fmt(r.amount)+'</b>';},r:1},{h:'Terms',f:function(r){return esc(r.terms||'—')+'<br><span style="color:var(--t3)">delivered '+esc(r.delivered)+'</span>';}},{h:'Due',f:function(r){ if(!r.due) return '<span style="color:var(--t3)">terms nahi</span>'; return esc(r.due)+(r.overdue>0?'<br><span class="neg">'+r.overdue+' din late</span>':'<br><span style="color:var(--green)">'+(-r.overdue)+' din baaki</span>'); }},{h:'Reminder',f:function(r){return (r.lastReminder?'<span style="color:var(--t3)">last '+esc(r.lastReminder)+'</span><br>':'')+'<button class="btn xs ghost" data-rprem="'+esc(r.oid)+'">WhatsApp reminder</button>';}},{h:'',f:function(r){return '<button class="btn xs green" data-paid="'+esc(r.oid)+'|1">Paid ✓</button>';}}],d.paymentPending,'Sab payments mil chuki hain')+'<div class="hint">Auto reminder: due date nikalte hi roz 10 baje dealer + DSR ko, phir har 3 din. Payment mile to "Paid ✓" dabao.</div></div>';
   } else if(RP_TAB==='outstanding'){
     var to=0; d.outstanding.forEach(function(r){to+=r.amount;});
-    h='<div class="card"><div class="h">Busy Outstanding <small>'+d.outstanding.length+' accounts · '+fmt(to)+(d.outstanding[0]?' · as on '+esc(d.outstanding[0].asOn):'')+'</small></div>'+tbl([{h:'Account',k:'name'},{h:'Mobile',k:'mobile'},{h:'Outstanding',f:function(r){return '<b>'+fmt(r.amount)+'</b>';},r:1}],d.outstanding,'Busy "Amount Receivable" import karo (Home → Busy Import)')+'</div>';
+    h='<div class="card" id="outs-card"><div class="empty"><div class="spin" style="margin:0 auto"></div></div></div>'; setTimeout(loadOutsReport,0);
   } else {
     h='<div class="card"><div class="h">DSR Performance <small>is mahine</small></div>'+tbl([{h:'DSR',f:function(r){return '<b>'+esc(r.name)+'</b><br><span style="color:var(--t3)">'+esc(r.mob)+'</span>';}},{h:'Orders',k:'orders',r:1},{h:'Tyres',k:'qty',r:1},{h:'Amount',f:function(r){return fmt(r.amount);},r:1},{h:'Delivered',k:'delivered',r:1},{h:'New dealers',k:'dealers',r:1},{h:'Attend. days',k:'attendDays',r:1},{h:'Visits',f:function(r){return r.visited+' / '+r.planned;},r:1},{h:'Expenses',f:function(r){return fmt(r.expApproved)+(r.expPending?'<br><span style="color:var(--amber)">'+r.expPending+' pending</span>':'');},r:1}],d.performance,'Koi DSR nahi')+'</div>';
   }
@@ -1652,8 +1829,7 @@ $('ex-save').onclick=function(){
 
 /* ═══ AUTO LOGIN — cookie se; ?m=<mobile> link se bhi (WhatsApp shortcut) ═══ */
 (function(){
-  var p=new URLSearchParams(location.search).get('m');
-  if(p && p.replace(/\D/g,'').length===10){ $('lg-mob').value=p.replace(/\D/g,''); showLogin(); doLogin(); return; }
+  // (v4) ?m=<mobile> wala bina-password login hata diya
   fetch(API+'me',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
     if(d&&d.ok){ USER=d.user; startApp(); } else showLogin();
   }).catch(showLogin);

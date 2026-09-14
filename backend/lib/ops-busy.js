@@ -148,9 +148,11 @@ async function importOutstanding(db, rows, todayDMY) {
     if (!(k in oldMap)) continue;
     const oldBal = oldMap[k];
     if (l.amount < oldBal - 1) { // 1 rupaye ki rounding chhoot
+      // Naya balance 0 ya advance (Cr) ho to message nahi — log me aata hai par notified='Y'
+      const notified = l.amount <= 0 ? 'Y' : 'N';
       await db.query(
-        'INSERT INTO ops_payment_log (dealer_name,dealer_mobile,amount_paid,old_outstanding,new_outstanding,as_on,notified) VALUES (?,?,?,?,?,?,\'N\')',
-        [l.name, l.mobile, oldBal - l.amount, oldBal, l.amount, asOn]);
+        'INSERT INTO ops_payment_log (dealer_name,dealer_mobile,amount_paid,old_outstanding,new_outstanding,as_on,notified) VALUES (?,?,?,?,?,?,?)',
+        [l.name, l.mobile, oldBal - l.amount, oldBal, l.amount, asOn, notified]);
       payments++;
     }
   }

@@ -73,9 +73,12 @@ module.exports = function registerOpsRoutes(app, ctx) {
   }
 
   // ── auth ───────────────────────────────────────────
+  // Page permissions (v4): DB me perms JSON ho to wahi, warna role ke default (ops-v4.js me list)
+  const v4 = require('./ops-v4');
+  const permsOf = r => { const p = v4.parsePerms(r.perms); return p.length ? p : v4.defaultPerms(r.role); };
   async function userByMobile(mob) {
-    const [r] = await db.query('SELECT id, mobile, name, role FROM ops_users WHERE mobile=? AND active=1', [mob]);
-    return r[0] ? { id: r[0].id, mob: r[0].mobile, name: r[0].name, role: String(r[0].role).toUpperCase() } : null;
+    const [r] = await db.query('SELECT id, mobile, name, role, username, perms, password_hash FROM ops_users WHERE mobile=? AND active=1', [mob]);
+    return r[0] ? { id: r[0].id, mob: r[0].mobile, name: r[0].name, role: String(r[0].role).toUpperCase(), username: r[0].username || r[0].mobile, perms: permsOf(r[0]), hasPassword: !!r[0].password_hash } : null;
   }
   async function requireOps(req, res, next) {
     const token = req.cookies?.[COOKIE] || (req.headers.authorization || '').replace('Bearer ', '');
@@ -104,19 +107,28 @@ module.exports = function registerOpsRoutes(app, ctx) {
   };
 
   // ══════════ LOGIN ══════════
+  // v4: username (ya mobile) + password. Jab tak admin ne Access page se password set nahi kiya,
+  // password = apna mobile number chalta hai (purane number-login se migration).
   router.post('/login', async (req, res) => {
     try {
-      const mob = clean(req.body && (req.body.arg ?? req.body.mob));
-      if (mob.length !== 10) return res.type('json').send(err('10-digit mobile daalo'));
-      const u = await userByMobile(mob);
-      if (!u) return res.type('json').send(err('Ye number registered nahi hai. Arun ji se baat karo.'));
+      const bcrypt = require('bcryptjs');
+      let a = req.body && (req.body.arg ?? req.body);
+      if (typeof a === 'string') { try { a = JSON.parse(a); } catch (_) { a = { user: a }; } }
+      const user = String((a && a.user) || '').trim().toLowerCase(), password = String((a && a.password) || '');
+      if (!user) return res.type('json').send(err('Username ya mobile daalo'));
+      if (!password) return res.type('json').send(err('Password daalo'));
+      const [rows] = await db.query('SELECT mobile, password_hash FROM ops_users WHERE active=1 AND (username=? OR mobile=?) LIMIT 1', [user, clean(user)]);
+      if (!rows[0]) return res.type('json').send(err('Ye user registered nahi hai. Admin se Access page me banwao.'));
+      const okPass = rows[0].password_hash ? await bcrypt.compare(password, rows[0].password_hash) : (password === rows[0].mobile);
+      if (!okPass) return res.type('json').send(err(rows[0].password_hash ? 'Password galat hai' : 'Password galat — jab tak admin password set na kare, password = aapka mobile number'));
+      const u = await userByMobile(rows[0].mobile);
       const token = jwt.sign({ mob: u.mob, ops: 1 }, JWT_SECRET, { expiresIn: '90d' });
       res.cookie(COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 90 * 86400 * 1000, path: '/' });
-      res.type('json').send(J({ ok: true, user: { mob: u.mob, name: u.name, role: u.role } }));
+      res.type('json').send(J({ ok: true, user: { mob: u.mob, name: u.name, role: u.role, username: u.username, perms: u.perms, hasPassword: u.hasPassword } }));
     } catch (e) { res.type('json').send(err(e.message)); }
   });
   router.post('/logout', (req, res) => { res.clearCookie(COOKIE, { path: '/' }); res.json({ ok: true }); });
-  router.get('/me', requireOps, (req, res) => res.json({ ok: true, user: { mob: req.opsUser.mob, name: req.opsUser.name, role: req.opsUser.role } }));
+  router.get('/me', requireOps, (req, res) => res.json({ ok: true, user: { mob: req.opsUser.mob, name: req.opsUser.name, role: req.opsUser.role, username: req.opsUser.username, perms: req.opsUser.perms, hasPassword: req.opsUser.hasPassword } }));
 
   // ══════════ ITEMS / STOCK ══════════
   async function itemsList() {
@@ -125,7 +137,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
       code: r.code, brand: r.brand || '', seg: r.segment, cat: r.category, size: r.size, pos: r.position || '',
       pattern: r.pattern || '', tltt: r.tltt || '', li: r.li || '', price: Number(r.price) || 0,
       tube: Number(r.tube_price) || 0, stock: r.stock | 0, updated: r.updated || '',
-      basic: Number(r.basic_price) || 0, busy: r.busy_name || '',
+      basic: Number(r.basic_price) || 0, busy: r.busy_name || '', min: r.min_level | 0, max: r.max_level | 0,
     }));
   }
   router.post('/getItems', requireOps, rpc(async () => itemsList()));
@@ -1026,7 +1038,8 @@ module.exports = function registerOpsRoutes(app, ctx) {
   // alag file me, par same router aur same helpers par.
   opsExtra = require('./ops-extra')({
     router, db, requireOps, adminOnly, rpc, J, err, clean, nb, nowIST, dmyOf, FMT, isAdmin,
-    ordersFor, orderByOid, logged, wati, pushToDrive, IS_SERVERLESS, scanPayments,
+    ordersFor, orderByOid, logged, wati, pushToDrive, IS_SERVERLESS, scanPayments, JWT_SECRET,
+    APP_URL: String(process.env.APP_URL || 'https://devmanierp.com').replace(/\/+$/, ''),
   }) || null;
 
   app.use('/api/ops', router);

@@ -10,7 +10,7 @@
 // dikhta hai: delivery pending, payment pending, DSR performance, tracking.
 
 module.exports = function registerOpsExtra(S) {
-  const { router, db, requireOps, adminOnly, rpc, J, err, clean, nowIST, dmyOf, FMT, isAdmin, logged, wati, pushToDrive, IS_SERVERLESS, scanPayments } = S;
+  const { router, db, requireOps, adminOnly, rpc, J, err, clean, nowIST, dmyOf, FMT, isAdmin, logged, wati, pushToDrive, IS_SERVERLESS, scanPayments, JWT_SECRET, APP_URL } = S;
   const parse = j => (typeof j === 'string' ? JSON.parse(j) : (j || {}));
   const isoDate = v => { const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[1]}-${m[2]}-${m[3]}` : null; };
 
@@ -427,8 +427,11 @@ module.exports = function registerOpsExtra(S) {
 
   // Chhota helper: ops users list (admin ko filters ke liye)
   router.post('/getUsers', requireOps, adminOnly, rpc(async () => {
-    const [rows] = await db.query('SELECT name, mobile, role, active FROM ops_users ORDER BY role=\'DSR\' DESC, name');
-    return rows.map(r => ({ name: r.name, mob: r.mobile, role: String(r.role).toUpperCase(), active: !!r.active }));
+    const [rows] = await db.query('SELECT name, mobile, role, active, username FROM ops_users ORDER BY role=\'DSR\' DESC, name');
+    return rows.map(r => ({ name: r.name, mob: r.mobile, role: String(r.role).toUpperCase(), active: !!r.active, username: r.username || '' }));
   }));
+  // v4: IMS, Access, outstanding report, statement PDF + WhatsApp
+  require('./ops-v4')(Object.assign({}, S, { busyDrive, JWT_SECRET, APP_URL }));
+
   return { busyDriveSync: by => busyDrive.syncIfEnabled(by) };
 };
