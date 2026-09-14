@@ -867,6 +867,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
   // WhatsApp template params me newline / tab / 4+ space allowed NAHI hain (Meta reject
   // karta hai) aur poora message ~1024 akshar. Isliye bhejne se pehle ek line banao.
   function waParam(text, max) {
+    if (wati.provider() === 'waumfy') return String(text || '').replace(/\r/g, '').trim().slice(0, max || 3500); // plain text — lines waise hi
     return String(text || '').replace(/\r/g, '').split('\n').map(s => s.trim()).filter(Boolean).join(' | ').replace(/\s{2,}/g, ' ').slice(0, max || 900);
   }
   router.post('/previewRMReport', requireOps, adminOnly, rpc(async (u, j) => {
@@ -1031,7 +1032,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
     setInterval(() => { scanOrders(); scanPayments().catch(e => console.error('ops scanPayments', e.message)); dailySummary().catch(e => console.error('ops summary', e.message)); }, 5 * 60 * 1000);
     console.log(`  ✅ Michelin Ops WhatsApp scanner started (har 5 min; office numbers: ${wati.NOTIFY_NUMBERS.length})`);
   } else if (!wati.ENABLED) {
-    console.log('  ℹ️  Michelin Ops: WATI_BASE/WATI_TOKEN nahi — WhatsApp band, baaki app chalegi');
+    console.log('  ℹ️  Michelin Ops: WhatsApp config nahi (Waumfy key / Wati token) — Masters → WhatsApp me set karo; scanner env se hi start hota hai');
   }
 
   // v2 features (reports, attendance, route plan, expenses, payment reminders) —

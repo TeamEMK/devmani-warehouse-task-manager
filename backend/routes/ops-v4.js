@@ -29,6 +29,29 @@ module.exports = function registerOpsV4(S) {
   const parse = j => (typeof j === 'string' ? JSON.parse(j) : (j || {}));
   const isoDate = v => { const m = String(v || '').match(/^(\d{4}-\d{2}-\d{2})/); return m ? m[1] : null; };
 
+  // ══════════ WHATSAPP PROVIDER (Waumfy / Wati) — settings app_settings me, boot par load ══════════
+  const WA_KEYS = { provider: 'wa.provider', key: 'wa.waumfyKey' };
+  async function getSetting(k) { const [[r]] = await db.query('SELECT value FROM app_settings WHERE key_name=?', [k]); return r ? r.value : null; }
+  async function setSetting(k, v) { await db.query('INSERT INTO app_settings (key_name, value) VALUES (?,?) ON DUPLICATE KEY UPDATE value=VALUES(value)', [k, v]); }
+  async function loadWaSettings() { const p = await getSetting(WA_KEYS.provider), k = await getSetting(WA_KEYS.key); wati.configure({ provider: p || undefined, waumfyKey: k || undefined }); return { provider: p || '', key: k || '' }; }
+  loadWaSettings().then(() => console.log(`  📲 Michelin Ops WhatsApp provider: ${wati.provider()} (${wati.isEnabled() ? 'chalu' : 'config nahi'})`)).catch(e => console.error('wa settings', e.message));
+  router.post('/waGetSettings', requireOps, adminOnly, rpc(async () => { const s = await loadWaSettings(); return J({ ok: true, provider: wati.provider(), savedProvider: s.provider, keySet: !!s.key || !!process.env.WAUMFY_API_KEY, keyEnd: (s.key || process.env.WAUMFY_API_KEY || '').slice(-4), enabled: wati.isEnabled(), notify: wati.NOTIFY_NUMBERS }); }));
+  router.post('/waSaveSettings', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = parse(j);
+    if (d.provider !== undefined) { const p = String(d.provider || '').toLowerCase(); if (p && p !== 'waumfy' && p !== 'wati') return err('Provider waumfy ya wati'); await setSetting(WA_KEYS.provider, p); }
+    if (d.waumfyKey) await setSetting(WA_KEYS.key, String(d.waumfyKey).trim());
+    await loadWaSettings();
+    return J({ ok: true, provider: wati.provider(), enabled: wati.isEnabled() });
+  }));
+  // Test: office number (ya diya hua) par ek chhota message
+  router.post('/waTest', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = parse(j); const to = clean(d.mobile) || (wati.NOTIFY_NUMBERS[0] || '').slice(-10);
+    if (!to) return err('Number nahi');
+    const chk = await wati.check();
+    const res = wati.provider() === 'waumfy' ? await wati.sendText(to, `Michelin Ops test (${nowIST().dmyhm}) — WhatsApp ${wati.provider()} se chal raha hai.`) : 'SKIP (Wati par template ke bina test nahi)';
+    return J({ ok: true, provider: wati.provider(), status: chk.status, error: chk.error || chk.raw || '', sentTo: to, result: res });
+  }));
+
   // ══════════ IMS ══════════
   // items + levels + pichle N din ka snapshot + avg daily sale (snapshot ke girne se) + days cover + status
   router.post('/getIMS', requireOps, rpc(async (u, j) => {

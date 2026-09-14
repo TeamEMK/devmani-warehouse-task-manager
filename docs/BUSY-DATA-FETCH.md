@@ -67,7 +67,7 @@ Backup import ab ye bhi karta hai (`busy-drive.js` → `applyBackup`):
 
 App me:
 - **Reports → Busy Outstanding**: Due from (din ke saath), Account name (mobile/DSR/last payment), VK amount, Michelin amount, Total, **WhatsApp** button (0/advance walon par nahi) + **Statement** (PDF preview).
-- WhatsApp sheet: "Account statement bhi bhejna hai?" → haan to date range → message + PDF. Template **`michelin_outstanding`** Wati me banana hai (params: `{{1}}` dealer, `{{2}}` bakaya, `{{3}}` due-from, `{{4}}` statement line/link). PDF file seedha `sendSessionFile` se tab jaati hai jab 24-ghante session khula ho; warna link (45 din valid, `/api/ops/statement/<token>.pdf`).
+- WhatsApp sheet: "Account statement bhi bhejna hai?" → haan to date range → message + PDF. **WhatsApp provider ab Waumfy hai** (14-Sep-2026; Masters → WhatsApp me provider + API key, `app_settings` `wa.*`): message ka text app me `ops-wati.js` TEXTS se banta hai (Wati template ki zaroorat nahi), PDF seedha base64 file ke roop me jaata hai (`send-message` type pdf). Link bhi message me rehta hai (45 din valid, `/api/ops/statement/<token>.pdf`). Wati chuno to purane template naam + `sendSessionFile` wala raasta chalta hai.
 - **IMS** page: min/max level (admin edit), status color (OUT/LOW/OK/OVER), avg/day (snapshot ke girne se), days cover, day-by-day grid.
 - **Stock** page: tabs All / Michelin (SC+MC+RE+PC) / VK / Other; filters segment, pattern, TL/TT, stock status, sort; qty color min/max se.
 - **Access** page: username + password + page ticks per user. Login ab username/mobile + password; jab tak password set na ho, password = mobile number.

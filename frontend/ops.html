@@ -514,6 +514,13 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
           <div class="hint">Same mobile dobara save karo to wahi user update hota hai. DSR ke alawa sab roles ko admin wale pages dikhte hain.</div>
         </div>
         <div class="card">
+          <div class="h">WhatsApp <small>Waumfy (seedha text + PDF) ya Wati (templates)</small></div>
+          <div class="hint" id="wa-status" style="margin:0 0 8px">Loading…</div>
+          <div class="row" style="gap:8px"><div style="flex:1"><label class="l" style="margin-top:0">Provider</label><select class="inp" id="wa-provider"><option value="waumfy">Waumfy</option><option value="wati">Wati</option></select></div><div style="flex:2"><label class="l" style="margin-top:0">Waumfy API key <small style="font-weight:500;text-transform:none">(khali = badlo mat)</small></label><input class="inp" id="wa-key" placeholder="wag_sk_..." autocomplete="off"></div></div>
+          <div class="row" style="gap:8px;margin-top:8px"><button class="btn sm gold" id="wa-save">Save</button><button class="btn sm ghost" id="wa-test">Test message (office number)</button></div>
+          <div class="hint">Waumfy: waumfy.com/dashboard → Settings → API key. Message ka text app me hi banta hai, Wati template ki zaroorat nahi; statement PDF seedha file ke roop me jaata hai.</div>
+        </div>
+        <div class="card">
           <div class="h">Transporters <small>billing me chunte hi vehicle/driver bhar jaata hai</small></div>
           <div id="tr-list"></div>
           <div class="h" style="font-size:14px;margin-top:14px" id="tr-form-h">Transporter add</div>
@@ -1507,7 +1514,7 @@ function rmPreview(){
     var d=JSON.parse(r);
     if(!d.ok){ $('rm-text').value=''; $('rm-text').placeholder='Report nahi bani: '+d.error; $('rm-meta').textContent='⚠ '+d.error; return; }
     if(RM_TYPE==='OUTSTANDING'&&d.date) $('rm-foot').textContent='As on '+d.date+' - Bansal Oil Distributors';
-    $('rm-text').value=d.text; $('rm-meta').textContent=(d.count?d.count+' '+(RM_TYPE==='SALE'?'orders':RM_TYPE==='OUTSTANDING'?'accounts (Busy Amount Receivable se, sab brands ka mila-jula)':'items'):'0 orders — is range me koi sale nahi')+' · '+d.rm+' ('+d.company+') ko jayega · WhatsApp par lines " | " se jud kar ek paragraph me jaati hain'+(d.waLen>900?' · ⚠ '+d.waLen+' akshar: 900 ke baad kat jayega, edit karke chhota karo':'');
+    $('rm-text').value=d.text; $('rm-meta').textContent=(d.count?d.count+' '+(RM_TYPE==='SALE'?'orders':RM_TYPE==='OUTSTANDING'?'accounts (Busy Amount Receivable se, sab brands ka mila-jula)':'items'):'0 orders — is range me koi sale nahi')+' · '+d.rm+' ('+d.company+') ko jayega · Waumfy par message waise hi jaata hai (Wati par lines " | " se jud jaati hain)'+(d.waLen>900?' · ⚠ '+d.waLen+' akshar: 900 ke baad kat jayega, edit karke chhota karo':'');
   });
 }
 $('rm-send').onclick=function(){
@@ -1729,7 +1736,10 @@ function loadTrackData(){
 }
 
 /* ═══ MASTERS (admin): users + transporters ═══ */
-function loadMasters(){ loadUsersList(); loadTrList(); }
+function loadMasters(){ loadUsersList(); loadTrList(); loadWa(); }
+function loadWa(){ $('wa-status').textContent='Loading…'; call('waGetSettings',{},function(d){ $('wa-provider').value=d.provider; $('wa-key').value=''; $('wa-status').innerHTML='Abhi: <b>'+esc(d.provider)+'</b> · '+(d.enabled?'<span style="color:var(--green)">config hai</span>':'<span style="color:var(--red)">config nahi</span>')+(d.keySet?' · Waumfy key …'+esc(d.keyEnd):' · Waumfy key set nahi')+(d.notify&&d.notify.length?' · office: '+esc(d.notify.join(', ')):''); }); }
+$('wa-save').onclick=function(){ showLoad('Save...'); call('waSaveSettings',{provider:V('wa-provider'),waumfyKey:V('wa-key')},function(d){ hideLoad(); toast('WhatsApp provider: '+d.provider+(d.enabled?' (chalu)':' (config adhoori)'),'ok'); loadWa(); }); };
+$('wa-test').onclick=function(){ showLoad('Test bhej rahe hain...'); call('waTest',{},function(d){ hideLoad(); toast(d.provider+' status '+d.status+' · '+d.result+(d.error?' · '+d.error:''), d.result==='SENT'?'ok':'err'); }); };
 function loadUsersList(){
   call('getUsers',{},function(us){
     $('us-list').innerHTML=tbl([{h:'Naam',f:function(r){return '<b>'+esc(r.name)+'</b><br><span style="color:var(--t3)">'+esc(r.mob)+'</span>';}},{h:'Role',f:function(r){return '<span class="st st-'+(r.role==='DSR'?'DISPATCHED':'CONFIRMED')+'">'+esc(r.role)+'</span>';}},{h:'Status',f:function(r){return r.active?'<span style="color:var(--green)">Active</span>':'<span class="neg">Band</span>';}},{h:'',f:function(r){return '<button class="btn xs ghost" data-usedit="'+esc(r.mob)+'">Edit</button>';}}],us,'Koi user nahi');
