@@ -162,11 +162,6 @@ body{
   display:flex;align-items:center;gap:10px;min-height:60px;
   white-space:nowrap;overflow:hidden;
 }
-.logo-icon{
-  width:34px;height:34px;background:var(--primary);
-  border-radius:var(--radius-sm);display:grid;place-items:center;color:var(--primary-foreground);
-  font-weight:700;font-size:15px;flex-shrink:0;
-}
 .logo-text{font-size:14px;font-weight:600;color:var(--sidebar-foreground);letter-spacing:-.01em;opacity:0;transition:opacity .2s .1s;white-space:nowrap;}
 .sidebar:hover .logo-text{opacity:1;}
 
@@ -347,22 +342,12 @@ tbody tr:last-child td{border-bottom:none;}
 /* ══════════════════════════════════════
    ALL TASKS
 ══════════════════════════════════════ */
-.user-task-block{background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow-xs);}
-.utb-header{padding:13px 18px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;transition:background .15s;}
-.utb-header:hover{background:var(--secondary);}
-.utb-name{font-size:14px;font-weight:600;}
-.utb-count{font-size:13px;color:var(--muted-foreground);}
-.utb-actions{display:flex;gap:6px;}
-.utb-body{border-top:1px solid var(--border);display:none;}
-.utb-body.open{display:block;}
-
 .users-grid{background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow-xs);}
 
 /* ══════════════════════════════════════
    PROFILE
 ══════════════════════════════════════ */
 .profile-card{background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);padding:28px;max-width:500px;box-shadow:var(--shadow-xs);}
-.profile-avatar-big{width:64px;height:64px;border-radius:50%;background:var(--primary);display:grid;place-items:center;font-size:22px;font-weight:700;color:var(--primary-foreground);margin-bottom:18px;}
 .section-title{font-size:14px;font-weight:600;margin-bottom:14px;padding-top:8px;border-top:1px solid var(--border);margin-top:4px;}
 
 /* ══════════════════════════════════════
@@ -445,7 +430,6 @@ input[type=date],input[type=time],input[type=datetime-local]{color-scheme:inheri
 .holiday-item:last-child{border-bottom:none;}
 
 /* MIS Report */
-.mis-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
 /* overflow:clip use kiya, hidden nahi — hidden wrapper ko scroll container
    bana deta hai aur andar ka sticky header kaam karna band kar deta hai.
    clip se border-radius ki clipping bhi milti hai aur sticky bhi chalta hai. */
@@ -463,9 +447,6 @@ input[type=date],input[type=time],input[type=datetime-local]{color-scheme:inheri
 .mis-table-wrap.mis-scroll-x > table thead th{top:0;}
 .mis-score-bar{height:6px;border-radius:99px;background:var(--muted);margin-top:4px;overflow:hidden;}
 .mis-score-fill{height:100%;border-radius:99px;transition:width .5s ease;}
-.score-positive{color:var(--success);font-weight:600;}
-.score-negative{color:var(--destructive);font-weight:600;}
-.score-zero{color:var(--muted-foreground);font-weight:600;}
 
 /* Comments */
 .comment-item{padding:10px 0;border-bottom:1px solid var(--border);}
@@ -552,10 +533,6 @@ input[type=date],input[type=time],input[type=datetime-local]{color-scheme:inheri
 /* Header select dropdowns in step config */
 .header-select{width:100%;padding:8px 10px;border:1px solid var(--input);border-radius:var(--radius-md);font-size:13px;font-family:inherit;outline:none;background:var(--card);color:var(--foreground);transition:border-color .15s,box-shadow .15s;}
 .header-select:focus{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in srgb,var(--ring) 18%,transparent);}
-.multi-select-headers{display:flex;flex-wrap:wrap;gap:6px;padding:8px;border:1px solid var(--input);border-radius:var(--radius-md);min-height:42px;cursor:text;background:var(--card);}
-.multi-select-headers .hdr-tag{background:var(--accent);color:var(--accent-foreground);font-size:11px;padding:3px 8px;border-radius:var(--radius-sm);font-weight:600;display:flex;align-items:center;gap:4px;cursor:pointer;}
-.multi-select-headers .hdr-tag .rm{color:color-mix(in srgb,var(--accent-foreground) 60%,transparent);font-size:10px;margin-left:2px;}
-
 /* Flat tasks table (used in All Tasks page) */
 .flat-tasks-table{background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);overflow-x:auto;box-shadow:var(--shadow-xs);}
 .bulk-section{margin-top:20px;padding-top:16px;border-top:1px solid var(--border);}

@@ -6,7 +6,7 @@
 // kram na badle (wildcard :id routes ka kram maayne rakhta hai).
 
 module.exports = function registerDashboardRoutes(app, ctx) {
-  const { db, requireAuth, segmentFilter } = ctx;
+  const { db, requireAuth, segmentFilter, handleServerError } = ctx;
 
   app.get('/api/dashboard', requireAuth, async (req, res) => {
     try {
@@ -123,7 +123,7 @@ module.exports = function registerDashboardRoutes(app, ctx) {
       const checklistList  = cRows ? cRows[0] : [];
       // todayPending naam purana hai — ab isme jo bhi list maangi gayi wo aati hai
       res.json({ pending, revised, completed, list, todayPending: [...delegationList, ...checklistList] });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
 };

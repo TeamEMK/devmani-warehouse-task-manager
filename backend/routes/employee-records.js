@@ -19,7 +19,7 @@
 const { calcMisScore } = require('../lib/mis-render');
 
 module.exports = function registerEmployeeRecordsRoutes(app, ctx) {
-  const { db, requireAuth, requireAdminOrHod, computeFmsStats } = ctx;
+  const { db, requireAuth, requireAdminOrHod, computeFmsStats, handleServerError } = ctx;
 
   app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res) => {
     try {
@@ -187,7 +187,7 @@ module.exports = function registerEmployeeRecordsRoutes(app, ctx) {
         .sort((a,b) => a.name.localeCompare(b.name));
 
       res.json({ rows, fmsErrors });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   // ── PC: Users with pending tasks (for smart dropdown) ──
@@ -205,7 +205,7 @@ module.exports = function registerEmployeeRecordsRoutes(app, ctx) {
         ) AND u.role NOT IN ('admin','pc')
         ORDER BY u.name ASC`);
       res.json(rows);
-    } catch(err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch(err) { handleServerError(res, err); }
   });
 
 };

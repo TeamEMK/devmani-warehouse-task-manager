@@ -6,7 +6,7 @@
 // kram na badle (wildcard :id routes ka kram maayne rakhta hai).
 
 module.exports = function registerTransfersRoutes(app, ctx) {
-  const { db, requireAuth, requireAdminOrHod, getTable } = ctx;
+  const { db, requireAuth, requireAdminOrHod, getTable, handleServerError } = ctx;
 
 
   // POST — Create transfer request (user/hod/admin)
@@ -57,7 +57,7 @@ module.exports = function registerTransfersRoutes(app, ctx) {
       }
 
       res.json({ success: true, count: inserted, skipped });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   // GET — Task IDs that already have a pending transfer (for current user's tasks)
@@ -68,7 +68,7 @@ module.exports = function registerTransfersRoutes(app, ctx) {
         [req.session.userId]
       );
       res.json(rows);
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   // GET — Pending transfers for approval (admin sees all, HOD sees dept)
@@ -112,7 +112,7 @@ module.exports = function registerTransfersRoutes(app, ctx) {
       }
 
       res.json(rows);
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   // GET — Transfer count for badge
@@ -135,7 +135,7 @@ module.exports = function registerTransfersRoutes(app, ctx) {
         }
       }
       res.json({ count });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   // PUT — Approve or reject transfer
@@ -153,7 +153,7 @@ module.exports = function registerTransfersRoutes(app, ctx) {
         await db.query(`UPDATE ${table} SET assigned_to=? WHERE id=?`, [tr.to_user, tr.task_id]);
       }
       res.json({ success: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   // GET — My sent transfer requests (for users to track)
@@ -172,7 +172,7 @@ module.exports = function registerTransfersRoutes(app, ctx) {
         r.description = t[0]?.description || '—';
       }
       res.json(rows);
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
 };

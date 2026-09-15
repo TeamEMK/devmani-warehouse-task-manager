@@ -6,7 +6,7 @@
 // kram na badle (wildcard :id routes ka kram maayne rakhta hai).
 
 module.exports = function registerDepartmentsRoutes(app, ctx) {
-  const { db, requireAuth, requireAdmin } = ctx;
+  const { db, requireAuth, requireAdmin, handleServerError } = ctx;
 
   app.get('/api/departments', requireAuth, async (req, res) => {
     try {
@@ -15,7 +15,7 @@ module.exports = function registerDepartmentsRoutes(app, ctx) {
       const [used] = await db.query("SELECT DISTINCT department FROM users WHERE department IS NOT NULL AND department<>''");
       const all = new Set([...savedList, ...used.map(u => u.department)]);
       res.json([...all].sort((a,b) => a.localeCompare(b)));
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   app.post('/api/departments', requireAuth, requireAdmin, async (req, res) => {
@@ -31,7 +31,7 @@ module.exports = function registerDepartmentsRoutes(app, ctx) {
       await db.query('INSERT INTO app_settings (key_name,value) VALUES (?,?) ON CONFLICT (key_name) DO UPDATE SET value = EXCLUDED.value',
         ['departments', JSON.stringify(list)]);
       res.json(list.sort((a,b) => a.localeCompare(b)));
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
 };

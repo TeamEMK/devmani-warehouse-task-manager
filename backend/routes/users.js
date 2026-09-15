@@ -8,7 +8,7 @@
 const bcrypt = require('bcryptjs');
 
 module.exports = function registerUsersRoutes(app, ctx) {
-  const { db, requireAuth, requireAdmin, segmentFilter, authCacheDrop } = ctx;
+  const { db, requireAuth, requireAdmin, segmentFilter, authCacheDrop, handleServerError } = ctx;
   const opsAccess = require('../lib/ops-access');
 
   app.get('/api/users', requireAuth, async (req, res) => {
@@ -20,7 +20,7 @@ module.exports = function registerUsersRoutes(app, ctx) {
       // Michelin Ops access (ops_users) — Users page me role/pages dikhane ke liye
       try { const om = await opsAccess.opsInfoMap(db, rows); rows.forEach(r => { r.ops = om[r.id] || null; }); } catch (e) { console.error('ops info', e.message); }
       res.json(rows);
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   app.post('/api/users', requireAuth, requireAdmin, async (req, res) => {
@@ -37,7 +37,7 @@ module.exports = function registerUsersRoutes(app, ctx) {
         [name, email, notification_email||'', bcrypt.hashSync(password,10), role||'user', viewOnly, phone||null, department||'', week_off||'', extra_off||'', staffType]);
       if (req.body.ops_role !== undefined) await opsAccess.upsertOpsForMain(db, { id: ins.insertId, name, email, phone }, { opsRole: req.body.ops_role, perms: req.body.ops_perms, password: req.body.ops_password });
       res.json({ success: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   app.put('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
@@ -60,7 +60,7 @@ module.exports = function registerUsersRoutes(app, ctx) {
       authCacheDrop(req.params.id);
       if (req.body.ops_role !== undefined) await opsAccess.upsertOpsForMain(db, { id: Number(req.params.id), name, email, phone }, { opsRole: req.body.ops_role, perms: req.body.ops_perms, password: req.body.ops_password });
       res.json({ success: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   app.put('/api/users/:id/password', requireAuth, requireAdmin, async (req, res) => {
@@ -71,7 +71,7 @@ module.exports = function registerUsersRoutes(app, ctx) {
         [bcrypt.hashSync(password,10), req.params.id]);
       authCacheDrop(req.params.id);   // purane token turant band ho jayein
       res.json({ success: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   app.delete('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
@@ -79,7 +79,7 @@ module.exports = function registerUsersRoutes(app, ctx) {
       if (parseInt(req.params.id) === req.session.userId) return res.status(400).json({ error: 'Cannot delete yourself' });
       await db.query('DELETE FROM users WHERE id=?', [req.params.id]);
       res.json({ success: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   // Bulk add users via CSV
@@ -97,7 +97,7 @@ module.exports = function registerUsersRoutes(app, ctx) {
         added++;
       }
       res.json({ success: true, added, skipped, errors });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
 };

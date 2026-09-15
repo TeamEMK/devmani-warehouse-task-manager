@@ -80,6 +80,7 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 const ROUTE_CTX = {
   db,
   requireAuth, requireAdmin, requireAdminOrHod, requireAdminOrPC,
+  handleServerError,
   // Jo route session_version ya view_only badalta hai, wo ise bulaye — warna
   // requireAuth ka cache kuch second tak purani baat maanta rahega.
   authCacheDrop,
@@ -335,7 +336,7 @@ app.post('/api/admin/run-reminders', requireAuth, requireAdmin, async (req, res)
   try {
     const r = await runDelegationReminders();
     res.json(r);
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Kick off scheduler after SMTP verify (deferred 5s so verify can finish first)
@@ -657,7 +658,7 @@ app.post('/api/admin/whatsapp-summary', requireAuth, requireAdmin, async (req, r
     if (mode === 'pending' || mode === 'both') out.pending = await runDailyChecklistWhatsApp(common);
     if (mode === 'mis' || mode === 'both') out.mis = await runWeeklyChecklistMIS(common);
     res.json(mode === 'pending' ? out.pending : out);
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // One-time migration helper — purane checklist rows me frequency NULL hai
@@ -716,7 +717,7 @@ app.post('/api/admin/backfill-frequency', requireAuth, requireAdmin, async (req,
     }
     console.log(`  🔁 Frequency backfill: ${updated} rows updated`);
     res.json({ applied: true, scanned: rows.length, updated, set: summary, couldNotInfer: unknown });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Kick off WhatsApp scheduler. Interval hamesha chalta hai; har tick par
@@ -904,6 +905,13 @@ function requireAdminOrHod(req, res, next) {
 function requireAdminOrPC(req, res, next) {
   if (req.session.role === 'admin' || req.session.role === 'pc') return next();
   res.status(403).json({ error: 'Admin or PC only' });
+}
+
+// Shared fallback for route `catch` blocks — same 500 response repeated
+// ~75 times across server.js and routes/*.js before this was factored out.
+function handleServerError(res, err) {
+  console.error(err);
+  res.status(500).json({ error: 'Server error. Please try again.' });
 }
 
 
@@ -1384,7 +1392,7 @@ app.post('/api/verify-password', requireAuth, async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: 'User not found' });
     if (!bcrypt.compareSync(pw, rows[0].password)) return res.status(401).json({ error: 'Incorrect password' });
     res.json({ ok: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 app.post('/api/login', async (req, res) => {
@@ -1412,7 +1420,7 @@ app.post('/api/login', async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
     res.json({ id: user.id, name: user.name, email: user.email, role: user.role, token });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 app.post('/api/logout', (req, res) => {
@@ -1450,7 +1458,7 @@ app.get('/api/me', requireAuth, async (req, res) => {
     rows[0].extra_off = rows[0].extra_off || '';
     rows[0].isFmsDoer = isFmsDoer;
     res.json(rows[0]);
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // ══════════════════════════════════════════════════════
@@ -1527,7 +1535,7 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
       return res.json({ grouped: Object.values(grouped) });
     }
     res.json({ tasks });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 app.post('/api/tasks', requireAuth, async (req, res) => {
@@ -1575,7 +1583,7 @@ app.post('/api/tasks', requireAuth, async (req, res) => {
       await db.query(`INSERT INTO checklist_tasks (description,assigned_to,assigned_by,due_date,status,priority,remarks) VALUES (?,?,?,?,?,?,?)`, [desc, targetUser, req.session.userId, date, 'pending', priority||'low', remarks||'']);
     }
     res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 app.post('/api/tasks/bulk-checklist', requireAuth, requireAdmin, async (req, res) => {
@@ -1595,7 +1603,7 @@ app.post('/api/tasks/bulk-checklist', requireAuth, requireAdmin, async (req, res
     const values = cleanDates.map(date => [desc, parseInt(assignedTo), req.session.userId, date, 'pending', priority||'low', remarks||'', freq]);
     await db.query(`INSERT INTO checklist_tasks (description,assigned_to,assigned_by,due_date,status,priority,remarks,frequency) VALUES ?`, [values]);
     res.json({ success: true, count: cleanDates.length, skippedSundays: dates.length - cleanDates.length });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // ── Proof of work — photo base64 ke roop me seedha DB me store hoti hai ──
@@ -1628,7 +1636,7 @@ app.post('/api/tasks/:id/proof', requireAuth, async (req, res) => {
       [dataUrl, isReplace ? 1 : 0, req.params.id]);
 
     res.json({ success: true, replaced: isReplace });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // ── Proof photo dekhne ke liye — image alag se aati hai (list me nahi bhejte) ──
@@ -1644,7 +1652,7 @@ app.get('/api/tasks/:id/proof', requireAuth, async (req, res) => {
     if (!canSeeOthers && task.assigned_to !== req.session.userId) return res.status(403).json({ error: 'Not allowed' });
     if (!task.proof_image) return res.status(404).json({ error: 'No proof photo uploaded for this task' });
     res.json({ image: task.proof_image, replaced: task.proof_replaced });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // ── Proof of work — VIDEO. Photo se bilkul alag slot hai (dono saath chal sakte hain) ──
@@ -1713,7 +1721,7 @@ app.post('/api/tasks/:id/proof-video', requireAuth,
         .catch(e => console.error('Old proof video delete failed:', e.message));
     }
     res.json({ success: true, replaced: !!oldFileId });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // ── Proof video dekhne ke liye — Drive ka preview link ──
@@ -1737,7 +1745,7 @@ app.get('/api/tasks/:id/proof-video', requireAuth, async (req, res) => {
       previewUrl: `https://drive.google.com/file/d/${task.proof_video_id}/preview`,
       downloadUrl: `https://drive.google.com/uc?export=download&id=${task.proof_video_id}`,
     });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // ══════════════════════════════════════════════════════
@@ -1758,7 +1766,7 @@ app.get('/api/tasks/:id/remark', requireAuth, async (req, res) => {
     const canSee = role === 'admin' || role === 'hod' || role === 'pc' || task.assigned_to === req.session.userId;
     if (!canSee) return res.status(403).json({ error: 'Not allowed' });
     res.json({ remark: task.doer_remark || '', canEdit: role === 'admin' });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Add / edit — doer sirf pehli baar (khaali par), admin kabhi bhi
@@ -1789,7 +1797,7 @@ app.post('/api/tasks/:id/remark', requireAuth, async (req, res) => {
       [remark, req.params.id]);
     if (!u.affectedRows) return res.status(400).json({ error: 'Remark already added — it cannot be changed. Only an admin can edit it.' });
     res.json({ success: true, remark });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Delete — sirf admin
@@ -1799,7 +1807,7 @@ app.delete('/api/tasks/:id/remark', requireAuth, requireAdmin, async (req, res) 
     const [r] = await db.query(`UPDATE ${table} SET doer_remark=NULL WHERE id=?`, [req.params.id]);
     if (!r.affectedRows) return res.status(404).json({ error: 'Task not found' });
     res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // ── Video storage setup theek hai ya nahi — pehli upload se pehle yahan check karo ──
@@ -1851,7 +1859,7 @@ app.put('/api/tasks/:id/status', requireAuth, async (req, res) => {
       else await db.query(`UPDATE ${table} SET status=?,waiting_approval=0,completed_at=CASE WHEN ?='completed' THEN NOW() ELSE NULL END WHERE id=?`, [status, status, req.params.id]);
     }
     res.json({ success: true, needsApproval: false });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 app.get('/api/tasks/:id/detail', requireAuth, requireAdmin, async (req, res) => {
@@ -1861,7 +1869,7 @@ app.get('/api/tasks/:id/detail', requireAuth, requireAdmin, async (req, res) => 
     const [rows] = await db.query(`SELECT t.*,TO_CHAR(t.due_date,'YYYY-MM-DD') AS due_date FROM ${table} t WHERE t.id=?`, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Task not found' });
     res.json({ task: rows[0] });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 app.put('/api/tasks/:id/edit', requireAuth, requireAdmin, async (req, res) => {
@@ -1871,7 +1879,7 @@ app.put('/api/tasks/:id/edit', requireAuth, requireAdmin, async (req, res) => {
     if (type === 'delegation') await db.query(`UPDATE ${table} SET description=?,due_date=?,priority=?,approval=?,remarks=? WHERE id=?`, [desc, date, priority||'low', approval||'no', remarks||'', req.params.id]);
     else await db.query(`UPDATE ${table} SET description=?,due_date=?,remarks=? WHERE id=?`, [desc, date, remarks||'', req.params.id]);
     res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 app.delete('/api/tasks/:id', requireAuth, requireAdmin, async (req, res) => {
@@ -1887,7 +1895,7 @@ app.delete('/api/tasks/:id', requireAuth, requireAdmin, async (req, res) => {
     }
     await db.query(`DELETE FROM ${table} WHERE id=?`, [req.params.id]);
     res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Bulk delete by user — v16: completed tasks excluded
@@ -1897,7 +1905,7 @@ app.delete('/api/tasks/user/:userId', requireAuth, requireAdmin, async (req, res
     const table = getTable(type || 'delegation');
     await db.query(`DELETE FROM ${table} WHERE assigned_to = ? AND status != 'completed'`, [req.params.userId]);
     res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Transfer pending tasks to today
@@ -1909,7 +1917,7 @@ app.put('/api/tasks/user/:userId/transfer-today', requireAuth, requireAdmin, asy
     await db.query(`UPDATE ${table} SET due_date=? WHERE assigned_to=? AND status='pending'`,
       [today, req.params.userId]);
     res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 app.delete('/api/tasks/delete-by-date', requireAuth, requireAdmin, async (req, res) => {
@@ -1918,7 +1926,7 @@ app.delete('/api/tasks/delete-by-date', requireAuth, requireAdmin, async (req, r
     if (!date) return res.status(400).json({ error: 'Date required' });
     const [result] = await db.query('DELETE FROM checklist_tasks WHERE due_date=?', [date]);
     res.json({ success: true, deleted: result.affectedRows });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Count checklist tasks for a user (all time or by year, optionally filtered by frequency).
@@ -1935,7 +1943,7 @@ app.get('/api/tasks/checklist-year-count', requireAuth, requireAdmin, async (req
     const [rows] = await db.query(
       `SELECT COUNT(*) AS count FROM checklist_tasks WHERE ${where.join(' AND ')}`, params);
     res.json({ count: rows[0].count });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Ek employee ke distinct checklist task naam (bulk-delete ke "specific task"
@@ -1951,7 +1959,7 @@ app.get('/api/tasks/checklist-task-names', requireAuth, requireAdmin, async (req
       `SELECT description, COUNT(*) AS count FROM checklist_tasks
        WHERE ${where.join(' AND ')} GROUP BY description ORDER BY description`, params);
     res.json(rows);
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Delete checklist tasks for a user — optionally filtered by frequency and/or a specific task.
@@ -1970,7 +1978,7 @@ app.post('/api/tasks/checklist-year-delete', requireAuth, requireAdmin, async (r
     const [result] = await db.query(
       `DELETE FROM checklist_tasks WHERE ${where.join(' AND ')}`, params);
     res.json({ success: true, deleted: result.affectedRows });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Bulk EDIT checklist tasks — employee (+ frequency / specific task) ke pending/revised
@@ -2012,7 +2020,7 @@ app.post('/api/tasks/checklist-bulk-edit', requireAuth, requireAdmin, async (req
       `UPDATE checklist_tasks SET ${sets.join(', ')} WHERE ${where.join(' AND ')}`,
       [...setParams, ...whereParams]);
     res.json({ success: true, updated: r.affectedRows });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 require('./routes/queries')(app, ROUTE_CTX);
@@ -2026,48 +2034,7 @@ require('./routes/approvals')(app, ROUTE_CTX);
 
 // ══════════════════════════════════════════════════════
 // LEAVES
-// ──────────────────────────────────────────────────────
-// Full-day leave approve hone par us user ke un dates ke PENDING checklist tasks
-// agle working day par shift ho jaate hain (week off / extra off / doosri approved
-// leave dates skip karke). Kaam delete nahi hota — bas aage khisak jaata hai,
-// isliye MIS score bhi galat pending/overdue se kharab nahi hota.
 // ══════════════════════════════════════════════════════
-// Chhutti / agla working day ka hisaab — sirf date logic, isliye alag file me.
-const { parseWeekOff: _parseWeekOff, parseExtraOff: _parseExtraOff,
-        isExtraOff: _isExtraOff, toISO: _toISO,
-        nextWorkingDay: _nextWorkingDay } = require('./lib/workdays');
-
-async function shiftChecklistTasksForLeave(userId, fromISO, toISO) {
-  const [uRows] = await db.query('SELECT week_off, extra_off FROM users WHERE id=?', [userId]);
-  if (!uRows.length) return 0;
-  const weekOff = _parseWeekOff(uRows[0].week_off);
-  const extraOff = _parseExtraOff(uRows[0].extra_off);
-
-  // Is user ki saari approved full-day leave dates — shift karte waqt inhe bhi skip karna hai
-  const [lvRows] = await db.query(
-    `SELECT TO_CHAR(from_date,'YYYY-MM-DD') AS f, TO_CHAR(to_date,'YYYY-MM-DD') AS t
-     FROM leave_requests WHERE user_id=? AND status='approved' AND leave_type='full_day'`, [userId]);
-  const leaveDates = new Set();
-  for (const lv of lvRows) {
-    const d = new Date(lv.f + 'T00:00:00'), end = new Date(lv.t + 'T00:00:00');
-    let guard = 0;
-    while (d <= end && guard++ < 400) { leaveDates.add(_toISO(d)); d.setDate(d.getDate()+1); }
-  }
-
-  // Sirf PENDING tasks shift hote hain — completed ko haath nahi lagate
-  const [tasks] = await db.query(
-    `SELECT id, TO_CHAR(due_date,'YYYY-MM-DD') AS due FROM checklist_tasks
-     WHERE assigned_to=? AND status='pending' AND due_date BETWEEN ? AND ?`, [userId, fromISO, toISO]);
-
-  let shifted = 0;
-  for (const t of tasks) {
-    const next = _nextWorkingDay(t.due, weekOff, extraOff, leaveDates);
-    if (!next) continue;
-    await db.query('UPDATE checklist_tasks SET due_date=? WHERE id=?', [next, t.id]);
-    shifted++;
-  }
-  return shifted;
-}
 
 // HR department wale users sabki leave dekh/approve kar sakte hain (role
 // chahe 'user' hi ho). Department string se pehchaan — koi extra column nahi.
@@ -2105,7 +2072,7 @@ app.get('/api/leaves', requireAuth, async (req, res) => {
        LEFT JOIN users a ON lr.approver_id=a.id
        ${where} ORDER BY lr.id DESC LIMIT 500`, params);
     res.json(rows);
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Apply — koi bhi logged-in user apni leave apply kar sakta hai
@@ -2121,7 +2088,7 @@ app.post('/api/leaves', requireAuth, async (req, res) => {
       `INSERT INTO leave_requests (user_id, leave_type, from_date, to_date, reason, status) VALUES (?,?,?,?,?,'pending')`,
       [req.session.userId, leave_type, from_date, to_date, reason.trim()]);
     res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Approve / reject — admin sabki, HOD sirf apne department ki
@@ -2180,7 +2147,7 @@ app.put('/api/leaves/:id', requireAuth, async (req, res) => {
     }
 
     res.json({ success: true, shifted });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Cancel — apni pending request (admin koi bhi hata sakta hai)
@@ -2194,7 +2161,7 @@ app.delete('/api/leaves/:id', requireAuth, async (req, res) => {
     if (!isAdmin && lv.status !== 'pending') return res.status(400).json({ error: 'A leave that has already been decided cannot be cancelled' });
     await db.query('DELETE FROM leave_requests WHERE id=?', [req.params.id]);
     res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // ══════════════════════════════════════════════════════
@@ -2232,7 +2199,7 @@ app.get('/api/mis', requireAuth, async (req, res) => {
     const [delRows] = await db.query(`SELECT u.id AS "userId",u.name,COUNT(*) AS total,SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,SUM(CASE WHEN t.status='revised' THEN 1 ELSE 0 END) AS revised,SUM(CASE WHEN t.status='pending' AND t.due_date<CURRENT_DATE THEN 1 ELSE 0 END) AS overdue,SUM(CASE WHEN t.status='completed' AND t.completed_at IS NOT NULL AND DATE(t.completed_at)>t.due_date THEN 1 ELSE 0 END) AS not_on_time FROM delegation_tasks t JOIN users u ON t.assigned_to=u.id WHERE t.due_date BETWEEN ? AND ? ${deptFilter} GROUP BY u.id,u.name ORDER BY u.name`, deptParams);
     const [chlRows] = await db.query(`SELECT u.id AS "userId",u.name,COUNT(*) AS total,SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,0 AS revised,SUM(CASE WHEN t.status='pending' AND t.due_date<CURRENT_DATE THEN 1 ELSE 0 END) AS overdue,SUM(CASE WHEN t.status='completed' AND t.completed_at IS NOT NULL AND DATE(t.completed_at)>t.due_date THEN 1 ELSE 0 END) AS not_on_time FROM checklist_tasks t JOIN users u ON t.assigned_to=u.id WHERE t.due_date BETWEEN ? AND ? ${deptFilter} GROUP BY u.id,u.name ORDER BY u.name`, deptParams);
     res.json({ delegation: calc(delRows), checklist: calc(chlRows) });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Admin-only: date range daalo -> saare users ki full MIS report (Checklist +
@@ -2523,7 +2490,7 @@ app.get('/api/fms-dashboard', requireAuth, async (req, res) => {
     }
 
     res.json({ rows: allRows, pendingCount: allRows.length, inFms: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 app.get('/api/mis/detail', requireAuth, async (req, res) => {
@@ -2535,7 +2502,7 @@ app.get('/api/mis/detail', requireAuth, async (req, res) => {
     const table = type === 'delegation' ? 'delegation_tasks' : 'checklist_tasks';
     const [tasks] = await db.query(`SELECT t.id,t.description,t.status,t.doer_remark,TO_CHAR(t.due_date,'YYYY-MM-DD') AS due_date,TO_CHAR(t.completed_at,'YYYY-MM-DD') AS completed_at,TO_CHAR(t.completed_at,'YYYY-MM-DD HH12:MI AM') AS completed_at_ts,t.proof_image IS NOT NULL AS has_proof,t.proof_video_id IS NOT NULL AS has_video,u2.name AS assigned_by_name FROM ${table} t JOIN users u2 ON t.assigned_by=u2.id WHERE t.assigned_to=? AND t.due_date BETWEEN ? AND ? ORDER BY t.due_date ASC`, [userId, start, end]);
     res.json({ tasks });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // ── All MIS — per employee combined score ──
@@ -2692,7 +2659,7 @@ app.get('/api/mis/all', requireAuth, async (req, res) => {
     // Error hone par object bhejte hain taaki frontend warning dikha sake.
     if (fmsErrors.length) return res.json({ rows, fmsErrors });
     res.json(rows);
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // ── FMS MIS ──
@@ -2715,7 +2682,7 @@ app.get('/api/mis/fms', requireAuth, async (req, res) => {
     // Same shared engine jo /api/mis/all use karta hai => numbers HAMESHA match honge
     const fmsStats = await computeFmsStats(hodDept);
     res.json(fmsStats.perFms);
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // ══════════════════════════════════════════════════════
@@ -2766,7 +2733,7 @@ app.get('/api/fms', requireAuth, requireAdmin, async (req, res) => {
     // createdByName kahin use nahi hota, isliye null aana bilkul theek hai.
     const [sheets] = await db.query(`SELECT f.*,u.name AS "createdByName" FROM fms_sheets f LEFT JOIN users u ON f.created_by=u.id ORDER BY f.created_at DESC`);
     res.json(sheets);
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // ZAROORI: ye route /api/fms/:id se PEHLE aana chahiye, warna ":id" wildcard
@@ -2816,7 +2783,7 @@ app.get('/api/fms/sheet-column-values', requireAuth, requireAdmin, async (req, r
   } catch (err) {
     if (err.code === 403) return res.status(400).json({ error: 'Sheet access denied. Share with service account.' });
     if (err.code === 404) return res.status(400).json({ error: 'Sheet not found.' });
-    console.error(err); res.status(500).json({ error: 'Server error. Please try again.' });
+    handleServerError(res, err);
   }
 });
 
@@ -2850,7 +2817,7 @@ app.get('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
       }
     } catch (e) { console.error('fms GET intake heal skipped:', e.message); }
     res.json({ sheet: sheets[0], steps });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 app.post('/api/fms', requireAuth, requireAdmin, async (req, res) => {
@@ -2877,7 +2844,7 @@ app.post('/api/fms', requireAuth, requireAdmin, async (req, res) => {
     }
     await conn.commit();
     res.json({ success: true, id: fmsId });
-  } catch (err) { await conn.rollback(); console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); } finally { conn.release(); }
+  } catch (err) { await conn.rollback(); handleServerError(res, err); } finally { conn.release(); }
 });
 
 app.put('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
@@ -2906,14 +2873,14 @@ app.put('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
     }
     await conn.commit();
     res.json({ success: true });
-  } catch (err) { await conn.rollback(); console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); } finally { conn.release(); }
+  } catch (err) { await conn.rollback(); handleServerError(res, err); } finally { conn.release(); }
 });
 
 app.delete('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     await db.query('DELETE FROM fms_sheets WHERE id=?', [req.params.id]);
     res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Intake Form config save (admin). Config: { enabled, targetSheetId, targetTab, targetHeaderRow, fields:[...] }
@@ -2985,7 +2952,7 @@ app.put('/api/fms/:id/intake', requireAuth, requireAdmin, async (req, res) => {
     }
     await db.query('UPDATE fms_sheets SET intake_config=? WHERE id=?', [json, req.params.id]);
     res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // ── Fetch headers ONLY (fast — just one row from sheet) ──
@@ -3015,7 +2982,7 @@ app.post('/api/fms/fetch-headers', requireAuth, async (req, res) => {
   } catch (err) {
     if (err.code === 403) return res.status(400).json({ error: 'Access denied. Share sheet with service account.' });
     if (err.code === 404) return res.status(400).json({ error: 'Sheet not found. Check Sheet ID.' });
-    console.error(err); res.status(500).json({ error: 'Server error. Please try again.' });
+    handleServerError(res, err);
   }
 });
 
@@ -3043,7 +3010,7 @@ app.get('/api/fms/:id/sync', requireAuth, requireAdmin, async (req, res) => {
     if (err.message?.includes('ENOENT') || err.message?.includes('credentials')) return res.status(500).json({ error: 'credentials.json not found.' });
     if (err.code === 403) return res.status(400).json({ error: 'Access denied. Share sheet with service account.' });
     if (err.code === 404) return res.status(400).json({ error: 'Sheet not found. Check Sheet ID.' });
-    console.error(err); res.status(500).json({ error: 'Server error. Please try again.' });
+    handleServerError(res, err);
   }
 });
 
@@ -3063,7 +3030,7 @@ app.get('/api/fms-tasks', requireAuth, async (req, res) => {
       [list] = await db.query(`SELECT DISTINCT fs.* FROM fms_sheets fs JOIN fms_steps fst ON fst.fms_id=fs.id JOIN fms_step_doers fsd ON fsd.step_id=fst.id WHERE fsd.user_id=? ORDER BY fs.created_at DESC`, [uid]);
     }
     res.json(list);
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Get FMS steps for tasks view
@@ -3085,7 +3052,7 @@ app.get('/api/fms-tasks/:id', requireAuth, async (req, res) => {
       step.extraRows = extraByStep[step.id] || [];
     }
     res.json({ sheet: sheets[0], steps });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Get pending rows for a step (plan filled, actual empty)
@@ -3144,7 +3111,7 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
   } catch (err) {
     if (err.code === 403) return res.status(400).json({ error: 'Access denied.' });
     if (err.code === 404) return res.status(400).json({ error: 'Sheet not found.' });
-    console.error(err); res.status(500).json({ error: 'Server error. Please try again.' });
+    handleServerError(res, err);
   }
 });
 
@@ -3199,7 +3166,7 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/done-rows', requireAuth, async (req
     res.json({ rows: matchedRows, total: matchedRows.length });
   } catch (err) {
     if (err.code === 403) return res.status(400).json({ error: 'Access denied.' });
-    console.error(err); res.status(500).json({ error: 'Server error. Please try again.' });
+    handleServerError(res, err);
   }
 });
 
@@ -3227,7 +3194,7 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/update-extra', requireAuth, async 
     res.json({ success: true });
   } catch (err) {
     if (err.code === 403) return res.status(400).json({ error: 'Access denied. Sheet write permission needed.' });
-    console.error(err); res.status(500).json({ error: 'Server error. Please try again.' });
+    handleServerError(res, err);
   }
 });
 
@@ -3329,7 +3296,7 @@ app.get('/api/fms-tasks/:fmsId/summary', requireAuth, async (req, res) => {
     });
   } catch (err) {
     if (err.code === 403) return res.status(400).json({ error: 'Sheet not shared with the service account.' });
-    console.error(err); res.status(500).json({ error: 'Server error. Please try again.' });
+    handleServerError(res, err);
   }
 });
 
@@ -3483,7 +3450,7 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, re
     res.json({ success: true });
   } catch (err) {
     if (err.code === 403) return res.status(400).json({ error: 'Access denied. Sheet write permission needed.' });
-    console.error(err); res.status(500).json({ error: 'Server error. Please try again.' });
+    handleServerError(res, err);
   }
 });
 
@@ -3550,7 +3517,7 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/upload', requireAuth,
     if (err.type === 'entity.too.large') {
       return res.status(400).json({ error: `File is too large — the limit is ${FMS_FILE_MAX_BYTES / 1024 / 1024}MB` });
     }
-    console.error(err); res.status(500).json({ error: 'Server error. Please try again.' });
+    handleServerError(res, err);
   }
 });
 
@@ -3590,7 +3557,7 @@ app.get('/api/fms-tasks/:fmsId/find-record', requireAuth, async (req, res) => {
     const values = {};
     config.fields.forEach(f => { const i = colToIdx(f.col); values[f.col] = i >= 0 ? String(row[i] || '') : ''; });
     res.json({ rowNumber: foundRow, values, fields: config.fields });
-  } catch (err) { if (err.code === 403) return res.status(400).json({ error: 'Access denied.' }); console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { if (err.code === 403) return res.status(400).json({ error: 'Access denied.' }); handleServerError(res, err); }
 });
 
 // EDIT RECORD: existing row ke intake fields update karo (append nahi, usi row me likho)
@@ -3626,7 +3593,7 @@ app.post('/api/fms-tasks/:fmsId/update-record', requireAuth, async (req, res) =>
     if (!batchData.length) return res.status(400).json({ error: 'Nothing to update' });
     await sheetsApi.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: 'USER_ENTERED', data: batchData } });
     res.json({ success: true });
-  } catch (err) { if (err.code === 403) return res.status(400).json({ error: 'Access denied. Sheet write permission needed.' }); console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { if (err.code === 403) return res.status(400).json({ error: 'Access denied. Sheet write permission needed.' }); handleServerError(res, err); }
 });
 
 // BULK ADD: ek saath kaafi records (CSV se) — har row ek naye row me append
@@ -3671,7 +3638,7 @@ app.post('/api/fms-tasks/:fmsId/bulk-intake', requireAuth, async (req, res) => {
     if (!batchData.length) return res.status(400).json({ error: 'Nothing to write — please check the CSV columns' });
     await sheetsApi.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: 'USER_ENTERED', data: batchData } });
     res.json({ success: true, added: rows.length, firstRow: startRow });
-  } catch (err) { if (err.code === 403) return res.status(400).json({ error: 'Access denied. Sheet write permission needed.' }); console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { if (err.code === 403) return res.status(400).json({ error: 'Access denied. Sheet write permission needed.' }); handleServerError(res, err); }
 });
 
 // Config lao (submit form render karne ke liye) — access-wale users
@@ -3698,7 +3665,7 @@ app.get('/api/fms-tasks/:id/intake', requireAuth, async (req, res) => {
       } catch (e) { console.error('intake GET heal skipped:', e.message); }
     }
     res.json({ config });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Intake file (image/PDF) → Drive; viewer link return karta hai (sheet me link jaata hai)
@@ -3756,7 +3723,7 @@ app.post('/api/fms-tasks/:fmsId/intake-upload', requireAuth,
     res.json({ success: true, url, fileName });
   } catch (err) {
     if (err.type === 'entity.too.large') return res.status(400).json({ error: `File is too large — the limit is ${FMS_FILE_MAX_BYTES / 1024 / 1024}MB` });
-    console.error(err); res.status(500).json({ error: 'Server error. Please try again.' });
+    handleServerError(res, err);
   }
 });
 
@@ -3822,7 +3789,7 @@ app.post('/api/fms-tasks/:fmsId/intake', requireAuth, async (req, res) => {
     res.json({ success: true, row: nextRow });
   } catch (err) {
     if (err.code === 403) return res.status(400).json({ error: 'Access denied. Sheet write permission needed.' });
-    console.error(err); res.status(500).json({ error: 'Server error. Please try again.' });
+    handleServerError(res, err);
   }
 });
 
@@ -3880,7 +3847,7 @@ app.post('/api/fms-tasks/:fmsId/intake-nextstep', requireAuth, async (req, res) 
     res.json({ success: true });
   } catch (err) {
     if (err.code === 403) return res.status(400).json({ error: 'Access denied. Sheet write permission needed.' });
-    console.error(err); res.status(500).json({ error: 'Server error. Please try again.' });
+    handleServerError(res, err);
   }
 });
 
@@ -3922,7 +3889,7 @@ app.get('/api/fms-tasks/:fmsId/plan-pending', requireAuth, async (req, res) => {
     res.json({ rows, label: ns.label || 'Planned date' });
   } catch (err) {
     if (err.code === 403) return res.status(400).json({ error: 'Access denied.' });
-    console.error(err); res.status(500).json({ error: 'Server error. Please try again.' });
+    handleServerError(res, err);
   }
 });
 
@@ -4083,7 +4050,7 @@ app.get('/api/calendar/tasks', requireAuth, async (req, res) => {
     ].filter(x => x.date);
 
     res.json({ items });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+  } catch (err) { handleServerError(res, err); }
 });
 
 // Admin/HOD — kisi bhi user ke FMS rows ek date range me (MIS drill-down).

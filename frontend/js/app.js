@@ -17,13 +17,15 @@
 let _dbmTasks = [];
 let _dbmStatusFilter = 'pending';
 
+function todayISO() { return new Date().toISOString().split('T')[0]; }
+
 async function openDelegateByMeModal() {
   _dbmStatusFilter = 'pending';
   document.querySelectorAll('#delegateByMeModal .tab').forEach(t => t.classList.remove('active'));
   document.getElementById('dbmTabPending').classList.add('active');
   const searchEl = document.getElementById('dbmSearch');
   if (searchEl) searchEl.value = '';
-  document.getElementById('delegateByMeModal').classList.add('open');
+  openModal('delegateByMeModal');
   document.getElementById('dbmContent').innerHTML = '<div class="empty">Loading…</div>';
 
   // Sirf delegation tasks fetch karte hain (checklist self-assign hota hai mostly)
@@ -66,7 +68,7 @@ function renderDbmTable() {
     return;
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayISO();
   const rows = filtered.map(t => {
     const isOverdue = t.status === 'pending' && t.due_date && t.due_date < today;
     return `<tr>
@@ -193,8 +195,6 @@ function withSeg(url) {
   return url + (url.includes('?') ? '&' : '?') + q;
 }
 let holidays = JSON.parse(localStorage.getItem('tm_holidays') || '[]');
-let transferMode = false;
-let pendingTransferTaskIds = []; // task IDs that already have pending transfer
 // Dashboard date sort: 0=default(API order), 1=asc(oldest first), 2=desc(newest first)
 let _dashDateSortState = 0;
 
@@ -369,7 +369,7 @@ async function removeProfileImage() {
 }
 
 function setMinDates() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayISO();
   ['dDate','cDate','hDate'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.min = today;
@@ -535,10 +535,10 @@ function openApplyLeave() {
   document.getElementById('leaveErr').style.display='none';
   document.getElementById('lvType').value='full_day';
   document.getElementById('lvReason').value='';
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayISO();
   document.getElementById('lvFrom').value=today;
   document.getElementById('lvTo').value=today;
-  document.getElementById('applyLeaveModal').classList.add('open');
+  openModal('applyLeaveModal');
 }
 
 async function submitLeave() {
@@ -664,9 +664,6 @@ async function loadLeaveBadge() {
 // ══════════════════════════════════════════════════════
 // QUERY MODULE
 // ══════════════════════════════════════════════════════
-// canAnswer = Admin ya HR. Wahi answer/reject kar sakte hain aur sabki queries dekhte hain.
-function _canAnswerQueries() { return !!(ME && (ME.role === 'admin' || isHR())); }
-
 // User ke liye "seen" tracking — answered/rejected queries jo user ne khol ke dekhi
 function _qSeen() { try { return new Set(JSON.parse(localStorage.getItem('querySeen_' + ME.id) || '[]')); } catch(e) { return new Set(); } }
 function _qMarkSeen(ids) {
@@ -816,7 +813,7 @@ function openNewQuery() {
   document.getElementById('sendQueryBtn').textContent = 'Send Query';
   document.getElementById('newQueryErr').style.display = 'none';
   document.getElementById('newQueryText').value = '';
-  document.getElementById('newQueryModal').classList.add('open');
+  openModal('newQueryModal');
   setTimeout(() => document.getElementById('newQueryText').focus(), 50);
 }
 
@@ -829,7 +826,7 @@ function openEditQuery(id) {
   document.getElementById('sendQueryBtn').textContent = 'Save Changes';
   document.getElementById('newQueryErr').style.display = 'none';
   document.getElementById('newQueryText').value = q.message || '';
-  document.getElementById('newQueryModal').classList.add('open');
+  openModal('newQueryModal');
   setTimeout(() => document.getElementById('newQueryText').focus(), 50);
 }
 
@@ -871,7 +868,7 @@ function openResolveQuery(id) {
   document.getElementById('rqTime').textContent = q.created_at || '';
   document.getElementById('rqMessage').textContent = q.message || '';
   document.getElementById('rqAnswer').value = '';
-  document.getElementById('resolveQueryModal').classList.add('open');
+  openModal('resolveQueryModal');
   setTimeout(() => document.getElementById('rqAnswer').focus(), 50);
 }
 
@@ -1177,7 +1174,7 @@ async function loadDashFMS() {
   section.style.display = 'block';
 
   const rows = data.rows || [];
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayISO();
 
   document.getElementById('dashFMSCount').textContent = rows.length ? `(${rows.length} pending)` : '';
 
@@ -1523,7 +1520,7 @@ async function viewRemark(id, type) {
     document.getElementById('remarkEditBtn').onclick = () => editRemark(id, type, r.remark);
     document.getElementById('remarkDeleteBtn').onclick = () => deleteRemark(id, type);
   }
-  document.getElementById('remarkModal').classList.add('open');
+  openModal('remarkModal');
 }
 
 // Admin edit — prefilled prompt
@@ -1610,9 +1607,6 @@ function setDashTasks(dDel, dChl) {
 let allTasksData = [];
 let taskStatusFilter = 'pending';
 
-let allTasksPage = 1;
-const ALL_TASKS_PAGE_SIZE = 50;
-
 async function loadAllTasks() {
   // Tabs ka highlight filter state se aata hai, tab par hue click se nahi —
   // isliye har load par sync kar lete hain.
@@ -1649,7 +1643,6 @@ async function loadAllTasks() {
     const fms = await api(`/api/fms-dashboard${canFilter ? `?employee=${empVal}` : ''}`);
     _fmsTasksRows = (fms && !fms.error && Array.isArray(fms.rows)) ? fms.rows : [];
     allTasksData = [];
-    allTasksPage = 1;
     renderTasksTable();
     return;
   }
@@ -1667,7 +1660,6 @@ async function loadAllTasks() {
     allTasks = data.tasks || [];
   }
   allTasksData = allTasks;
-  allTasksPage = 1;
 
   // PC desktop: populate user dropdown
   if (isPC && isDesktop) {
@@ -1895,7 +1887,7 @@ function renderTasksTable() {
   const dateFrom = document.getElementById('tasksDateFrom')?.value || '';
   const dateTo = document.getElementById('tasksDateTo')?.value || '';
   const container = document.getElementById('tasksContent');
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayISO();
 
   let tasks = allTasksData.filter(t => {
     const matchStatus =
@@ -2060,8 +2052,6 @@ function tasksTab(type) {
   loadAllTasks();
 }
 
-function toggleBlock(header) { header.nextElementSibling.classList.toggle('open'); }
-
 // ══════════════════════════════════════════════════════
 // TASK ACTIONS
 // ══════════════════════════════════════════════════════
@@ -2084,7 +2074,7 @@ async function deleteTask(id, type) {
 // REVISE DATE MODAL
 // ══════════════════════════════════════════════════════
 function openReviseModal(taskId, taskType) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayISO();
   // Min date = tomorrow
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -2096,7 +2086,7 @@ function openReviseModal(taskId, taskType) {
   document.getElementById('reviseDate').min = minDate;
   document.getElementById('reviseReason').value = '';
   document.getElementById('reviseErr').style.display = 'none';
-  document.getElementById('reviseDateModal').classList.add('open');
+  openModal('reviseDateModal');
 }
 
 async function submitRevise() {
@@ -2155,7 +2145,7 @@ async function openEditTask(id, type) {
     document.getElementById('editTApproval').value = t.approval || 'no';
   }
 
-  document.getElementById('editTaskModal').classList.add('open');
+  openModal('editTaskModal');
 }
 
 async function saveEditTask() {
@@ -2192,7 +2182,7 @@ async function openComments(taskId, taskType) {
   document.getElementById('commentTaskType').value = taskType;
   document.getElementById('commentInput').value = '';
   await loadComments(taskId, taskType);
-  document.getElementById('commentModal').classList.add('open');
+  openModal('commentModal');
 }
 
 async function loadComments(taskId, taskType) {
@@ -2234,18 +2224,6 @@ async function deleteComment(id) {
   await loadComments(taskId, taskType);
 }
 
-async function bulkDelete(userId) {
-  if (!await confirmDialog(`Delete all ${tasksType} tasks for this user? This cannot be undone.`, {title:'Delete All Tasks', okText:'Delete all', danger:true})) return;
-  await api(`/api/tasks/user/${userId}?type=${tasksType}`,'DELETE');
-  loadAllTasks();
-}
-
-async function transferToday(userId) {
-  await api(`/api/tasks/user/${userId}/transfer-today?type=${tasksType}`,'PUT');
-  loadAllTasks();
-  showToast('Tasks moved to today!');
-}
-
 // ══════════════════════════════════════════════════════
 // DELEGATE MODAL
 // ══════════════════════════════════════════════════════
@@ -2258,14 +2236,14 @@ async function openDelegate() {
   document.getElementById('dPriority').value='low';
   document.getElementById('dApproval').value='no';
   document.getElementById('dAwaitingDueDate').checked=false;
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayISO();
   document.getElementById('dDate').value=today;
   document.getElementById('dDate').min=today;
   document.getElementById('dDate').disabled=false;
   const users = await api(withSeg('/api/users'));  // current view (office/factory) ke doers hi
   const opts = users.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
   document.getElementById('dDoer').innerHTML='<option value="">Select Doer</option>'+opts;
-  document.getElementById('delegateModal').classList.add('open');
+  openModal('delegateModal');
 }
 
 function onAwaitingDueDateChange() {
@@ -2308,7 +2286,7 @@ async function openChecklist() {
   document.getElementById('cEndDate').value='';
   document.getElementById('cPreview').style.display='none';
   document.getElementById('bulkFileC').value=''; // purani selected file clear karo, warna dobara "Upload CSV" dabane par wahi purani file phir upload ho jaati hai
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayISO();
   document.getElementById('cDate').value=today;
   document.getElementById('cDate').min=today;
   document.getElementById('cEndDate').min=today;
@@ -2321,7 +2299,7 @@ async function openChecklist() {
     document.getElementById(id).oninput = updateChecklistPreview;
   });
 
-  document.getElementById('checklistModal').classList.add('open');
+  openModal('checklistModal');
 }
 
 function updateChecklistPreview() {
@@ -2463,12 +2441,12 @@ async function saveChecklist() {
 // HOLIDAYS
 // ══════════════════════════════════════════════════════
 function openHoliday() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayISO();
   document.getElementById('hDate').value='';
   document.getElementById('hDate').min=today;
   document.getElementById('hName').value='';
   renderHolidayList();
-  document.getElementById('holidayModal').classList.add('open');
+  openModal('holidayModal');
 }
 
 async function addHoliday() {
@@ -2895,7 +2873,7 @@ function openAddUser() {
   loadDepartments('');
   _setWeekOff('');
   _setExtraOff('');
-  document.getElementById('userModal').classList.add('open');
+  openModal('userModal');
 }
 
 // Access toggle — Full ya View only. Value hidden input me rehti hai,
@@ -2927,7 +2905,7 @@ function openEditUser(id) {
   loadDepartments(u.department||'');
   _setWeekOff(u.week_off||'');
   _setExtraOff(u.extra_off||'');
-  document.getElementById('userModal').classList.add('open');
+  openModal('userModal');
 }
 
 function openSetPassword(id) {
@@ -2940,7 +2918,7 @@ function openSetPassword(id) {
   pw.value = '';
   pw.type = 'password';
   document.getElementById('setPasswordToggle').innerHTML = PW_EYE_SVG;
-  document.getElementById('setPasswordModal').classList.add('open');
+  openModal('setPasswordModal');
 }
 
 // Professional eye / eye-off SVG icons (emoji ki jagah)
@@ -3261,11 +3239,9 @@ function hideModal(overlay) {
   overlay.querySelectorAll('iframe').forEach(f => f.removeAttribute('src'));
 }
 function closeModal(id) { hideModal(document.getElementById(id)); }
+function openModal(id) { document.getElementById(id).classList.add('open'); }
 
 // Modals sirf Cancel/Close button se band honge — bahar click se nahi
-// document.querySelectorAll('.modal-overlay').forEach(m=>{
-//   m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('open'); });
-// });
 
 // Har modal me top-right cross button add karo + Esc se close
 document.querySelectorAll('.modal-overlay').forEach(overlay=>{
@@ -3324,19 +3300,20 @@ function compressImage(file, maxDim = 1280, quality = 0.7) {
 }
 
 // Hidden file input — har proof upload isi ke through hota hai
-function _proofInput() {
-  let el = document.getElementById('_proofFileInput');
+function _hiddenFileInput(id, accept) {
+  let el = document.getElementById(id);
   if (!el) {
     el = document.createElement('input');
     el.type = 'file';
-    el.accept = 'image/*';
+    el.accept = accept;
     el.capture = 'environment'; // mobile par seedha camera khulega
-    el.id = '_proofFileInput';
+    el.id = id;
     el.style.display = 'none';
     document.body.appendChild(el);
   }
   return el;
 }
+function _proofInput() { return _hiddenFileInput('_proofFileInput', 'image/*'); }
 
 // Proof photo choose karo -> compress -> upload. isReplace sirf confirm dikhane ke liye.
 function uploadProof(taskId, type, isReplace) {
@@ -3372,7 +3349,7 @@ async function viewProof(taskId, type, taskDesc) {
   loading.style.display = 'block';
   loading.textContent = 'Loading…';
   dl.style.display = 'none';
-  document.getElementById('proofViewModal').classList.add('open');
+  openModal('proofViewModal');
 
   const r = await api(`/api/tasks/${taskId}/proof?type=${type}`);
   if (r.error) { loading.textContent = r.error; return; }
@@ -3394,19 +3371,7 @@ async function viewProof(taskId, type, taskDesc) {
 // hi user ko pata chal jaaye.
 const PROOF_VIDEO_MAX_MB = 25;
 
-function _proofVideoInput() {
-  let el = document.getElementById('_proofVideoInput');
-  if (!el) {
-    el = document.createElement('input');
-    el.type = 'file';
-    el.accept = 'video/*';
-    el.capture = 'environment'; // mobile par seedha camera khulega
-    el.id = '_proofVideoInput';
-    el.style.display = 'none';
-    document.body.appendChild(el);
-  }
-  return el;
-}
+function _proofVideoInput() { return _hiddenFileInput('_proofVideoInput', 'video/*'); }
 
 // 🎥 Proof video buttons — photo wale hi 3 states (upload / view / replace-once).
 // side: dashboard table 'right' margin use karti hai, All Tasks 'left'.
@@ -3484,7 +3449,7 @@ async function viewProofVideo(taskId, type, taskDesc) {
   dl.style.display = 'none';
   status.style.display = 'block';
   status.textContent = 'Loading…';
-  document.getElementById('proofVideoModal').classList.add('open');
+  openModal('proofVideoModal');
 
   const r = await api(`/api/tasks/${taskId}/proof-video?type=${encodeURIComponent(type)}`);
   if (r.error) { status.textContent = r.error; return; }
@@ -3517,7 +3482,7 @@ function confirmDialog(msg, { title = 'Confirm', okText = 'OK', danger = false }
     const ok = document.getElementById('confirmOkBtn');
     ok.textContent = okText;
     ok.style.background = danger ? 'var(--destructive)' : '';
-    document.getElementById('confirmModal').classList.add('open');
+    openModal('confirmModal');
   });
 }
 // promptDialog('Reason?') -> Promise<string|null>  (Cancel par null)
@@ -3534,7 +3499,7 @@ function promptDialog(msg, { title = 'Enter details', okText = 'Submit', placeho
     const ok = document.getElementById('confirmOkBtn');
     ok.textContent = okText;
     ok.style.background = '';
-    document.getElementById('confirmModal').classList.add('open');
+    openModal('confirmModal');
     setTimeout(() => input.focus(), 50);
   });
 }
@@ -3591,7 +3556,7 @@ async function openSetPlanModal(preEmpId, preWeek) {
 
   if (preEmpId) document.getElementById('planEmpSelect').value = String(preEmpId);
 
-  document.getElementById('setPlanModal').classList.add('open');
+  openModal('setPlanModal');
 }
 
 async function saveWeekPlan() {
@@ -3885,7 +3850,7 @@ async function openMISDetail(userId, userName) {
     scoreReason = '⚠️ Score reduced because: ' + parts.join(', ');
   }
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = todayISO();
   const taskRows = (data.tasks||[]).map(t => {
     // Completed Date cell: green agar due date se pehle/us din done, red agar baad me. Purane (date null) => dash.
     let completedCell;
@@ -3946,7 +3911,7 @@ async function openMISDetail(userId, userName) {
       ${misType==='delegation'?`<span style="color:var(--warning)">🔄 Revised: <strong>${row.revised||0}</strong></span>`:''}
     </div>`;
   document.getElementById('misDetailBody').innerHTML = taskRows || `<tr><td colspan="6" class="empty">No tasks found</td></tr>`;
-  document.getElementById('misDetailModal').classList.add('open');
+  openModal('misDetailModal');
 }
 
 // Admin-only: date range ke saare users ki full MIS (Checklist + Delegation)
@@ -4252,7 +4217,7 @@ async function openAllMISDetail(userId, userName) {
     emp.checklist.total > 0  ? api(`/api/mis/detail?userId=${userId}&type=checklist&start=${start}&end=${end}`)  : Promise.resolve({ tasks: [] })
   ]);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayISO();
 
   const makeTaskRows = (tasks, showRevised) => tasks.map(t => `
     <tr>
@@ -4312,7 +4277,7 @@ async function openAllMISDetail(userId, userName) {
 
   // Reuse existing misDetailBody (blank it since we put everything in score div)
   document.getElementById('misDetailBody').innerHTML = '';
-  document.getElementById('misDetailModal').classList.add('open');
+  openModal('misDetailModal');
 }
 
 // Set default MIS dates — rolling 1 week (7 days) ending today
@@ -4455,7 +4420,7 @@ async function openRecordDetail(userId) {
   const r = (recordsData || []).find(e => String(e.userId) === String(userId));
   if (!r) { showToast('Generate first', 'error'); return; }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayISO();
   const scoreColor = misScoreStyle(r.score).color;
 
   // Committed summary
@@ -4517,7 +4482,7 @@ async function openRecordDetail(userId) {
     ${section('✅ Checklist', 'var(--success)', b.checklist.pending, chlRows)}
     ${section('📊 FMS', 'var(--chart-5)', b.fms.pending, fmsRows)}`;
 
-  document.getElementById('recordDetailModal').classList.add('open');
+  openModal('recordDetailModal');
 }
 
 function exportRecords() {
@@ -4819,7 +4784,7 @@ async function _openIntakeFormReal() {
   _intakeCreators = (cfg && Array.isArray(cfg.recordCreators)) ? cfg.recordCreators.map(Number) : [];
   loadIntakeCreators();
   renderIntakeFields();
-  document.getElementById('intakeModal').classList.add('open');
+  openModal('intakeModal');
   fetchIntakeColumns(true); // Column dropdowns bharne ke liye auto-fetch
 }
 
@@ -4946,7 +4911,7 @@ async function openNewRecord(fmsId) {
   document.getElementById('newRecordSub').textContent = '';
   const _nrBtn = document.getElementById('newRecordSubmitBtn');
   _nrBtn.onclick = submitNewRecord; _nrBtn.textContent = 'Create Record'; _nrBtn.disabled = false;
-  document.getElementById('newRecordModal').classList.add('open');
+  openModal('newRecordModal');
   const r = await api(`/api/fms-tasks/${id}/intake`);
   if (r.error) { box.innerHTML = `<div style="color:var(--destructive);padding:12px">${escapeHtml(r.error)}</div>`; return; }
   const cfg = r.config;
@@ -5100,18 +5065,7 @@ async function saveNextStepDate() {
   if (sel && String(sel.value) === String(_newRecordFmsId)) onFMSTasksSelect();
 }
 
-async function _uploadIntakeFile(fmsId, file) {
-  try {
-    const buf = await file.arrayBuffer();
-    const res = await fetch(`/api/fms-tasks/${fmsId}/intake-upload`, {
-      method:'POST', credentials:'same-origin',
-      headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name || '') },
-      body: buf
-    });
-    return await res.json();
-  } catch(e) { return { error: 'Upload failed: ' + e.message }; }
-}
-function _isoToDMY(iso) { const p = String(iso).split('-'); return p.length===3 ? `${p[2]}-${p[1]}-${p[0]}` : iso; }
+function _isoToDMY(iso) { return fmtDate(String(iso)); }
 function _dmyToIso(dmy) { const m = String(dmy||'').match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/); return m ? `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}` : ''; }
 
 // ══════════════ EDIT RECORD (Order No se dhoondo -> intake fields edit) ══════════════
@@ -5124,7 +5078,7 @@ function openEditRecord() {
   document.getElementById('editRecordSearch').value = '';
   document.getElementById('editRecordFields').innerHTML = '<div style="color:var(--muted-foreground);font-size:12px;padding:10px;text-align:center">Enter an Order No and click Find</div>';
   document.getElementById('editRecordSaveBtn').style.display = 'none';
-  document.getElementById('editRecordModal').classList.add('open');
+  openModal('editRecordModal');
   setTimeout(() => { const s = document.getElementById('editRecordSearch'); if (s) s.focus(); }, 60);
 }
 async function findEditRecord() {
@@ -5234,7 +5188,7 @@ async function openPlanPending() {
   document.getElementById('planPendingErr').style.display = 'none';
   const box = document.getElementById('planPendingList');
   box.innerHTML = '<div style="color:var(--muted-foreground);font-size:13px;padding:14px;text-align:center">Loading…</div>';
-  document.getElementById('planPendingModal').classList.add('open');
+  openModal('planPendingModal');
   const r = await api(`/api/fms-tasks/${fmsId}/plan-pending`);
   if (r.error) { box.innerHTML = `<div style="color:var(--destructive);padding:12px">${escapeHtml(r.error)}</div>`; return; }
   _renderPlanPending(fmsId, r.rows || [], r.label || 'Planned date');
@@ -5314,7 +5268,7 @@ async function openEditFMS() {
   if (dupConfBtn) dupConfBtn.style.display = 'none';
 
   // Open modal first — show loading
-  document.getElementById('fmsEditModal').classList.add('open');
+  openModal('fmsEditModal');
   const container = document.getElementById('fmsEditStepsContainer');
   container.innerHTML = `<div style="text-align:center;padding:20px;color:var(--muted-foreground)">⏳ Loading headers...</div>`;
 
@@ -5322,9 +5276,7 @@ async function openEditFMS() {
   fmsSheetHeaders = [];
   try {
     const payload = { sheetId: sheet.sheet_id, sheetName: sheet.sheet_name, headerRow: sheet.header_row };
-    console.log('Fetching headers:', payload);
     const hRes = await api('/api/fms/fetch-headers','POST', payload);
-    console.log('Headers response:', hRes);
     fmsSheetHeaders = hRes.headers || [];
     if (fmsSheetHeaders.length) showToast(`✅ ${fmsSheetHeaders.length} headers loaded!`);
     else showToast(`⚠️ ${hRes.error || 'No headers found'}`, 'error');
@@ -5377,8 +5329,6 @@ async function saveEditFMS() {
       if (labelEl) fmsSteps[i].extraRows[ri].label = labelEl.value;
     });
   });
-
-  console.log('Saving steps count:', fmsSteps.length); // debug
 
   const r = await api(`/api/fms/${fmsActiveId}`,'PUT',{
     fmsName: fmsName || sheetName,
@@ -5446,7 +5396,7 @@ function openAddFMS() {
   document.getElementById('fmsTotalSteps').value='1';
   document.getElementById('fmsAddErr').style.display='none';
   fmsActiveId = null; // ✅ Reset so saveFMS doesn't PUT on wrong ID
-  document.getElementById('fmsAddModal').classList.add('open');
+  openModal('fmsAddModal');
 }
 
 function proceedToShareNotice() {
@@ -5493,7 +5443,7 @@ function startShareCountdown() {
     });
   }
 
-  document.getElementById('fmsShareModal').classList.add('open');
+  openModal('fmsShareModal');
   const btn = document.getElementById('fmsSkipBtn');
   const cd  = document.getElementById('fmsCountdown');
   let sec = 7;
@@ -5539,7 +5489,7 @@ async function proceedToStepsConfig() {
   const addDelConfBtn = document.getElementById('fmsAddConfirmDeleteBtn');
   if (addDelBtn) addDelBtn.textContent = '🗑 Select to Delete';
   if (addDelConfBtn) addDelConfBtn.style.display='none';
-  document.getElementById('fmsStepsModal').classList.add('open');
+  openModal('fmsStepsModal');
 
   // Fetch headers after modal open
   fmsSheetHeaders = [];
@@ -5772,15 +5722,6 @@ function buildStepBoxHTML(idx) {
     </div>`;
 }
 
-function addFMSShowCol(idx, colIndex) {
-  if (isNaN(colIndex)) return;
-  if (!fmsSteps[idx].showCols) fmsSteps[idx].showCols = [];
-  if (!fmsSteps[idx].showCols.includes(colIndex)) {
-    fmsSteps[idx].showCols.push(colIndex);
-    refreshStepBox(idx);
-  }
-}
-
 function removeFMSShowCol(idx, colIndex) {
   if (!fmsSteps[idx].showCols) return;
   fmsSteps[idx].showCols = fmsSteps[idx].showCols.filter(c=>c!==colIndex);
@@ -5813,51 +5754,6 @@ function addFMSExtraRow(idx) {
   refreshStepBox(idx);
   setupMultiSelect(idx);
   updateFMSDoerTags(idx);
-}
-
-function buildExtraRowHTML(idx, ri, headers) {
-  const r = (fmsSteps[idx].extraRows || [])[ri] || {};
-  const colSel = headers.length
-    ? `<select onchange="onFMSExtraColChange(${idx},${ri},this)"
-        style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;font-family:'Inter',sans-serif;outline:none;background:var(--card)">
-        <option value="">-- Select Column --</option>
-        ${headers.map(h=>`<option value="${h.col}" data-name="${h.name}" ${r.col_letter===h.col?'selected':''}>${h.name} (COL ${h.col})</option>`).join('')}
-      </select>`
-    : `<input type="text" value="${r.col_letter||''}" placeholder="Col e.g. AS"
-        oninput="fmsSteps[${idx}].extraRows[${ri}].col_letter=this.value"
-        style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;font-family:'Inter',sans-serif;outline:none"/>`;
-  const labelField = `<input type="text" value="${(r.label||'').replace(/"/g,'&quot;')}" placeholder="Label (auto-filled from header)"
-    oninput="fmsSteps[${idx}].extraRows[${ri}].label=this.value"
-    id="fmsExtraLabel_${idx}_${ri}"
-    style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;font-family:'Inter',sans-serif;outline:none"/>`;
-  const ftSel = `<select onchange="onFMSExtraTypeChange(${idx},${ri},this.value)"
-    style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;font-family:'Inter',sans-serif;outline:none;background:var(--card)">
-    <option value="text" ${(r.field_type||'text')==='text'?'selected':''}>📝 Text</option>
-    <option value="number" ${r.field_type==='number'?'selected':''}>🔢 Number</option>
-    <option value="date" ${r.field_type==='date'?'selected':''}>📅 Date</option>
-    <option value="link" ${r.field_type==='link'?'selected':''}>🔗 Link</option>
-    <option value="dropdown" ${r.field_type==='dropdown'?'selected':''}>🔽 Dropdown</option>
-  </select>`;
-  const dropOptsSection = r.field_type==='dropdown' ? buildDropdownOptionsHTML(idx, ri, r) : '';
-  return `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">
-      <div>
-        <div style="font-size:10px;font-weight:600;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px">Column</div>
-        ${colSel}
-      </div>
-      <div>
-        <div style="font-size:10px;font-weight:600;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px">Label</div>
-        ${labelField}
-      </div>
-      <div>
-        <div style="font-size:10px;font-weight:600;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px">Field Type</div>
-        ${ftSel}
-      </div>
-      <div style="display:flex;align-items:flex-end">
-        <button class="action-btn delete" style="padding:5px 14px;width:100%" onclick="removeFMSExtraRow(${idx},${ri})">✕ Remove</button>
-      </div>
-    </div>
-    <div id="fmsDropOptSection_${idx}_${ri}">${dropOptsSection}</div>`;
 }
 
 function buildDropdownOptionsHTML(idx, ri, r) {
@@ -6213,7 +6109,6 @@ async function saveFMS() {
 // ══════════════════════════════════════════════════════
 let fmsTasksActiveFmsId = null;
 let fmsTasksActiveStepId = null;
-let fmsTasksActiveStepData = null;
 let fmsTrainPaused = false;
 
 async function loadFMSTasks() {
@@ -6481,7 +6376,7 @@ async function openFMSUpdateModal() {
     `${document.getElementById('fmsTaskStepName').textContent} — edit fields after completion`;
   document.getElementById('fmsUpdateList').innerHTML = '<div class="empty">Loading completed rows…</div>';
   document.getElementById('fmsUpdateSearchWrap').style.display = 'none';
-  document.getElementById('fmsUpdateModal').classList.add('open');
+  openModal('fmsUpdateModal');
   const r = await api(`/api/fms-tasks/${fmsTasksActiveFmsId}/steps/${fmsTasksActiveStepId}/done-rows`);
   if (r.error) { document.getElementById('fmsUpdateList').innerHTML = `<div class="empty">${r.error}</div>`; return; }
   _fmsUpdateRows = r.rows || [];
@@ -6584,7 +6479,7 @@ let _sumSearchT = null;
 async function openFMSSummary(fmsId) {
   document.getElementById('fmsSummaryErr').style.display = 'none';
   document.getElementById('fmsSummaryBody').innerHTML = '<div class="empty">Loading…</div>';
-  document.getElementById('fmsSummaryModal').classList.add('open');
+  openModal('fmsSummaryModal');
   // FMS picker — admin ko saari FMS milti hain
   const picker = document.getElementById('fmsSummaryPicker');
   if (picker.dataset.loaded !== '1') {
@@ -6737,7 +6632,7 @@ function openPwGate(title, cb) {
   document.getElementById('pwGateInput').value = '';
   document.getElementById('pwGateErr').style.display = 'none';
   const btn = document.getElementById('pwGateBtn'); btn.disabled = false; btn.textContent = '🔓 Unlock';
-  document.getElementById('pwGateModal').classList.add('open');
+  openModal('pwGateModal');
   setTimeout(() => { const i = document.getElementById('pwGateInput'); if (i) i.focus(); }, 60);
 }
 async function submitPwGate() {
@@ -6876,7 +6771,7 @@ function openFMSDoneModal(rowIdx) {
     extraFieldsEl.innerHTML = '';
   }
 
-  document.getElementById('fmsDoneModal').classList.add('open');
+  openModal('fmsDoneModal');
 }
 
 // (delay reason is now a plain text input — no dropdown listener needed)
@@ -7131,7 +7026,7 @@ async function openBulkDeleteModal() {
     document.getElementById('bdStep2').style.display = 'block';
     document.getElementById('bdYearSection').style.display = 'none';
   }
-  document.getElementById('bulkDeleteModal').classList.add('open');
+  openModal('bulkDeleteModal');
 }
 
 async function onBdFromChange() {
@@ -7372,7 +7267,7 @@ async function openBulkEditModal() {
   userSel.innerHTML = '<option value="">-- Select Employee --</option>' +
     allUsers.map(u=>`<option value="${u.id}" data-email="${u.email}">${u.name} — ${u.email}</option>`).join('');
 
-  document.getElementById('bulkEditModal').classList.add('open');
+  openModal('bulkEditModal');
 }
 
 function onBeFreqChange() {
@@ -7532,7 +7427,7 @@ async function openNewTransferModal() {
     _transferFromUserId = ME.id;
     document.getElementById('transferStep2').style.display = 'block';
   }
-  document.getElementById('transferModal').classList.add('open');
+  openModal('transferModal');
 }
 
 async function onTransferFromChange() {

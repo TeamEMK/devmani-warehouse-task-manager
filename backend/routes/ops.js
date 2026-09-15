@@ -47,6 +47,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
   const clean = busy.clean;
   const nb = busy.nb;
   const pad = n => String(n).padStart(2, '0');
+  const parse = j => (typeof j === 'string' ? JSON.parse(j) : (j || {}));
 
   // Abhi IST me: 'dd/MM/yyyy HH:mm' aur 'dd/MM/yyyy' — sheet wale format
   function nowIST() {
@@ -168,7 +169,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
 
   // Stock IN / exact count — admin only
   router.post('/stockMove', requireOps, adminOnly, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const conn = await db.getConnection();
     try {
       await conn.beginTransaction();
@@ -189,7 +190,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
   // Item master edit (admin): brand/segment/category/size/pattern/TL-TT/price/Busy naam.
   // Stock yahan se nahi badalta (uske liye stockMove).
   router.post('/editItem', requireOps, adminOnly, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const [[it]] = await db.query('SELECT * FROM ops_items WHERE code=?', [String(d.code)]);
     if (!it) return err('Item nahi mila');
     const s = (v, old) => (v === undefined ? old : String(v).trim());
@@ -272,7 +273,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
 
   // Dealer edit (admin): naam, mobile, city, address, Busy naam, GST, PAN, credit limit, active
   router.post('/editDealer', requireOps, adminOnly, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const [[dl]] = await db.query('SELECT * FROM ops_dealers WHERE did=?', [String(d.did)]);
     if (!dl) return err('Dealer nahi mila');
     const name = String(d.name ?? dl.name).trim(); if (name.length < 2) return err('Naam daalo');
@@ -290,7 +291,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
   // ── Users (admin): DSR / CRM / ADMIN / ACCOUNTS / BILLING / RM
   const ROLES = ['DSR', 'CRM', 'ADMIN', 'ACCOUNTS', 'BILLING', 'RM'];
   router.post('/saveUser', requireOps, adminOnly, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const mob = clean(d.mob); if (mob.length !== 10) return err('10-digit mobile daalo');
     const name = String(d.name || '').trim(); if (name.length < 2) return err('Naam daalo');
     const role = ROLES.includes(String(d.role || '').toUpperCase()) ? String(d.role).toUpperCase() : 'DSR';
@@ -306,7 +307,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
     return rows.map(r => ({ id: r.id, name: r.name, mob: r.mobile, vehicle: r.vehicle, driverName: r.driver_name, driverMob: r.driver_mobile, city: r.city, note: r.note }));
   }));
   router.post('/saveTransporter', requireOps, adminOnly, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const name = String(d.name || '').trim(); if (name.length < 2) return err('Transporter ka naam daalo');
     const vals = [name, clean(d.mob), String(d.vehicle || '').trim().toUpperCase(), String(d.driverName || '').trim(), clean(d.driverMob), String(d.city || '').trim(), String(d.note || '').trim()];
     if (d.id) { await db.query('UPDATE ops_transporters SET name=?, mobile=?, vehicle=?, driver_name=?, driver_mobile=?, city=?, note=? WHERE id=?', vals.concat([parseInt(d.id, 10)])); return J({ ok: true, id: parseInt(d.id, 10) }); }
@@ -314,13 +315,13 @@ module.exports = function registerOpsRoutes(app, ctx) {
     return J({ ok: true, id: r.insertId });
   }));
   router.post('/deleteTransporter', requireOps, adminOnly, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     await db.query('UPDATE ops_transporters SET active=0 WHERE id=?', [parseInt(d.id, 10)]);
     return J({ ok: true });
   }));
 
   router.post('/addDealer', requireOps, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const name = String(d.name || '').trim(), mob = clean(d.mob);
     if (name.length < 2) return err('Dealer ka naam daalo');
     if (mob.length !== 10) return err('10-digit mobile daalo');
@@ -403,7 +404,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
   }
 
   router.post('/placeOrder', requireOps, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const items = d.items || []; if (!items.length) return err('Kam se kam 1 item daalo');
     if (!d.did) return err('Dealer select karo');
     const [[dl]] = await db.query('SELECT * FROM ops_dealers WHERE did=?', [String(d.did)]);
@@ -475,7 +476,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
   // ── Order EDIT (items/qty/rate/note) — PENDING ya CONFIRMED tak, BILLED ke baad nahi.
   // DSR sirf apna order, admin koi bhi. History me 'EDITED' entry.
   router.post('/editOrder', requireOps, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const [[row]] = await db.query('SELECT * FROM ops_orders WHERE oid=?', [String(d.oid)]);
     if (!row) return err('Order nahi mila');
     if (!isAdmin(u) && row.dsr_mobile !== u.mob) return err('Ye aapka order nahi hai');
@@ -491,7 +492,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
 
   // ── Order CANCEL — DSR apna PENDING order, admin koi bhi khula order (dispatch hua ho to stock wapas)
   router.post('/cancelOrder', requireOps, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const reason = String(d.reason || '').trim();
     const conn = await db.getConnection();
     try {
@@ -537,7 +538,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
 
   // Status update — admin. DISPATCHED par stock minus; dispatch ke baad cancel/undo par wapas.
   router.post('/updateOrderStatus', requireOps, adminOnly, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const st = String(d.status || '').toUpperCase();
     if (!STATUSES.includes(st)) return err('Status galat');
     const conn = await db.getConnection();
@@ -618,7 +619,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
   // ── Delivery/transport info EDIT (BILLED / DELIVERED par): LR no, vehicle, driver, transporter, invoice.
   // Badalne par party ko naya detail WhatsApp; naya driver ho to use bhi.
   router.post('/editDeliveryInfo', requireOps, adminOnly, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const [[row]] = await db.query('SELECT * FROM ops_orders WHERE oid=?', [String(d.oid)]);
     if (!row) return err('Order nahi mila');
     if (!STOCK_OUT.has(row.status) && row.status !== 'DELIVERED') return err('Billing ke baad hi delivery info edit hoti hai');
@@ -682,7 +683,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
     } catch (e) { return err(e.message); }
   }));
   router.post('/uploadOrderFile', requireOps, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     if (!['invoice', 'pod'].includes(d.kind)) return err('Kind galat (invoice / pod)');
     if (!d.b64) return err('File nahi mili');
     const [[row]] = await db.query('SELECT oid, dsr_mobile FROM ops_orders WHERE oid=?', [String(d.oid)]);
@@ -704,7 +705,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
   });
   // Payment mila / nahi mila — admin
   router.post('/markPaid', requireOps, adminOnly, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const [[row]] = await db.query('SELECT id, history_json FROM ops_orders WHERE oid=?', [String(d.oid)]);
     if (!row) return err('Order nahi mila');
     const paid = d.paid !== false;
@@ -732,7 +733,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
 
   // CRM confirm: PENDING -> CONFIRMED, qty/rate/terms edit ke saath; dealer ko WhatsApp
   router.post('/confirmOrderCRM', requireOps, adminOnly, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const [[row]] = await db.query('SELECT * FROM ops_orders WHERE oid=?', [String(d.oid)]);
     if (!row) return err('Order nahi mila');
     if (row.status !== 'PENDING') return err(`Sirf PENDING order confirm ho sakta hai (abhi: ${row.status})`);
@@ -770,7 +771,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
   // ══════════ KYC ══════════
   const DOC_KEYS = ['gst', 'pan', 'aadhaar', 'cheque'];
   router.post('/uploadKyc', requireOps, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const [[dl]] = await db.query('SELECT * FROM ops_dealers WHERE did=?', [String(d.did)]);
     if (!dl) return err('Dealer nahi mila');
     const saved = [];
@@ -890,7 +891,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
     return String(text || '').replace(/\r/g, '').split('\n').map(s => s.trim()).filter(Boolean).join(' | ').replace(/\s{2,}/g, ' ').slice(0, max || 900);
   }
   router.post('/previewRMReport', requireOps, adminOnly, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const [[rm]] = await db.query('SELECT * FROM ops_rm_list WHERE mobile=?', [clean(d.rmMob)]);
     if (!rm) return err('RM nahi mila');
     const r = await buildRMReport(rm, String(d.type || '').toUpperCase(), d.from, d.to);
@@ -898,7 +899,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
     return J({ ok: true, text: r.text, count: r.count, rm: rm.name, company: rm.company, date: r.range || nowIST().dmy, waLen: waParam(r.text, 100000).length });
   }));
   router.post('/sendRMReport', requireOps, adminOnly, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     const [[rm]] = await db.query('SELECT * FROM ops_rm_list WHERE mobile=?', [clean(d.rmMob)]);
     if (!rm) return err('RM nahi mila');
     const type = String(d.type || '').toUpperCase();
@@ -915,7 +916,7 @@ module.exports = function registerOpsRoutes(app, ctx) {
   // ══════════ BUSY IMPORT (admin) ══════════
   // body: { name: 'StockStatus.xlsx', b64: '<xlsx base64>' }
   router.post('/importBusy', requireOps, adminOnly, rpc(async (u, j) => {
-    const d = typeof j === 'string' ? JSON.parse(j) : (j || {});
+    const d = parse(j);
     if (!d.b64) return err('File nahi mili');
     const r = await busy.importBusyBuffer(db, Buffer.from(d.b64, 'base64'), String(d.name || 'upload.xlsx'), nowIST().dmy, String(d.kind || '').toUpperCase());
     // Payment aayi ho to dealer/DSR ko turant bata do

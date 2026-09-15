@@ -23,6 +23,7 @@
 // (wahi matching, payment detection, log) bina badle chal jayein.
 
 const zlib = require('zlib');
+const MDBReader = require('mdb-reader').default || require('mdb-reader');
 
 // ── ZIP: sirf zaroori entry nikaalo (backup me 4-5 saal ki files hoti hain, sab inflate nahi karni)
 function zipEntries(buf) {
@@ -60,7 +61,6 @@ const dmy = d => `${String(d.getUTCDate()).padStart(2, '0')}-${String(d.getUTCMo
 
 // dbBuf = db1YYYY.bds ka buffer. opts.itemGroup = item group ka naam regex (default /tyre/i), null = sab items
 function readBusyDb(dbBuf, opts = {}) {
-  const mod = require('mdb-reader'); const MDBReader = mod.default || mod;
   const db = new MDBReader(dbBuf);
   const T = n => db.getTable(n).getData();
   const m1 = T('Master1');
@@ -138,7 +138,6 @@ function readBusyBackup(zipBuf, opts = {}) {
 function inspectBackup(zipBuf) {
   const e = pickYearFile(zipEntries(zipBuf));
   if (!e) throw new Error('Backup ZIP me db1YYYY.bds nahi mila');
-  const mod = require('mdb-reader'); const MDBReader = mod.default || mod;
   const mdb = new MDBReader(zipExtract(zipBuf, e));
   const tableNames = mdb.getTableNames();
   const T = n => mdb.getTable(n).getData();

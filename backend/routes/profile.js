@@ -8,7 +8,7 @@
 const bcrypt = require('bcryptjs');
 
 module.exports = function registerProfileRoutes(app, ctx) {
-  const { db, requireAuth } = ctx;
+  const { db, requireAuth, handleServerError } = ctx;
 
   app.put('/api/profile', requireAuth, async (req, res) => {
     try {
@@ -25,14 +25,14 @@ module.exports = function registerProfileRoutes(app, ctx) {
       if (profileImage !== undefined) await db.query('UPDATE users SET profile_image=? WHERE id=?', [profileImage||null, uid]);
       req.session.name = name;
       res.json({ success: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   app.post('/api/profile/image', requireAuth, async (req, res) => {
     try {
       await db.query('UPDATE users SET profile_image=? WHERE id=?', [req.body.image||null, req.session.userId]);
       res.json({ success: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
 };

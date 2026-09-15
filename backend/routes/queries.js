@@ -7,7 +7,7 @@
 // Neeche ka kram jaan-boojh kar wahi hai jo server.js me tha — badalna mat.
 
 module.exports = function registerQueryRoutes(app, ctx) {
-  const { db, requireAuth, isHRUser } = ctx;
+  const { db, requireAuth, isHRUser, handleServerError } = ctx;
 
   // Answer/reject kaun kar sakta hai: Admin (role) ya HR (department = "HR").
   const canAnswerQueries = async (req) =>
@@ -23,7 +23,7 @@ module.exports = function registerQueryRoutes(app, ctx) {
         'INSERT INTO queries (user_id, message, status) VALUES (?, ?, ?)',
         [req.session.userId, message, 'open']);
       res.json({ success: true, id: r.insertId });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   // List — Admin/HR sabki, baaki user sirf apni. Date/time IST 12-hour me.
@@ -43,7 +43,7 @@ module.exports = function registerQueryRoutes(app, ctx) {
          ${where}
          ORDER BY (q.status='open') DESC, q.created_at DESC`, params);
       res.json({ canAnswer, queries: rows });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   // Answer — sirf Admin/HR
@@ -57,7 +57,7 @@ module.exports = function registerQueryRoutes(app, ctx) {
         [answer, req.session.userId, req.params.id]);
       if (!r.affectedRows) return res.status(404).json({ error: 'Query not found' });
       res.json({ success: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   // Reject — sirf Admin/HR; optional reason answer field me store hota hai
@@ -70,7 +70,7 @@ module.exports = function registerQueryRoutes(app, ctx) {
         [reason || null, req.session.userId, req.params.id]);
       if (!r.affectedRows) return res.status(404).json({ error: 'Query not found' });
       res.json({ success: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   // Edit — sirf jisne query daali (owner), aur tabhi jab query abhi 'open' ho.
@@ -86,7 +86,7 @@ module.exports = function registerQueryRoutes(app, ctx) {
       if (rows[0].status !== 'open') return res.status(403).json({ error: 'Answered or rejected queries cannot be edited' });
       await db.query('UPDATE queries SET message=? WHERE id=?', [message, req.params.id]);
       res.json({ success: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 
   // Delete — Admin/HR koi bhi query hata sakte hain; user sirf apni aur tabhi jab open ho
@@ -101,6 +101,6 @@ module.exports = function registerQueryRoutes(app, ctx) {
       if (!canAnswer && rows[0].status !== 'open') return res.status(403).json({ error: 'Answered or rejected queries cannot be deleted' });
       await db.query('DELETE FROM queries WHERE id=?', [req.params.id]);
       res.json({ success: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error. Please try again.' }); }
+    } catch (err) { handleServerError(res, err); }
   });
 };
