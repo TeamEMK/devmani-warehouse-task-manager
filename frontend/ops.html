@@ -532,6 +532,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
           <div style="height:10px"></div>
           <button class="btn gold" id="tb-save">Settings save karo</button>
           <div class="hint" id="tb-note"></div>
+          <div style="height:14px"></div>
+          <button class="btn ghost sm" id="tb-probe">🔧 Backup schema check (diagnostic, temp)</button>
+          <textarea id="tb-probe-out" readonly style="display:none;width:100%;height:220px;margin-top:8px;font-family:monospace;font-size:11px" onclick="this.select()"></textarea>
         </div>
         <div class="card">
           <div class="h">Busy "List of Supply Outward Vouchers" <small>date select karo, 2W/4W InvoiceTally file download</small><span style="flex:1"></span><select class="inp" id="tb-date" style="width:auto;display:none"></select></div>
@@ -1761,6 +1764,13 @@ $('tb-save').onclick=function(){
   if(!kinds['2W'].distributorCode && !kinds['4W'].distributorCode){ toast('Kam se kam ek distributor code daalo','err'); return; }
   showLoad('Settings save...');
   call('tallySaveSettings',{kinds:kinds},function(s){ hideLoad(); TB_CA={}; TB_KINDS.forEach(function(k){ $('tb-cafile-'+k).value=''; }); (s.kinds||[]).forEach(tbStatus); $('tb-note').textContent='Save ho gaya — ab sab isi ke saath kaam karenge.'; toast('Settings save ho gayi','ok'); });
+};
+$('tb-probe').onclick=function(){
+  showLoad('Backup se schema nikaal rahe hain...');
+  call('busySchemaProbe',{},function(d){
+    hideLoad(); var t=$('tb-probe-out'); t.style.display='block';
+    t.value=JSON.stringify(d,null,2); t.select();
+  });
 };
 function tbDownload(b64,filename){ var bin=atob(b64), arr=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i); var blob=new Blob([arr],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}); var u=URL.createObjectURL(blob), a=document.createElement('a'); a.href=u; a.download=filename; document.body.appendChild(a); a.click(); setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(u); },1000); }
 function renderTally(d,banner){

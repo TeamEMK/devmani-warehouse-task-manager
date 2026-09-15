@@ -132,6 +132,26 @@ function readBusyBackup(zipBuf, opts = {}) {
   return readBusyDb(zipExtract(zipBuf, e), Object.assign({ fy: e.year }, opts));
 }
 
+// Diagnostic (temporary, admin-only route): DATA.ZIP se koi ek Sale voucher ke raw Tran1/Tran2/Master1
+// columns dikhata hai — taaki backup se seedha "List of Supply Outward Vouchers" jaisa item-line data
+// (rate/amount/GSTIN) nikalna ho to pehle asli field names verify ho sakein, koi data likhta/badalta nahi.
+function inspectBackup(zipBuf) {
+  const e = pickYearFile(zipEntries(zipBuf));
+  if (!e) throw new Error('Backup ZIP me db1YYYY.bds nahi mila');
+  const mod = require('mdb-reader'); const MDBReader = mod.default || mod;
+  const mdb = new MDBReader(zipExtract(zipBuf, e));
+  const tableNames = mdb.getTableNames();
+  const T = n => mdb.getTable(n).getData();
+  const columns = {};
+  ['Master1', 'Tran1', 'Tran2', 'Folio1'].forEach(n => { try { columns[n] = mdb.getTable(n).getColumnNames(); } catch (err) { columns[n] = 'ERR: ' + err.message; } });
+  const tran1 = T('Tran1');
+  const sales = tran1.filter(v => v.VchType === 9 && v.Date instanceof Date).sort((a, b) => b.Date - a.Date);
+  const sample = sales[0] || null;
+  const sampleLines = sample ? T('Tran2').filter(r => r.VchCode === sample.VchCode) : [];
+  const sampleAccounts = T('Master1').filter(r => r.MasterType === 2).slice(0, 3);
+  return { year: e.year, tableNames, columns, sampleVoucherHeader: sample, sampleVoucherLines: sampleLines, sampleAccounts };
+}
+
 // importStock / importOutstanding ke liye xlsx-jaisi rows
 // keep = Set of nb(item name) jo app me hain: stock 0 wale sirf tab jab app me item ho (warna notes bhar jaate)
 function stockRows(bd, asOn, keep) {
@@ -145,4 +165,4 @@ function outstandingRows(bd, asOn) {
   return rows;
 }
 
-module.exports = { zipEntries, zipExtract, pickYearFile, readBusyDb, readBusyBackup, stockRows, outstandingRows, nb, vchName, VCH_NAMES };
+module.exports = { zipEntries, zipExtract, pickYearFile, readBusyDb, readBusyBackup, inspectBackup, stockRows, outstandingRows, nb, vchName, VCH_NAMES };

@@ -261,7 +261,20 @@ function makeBusyDrive({ db, nowIST, afterImport, tallySettings, buildTallyKinds
     if (!s.enabled || !s.url || !s.secret) return { ok: true, skipped: true };
     return sync({ by });
   }
-  return { settings, saveSettings, publicView, test, sync, syncIfEnabled, snapshotStock, applyBackup, isRunning: () => running, SYNC_EVERY_MIN, kindFromName };
+  // Diagnostic (temporary): sabse naya backup utha kar raw Tran1/Tran2/Master1 column names + ek
+  // sample Sale voucher dikhata hai — DB me kuch likhta nahi. "List of Supply Outward Vouchers" ko
+  // seedha backup se nikalne ka rasta banane se pehle asli field names (rate/amount/GSTIN) verify karne ke liye.
+  async function probeSchema() {
+    const s = await settings();
+    if (!s.url || !s.secret) throw new Error('Drive script URL / secret set nahi');
+    const list = await callScript(s.url, s.secret, { action: 'list' });
+    const backups = (list.files || []).filter(f => f.kind === 'backup').sort((a, b) => (a.modified < b.modified ? 1 : -1));
+    if (!backups.length) throw new Error('Drive folder me koi backup (DATA.ZIP) nahi mila');
+    const f = backups[0];
+    const zip = await downloadRaw(s.url, s.secret, f.id, f.size);
+    return Object.assign({ backupFile: f.name, backupModified: f.modified }, busyDb.inspectBackup(zip));
+  }
+  return { settings, saveSettings, publicView, test, sync, syncIfEnabled, snapshotStock, applyBackup, probeSchema, isRunning: () => running, SYNC_EVERY_MIN, kindFromName };
 }
 
 module.exports = { makeBusyDrive, callScript, kindFromName, KEYS, SYNC_EVERY_MIN };
