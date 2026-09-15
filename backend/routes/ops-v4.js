@@ -125,13 +125,31 @@ module.exports = function registerOpsV4(S) {
       const dl = byName[busyDb.nb(r.dealer_name)] || byName[busyDb.nb(r.dealer_name).replace(/\s*\(.*\)$/, '')] || null;
       const amount = Number(r.amount) || 0, mich = Number(r.michelin_amt) || 0, vk = Number(r.vk_amt) || 0, other = Number(r.other_amt) || 0;
       const days = r.due_from ? Math.round((Date.now() - new Date(r.due_from).getTime()) / 86400000) : null;
-      return { name: r.dealer_name, mobile: r.mobile || (dl ? clean(dl.mobile) : ''), dsr: dl ? dl.added_by : '', amount, michelin: mich, vk: vk + other, other, dueFrom: r.due_from ? dmyOf(r.due_from) : '', dueDays: days, lastSale: r.last_sale ? dmyOf(r.last_sale) : '', lastReceipt: r.last_receipt ? dmyOf(r.last_receipt) : '', asOn: r.as_on, lastSent: sentMap[String(r.dealer_name).slice(0, 24)] ? dmyOf(new Date(sentMap[String(r.dealer_name).slice(0, 24)]).toISOString()) : '' };
+      return { name: r.dealer_name, mobile: r.mobile || (dl ? clean(dl.mobile) : ''), dsr: dl ? dl.added_by : '', amount, michelin: mich, vk, other, dueFrom: r.due_from ? dmyOf(r.due_from) : '', dueDays: days, lastSale: r.last_sale ? dmyOf(r.last_sale) : '', lastReceipt: r.last_receipt ? dmyOf(r.last_receipt) : '', asOn: r.as_on, lastSent: sentMap[String(r.dealer_name).slice(0, 24)] ? dmyOf(new Date(sentMap[String(r.dealer_name).slice(0, 24)]).toISOString()) : '' };
     });
   }
   router.post('/getOutstandingReport', requireOps, adminOnly, rpc(async () => {
     const rows = await outstandingRows();
     const [[meta]] = await db.query('SELECT MAX(fy) AS fy, COUNT(*) AS n FROM ops_busy_ledger');
     return J({ ok: true, rows, ledgerRows: meta.n | 0, fy: meta.fy | 0, templateOk: wati.ENABLED });
+  }));
+
+  // ══════════ SCHEME REPORT ══════════
+  // ops_scheme_catalog: Busy Drive folder me "Scheme" .xlsx daalne se khud bharta hai (busy-drive.js).
+  // Date-wise poora snapshot; d.date na diya ho to sabse latest date. Category se us din ke andar filter.
+  router.post('/getSchemeCatalog', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = parse(j);
+    const [dates] = await db.query('SELECT DISTINCT as_on FROM ops_scheme_catalog ORDER BY as_on DESC');
+    const asOn = (d.date && dates.some(r => r.as_on === d.date)) ? d.date : (dates[0] ? dates[0].as_on : '');
+    if (!asOn) return J({ ok: true, dates: [], categories: [], rows: [] });
+    const [cats] = await db.query('SELECT DISTINCT category FROM ops_scheme_catalog WHERE as_on=? ORDER BY category', [asOn]);
+    const params = [asOn]; let catSql = '';
+    if (d.category) { catSql = ' AND category=?'; params.push(d.category); }
+    const [rows] = await db.query(`SELECT id, category, row_label, data FROM ops_scheme_catalog WHERE as_on=?${catSql} ORDER BY category, id`, params);
+    return J({
+      ok: true, asOn, dates: dates.map(r => r.as_on), categories: cats.map(r => r.category),
+      rows: rows.map(r => { let data = {}; try { data = JSON.parse(r.data || '{}'); } catch (_) {} return { id: r.id, category: r.category, label: r.row_label, data }; }),
+    });
   }));
 
   // ══════════ STATEMENT ══════════

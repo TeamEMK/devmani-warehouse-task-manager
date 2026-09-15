@@ -15,11 +15,15 @@
 
 const busy = require('./ops-busy');
 const busyDb = require('./busy-db');
+const tally = require('./tally-bridge');
+const schemeCatalog = require('./scheme-catalog');
 
 const KEYS = { url: 'busyDrive.scriptUrl', secret: 'busyDrive.secret', enabled: 'busyDrive.enabled', state: 'busyDrive.state' };
 const SYNC_EVERY_MIN = 30;
 // File ke naam se kind — auto-detect par bharosa kam rahe
-const kindFromName = name => (/stock/i.test(name) ? 'STOCK' : /receiv|outstand|debtor|balance/i.test(name) ? 'OUT' : '');
+// SUPPLY = Busy ki "List of Supply Outward Vouchers" (Tally Bridge ke liye), SCHEME = Michelin/VK
+// scheme catalog (Scheme Report ke liye) — dono isi folder me daal do to daily upload nahi karna padega
+const kindFromName = name => (/stock/i.test(name) ? 'STOCK' : /receiv|outstand|debtor|balance/i.test(name) ? 'OUT' : /supply|outward/i.test(name) ? 'SUPPLY' : /scheme/i.test(name) ? 'SCHEME' : '');
 
 // GET + query params (POST par Google 302 redirect me body kho kar doGet chal jaata tha — kabhi-kabhi).
 // Jawab me `service` aaye (doGet ka default) ya ok na ho to ek baar aur try.
@@ -62,7 +66,7 @@ function backupStamp(folderName) {
   return { dmy: `${m[3]}-${m[2]}-${m[1]}`, label: `${m[3]}-${m[2]}-${m[1]} ${m[4].padStart(2, '0')}:${m[5]} ${m[6].toUpperCase()}` };
 }
 
-function makeBusyDrive({ db, nowIST, afterImport }) {
+function makeBusyDrive({ db, nowIST, afterImport, tallySettings, buildTallyKinds, tallyOutputsOf }) {
   async function getSetting(k) { const [[r]] = await db.query('SELECT value FROM app_settings WHERE key_name=?', [k]); return r ? r.value : null; }
   async function setSetting(k, v) { await db.query('INSERT INTO app_settings (key_name, value) VALUES (?,?) ON DUPLICATE KEY UPDATE value=VALUES(value)', [k, v]); }
   function emptyState() { return { files: {}, lastRun: '', lastBy: '', lastError: '', lastSummary: '' }; }
@@ -109,7 +113,13 @@ function makeBusyDrive({ db, nowIST, afterImport }) {
         if (!force && prev && prev.modified === f.modified) { skipped++; continue; }
         let r;
         if (f.kind === 'backup') r = await importBackup(s, f, silent);
-        else {
+        else if (kindFromName(f.name) === 'SUPPLY') {
+          const g = await callScript(s.url, s.secret, { action: 'get', id: f.id });
+          r = await processSupplyFile(Buffer.from(g.b64, 'base64'), g.name || f.name);
+        } else if (kindFromName(f.name) === 'SCHEME') {
+          const g = await callScript(s.url, s.secret, { action: 'get', id: f.id });
+          r = await processSchemeFile(Buffer.from(g.b64, 'base64'), g.name || f.name);
+        } else {
           const g = await callScript(s.url, s.secret, { action: 'get', id: f.id });
           r = await busy.importBusyBuffer(db, Buffer.from(g.b64, 'base64'), 'Drive: ' + (g.name || f.name), nowIST().dmy, kindFromName(f.name));
           if (silent) await muteNewPayments();
@@ -135,6 +145,46 @@ function makeBusyDrive({ db, nowIST, afterImport }) {
   // Busy backup (DATA.ZIP): download -> db1YYYY.bds -> stock + outstanding -> wahi importStock/importOutstanding
   // Abhi-abhi detect hui payments ko 'notified' maan lo — WhatsApp nahi jayega
   async function muteNewPayments() { await db.query(`UPDATE ops_payment_log SET notified='Y' WHERE notified='N'`); }
+  // Busy "List of Supply Outward Vouchers" .xlsx (Drive me) -> Tally Bridge processing khud, jaisa admin manually
+  // Tally Bridge page se karta tha. Result ops_tally_output me (aaj ki date, kind ke hisaab se
+  // upsert) — Tally Bridge page se koi bhi din date select karke dekh/download kar sakta hai.
+  async function processSupplyFile(buf, name) {
+    let result = '', notes = '';
+    try {
+      if (!tallySettings || !buildTallyKinds || !tallyOutputsOf) throw new Error('Tally settings wire nahi hue');
+      const s = await tallySettings(), kinds = buildTallyKinds(s);
+      if (!kinds['2W'].code && !kinds['4W'].code) throw new Error('Distributor code set nahi — Tally Bridge Settings mein save karein');
+      const r = tally.processListOfSupply(buf, kinds);
+      const outputs = tallyOutputsOf(r);
+      const asOn = nowIST().iso;
+      for (const o of outputs) {
+        await db.query(`INSERT INTO ops_tally_output (as_on, kind, label, file_name, code, matched_count, dropped_count, totals_json, preview_json, dropped_json, xlsx_base64)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?)
+          ON DUPLICATE KEY UPDATE label=VALUES(label), file_name=VALUES(file_name), code=VALUES(code), matched_count=VALUES(matched_count),
+            dropped_count=VALUES(dropped_count), totals_json=VALUES(totals_json), preview_json=VALUES(preview_json), dropped_json=VALUES(dropped_json), xlsx_base64=VALUES(xlsx_base64)`,
+          [asOn, o.kind, o.label, name.slice(0, 200), o.code || '', o.matchedCount, r.droppedCount, JSON.stringify(o.totals), JSON.stringify(o.preview), JSON.stringify(r.dropped.slice(0, 200)), o.base64]);
+      }
+      const parts = outputs.filter(o => o.matchedCount).map(o => `${o.label} ${o.matchedCount}`);
+      result = `TALLY: ${parts.join(', ') || 'kuch match nahi'} (${r.droppedCount} skipped), as on ${asOn}`;
+      notes = r.dropped.length ? 'Skipped items: ' + r.dropped.map(d => d.item).slice(0, 50).join(' | ') : '';
+    } catch (e) { result = 'ERROR: ' + String(e.message || e).slice(0, 250); }
+    await db.query('INSERT INTO ops_import_log (file_name,result,notes) VALUES (?,?,?)', [('Drive: ' + name).slice(0, 200), result, notes.slice(0, 60000)]);
+    return { result, notes };
+  }
+  // Michelin/VK scheme catalog .xlsx (Drive me) -> ops_scheme_catalog, date+category wise (Scheme Report page).
+  async function processSchemeFile(buf, name) {
+    let result = '', notes = '';
+    try {
+      const parsed = schemeCatalog.parseSchemeXlsx(buf);
+      if (parsed.noHeader) throw new Error('File me "Category" column nahi mila');
+      if (!parsed.rows.length) throw new Error('Koi row nahi mili');
+      const r = await schemeCatalog.importSchemeCatalog(db, parsed, nowIST().iso);
+      result = `SCHEME: ${r.count} rows, ${r.categories.length} categories, as on ${r.asOn}`;
+      notes = 'Categories: ' + r.categories.join(', ');
+    } catch (e) { result = 'ERROR: ' + String(e.message || e).slice(0, 250); }
+    await db.query('INSERT INTO ops_import_log (file_name,result,notes) VALUES (?,?,?)', [('Drive: ' + name).slice(0, 200), result, notes.slice(0, 60000)]);
+    return { result, notes };
+  }
   async function importBackup(s, f, silent) {
     const stamp = backupStamp(f.backup) || { dmy: nowIST().dmy, label: nowIST().dmyhm };
     const label = `Drive backup ${stamp.label} (${String(f.name).split('/')[1] || 'COMP'})`;

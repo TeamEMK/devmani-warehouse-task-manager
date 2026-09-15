@@ -31,6 +31,8 @@ const SEED_CHECKLIST = path.join(MIGR, 'seed-checklist.sql');
 const OPS_SCHEMA = path.join(MIGR, '005_ops.sql');
 const OPS_SCHEMA_V2 = path.join(MIGR, '006_ops_v2.sql');
 const OPS_SCHEMA_V4 = path.join(MIGR, '007_ops_v4.sql');
+const OPS_SCHEMA_SCHEME = path.join(MIGR, '008_ops_scheme.sql');
+const OPS_SCHEMA_TALLY = path.join(MIGR, '009_ops_tally.sql');
 const SEED_OPS = path.join(MIGR, 'seed-ops.sql');
 
 // MySQL me ADD COLUMN IF NOT EXISTS nahi hai — information_schema se poochh kar
@@ -135,6 +137,16 @@ async function ensureSchema() {
     if (fs.existsSync(OPS_SCHEMA_V4)) {
       for (const st of splitStatements(OPS_SCHEMA_V4)) {
         try { await db.query(st); } catch (err) { console.log('   ops v4 schema skip:', err.message.slice(0, 120)); }
+      }
+    }
+    if (fs.existsSync(OPS_SCHEMA_SCHEME)) {
+      for (const st of splitStatements(OPS_SCHEMA_SCHEME)) {
+        try { await db.query(st); } catch (err) { console.log('   ops scheme schema skip:', err.message.slice(0, 120)); }
+      }
+    }
+    if (fs.existsSync(OPS_SCHEMA_TALLY)) {
+      for (const st of splitStatements(OPS_SCHEMA_TALLY)) {
+        try { await db.query(st); } catch (err) { console.log('   ops tally schema skip:', err.message.slice(0, 120)); }
       }
     }
     await ensureColumns();

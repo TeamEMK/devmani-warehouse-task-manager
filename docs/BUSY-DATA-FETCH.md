@@ -65,8 +65,16 @@ Backup import ab ye bhi karta hai (`busy-drive.js` → `applyBackup`):
 - **Busy invoice no. → app order**: BILLED/DISPATCHED/DELIVERED order jinka invoice khali hai, unhe usi party ka sale voucher (bill date order/billed date ke -3..+10 din me, sabse paas) mil jaata hai → `invoice_no` + `invoice_auto=1`.
 - Payment WhatsApp ab **sirf tab** jab naya balance > 0 (0 ya advance/Cr par message nahi, log me `notified='Y'`).
 
+### 0.2 Scheme Catalog auto-import (15-Sep-2026)
+
+Drive folder me agar naam me **"scheme"** ho aisi `.xlsx` mile (Michelin/VK scheme catalog — ek column **"Category"** honi chahiye, scheme ka apna naam/type jaise "Volume Discount"/"Cashback"; baaki columns jo bhi hon sab as-is), to `busy-drive.js` (kind `SCHEME`) use `scheme-catalog.js` (`parseSchemeXlsx` + `importSchemeCatalog`) se `ops_scheme_catalog` me daal deta hai — poora replace sirf us "as on" date ka (file me "As On : DD-MM-YYYY" likha ho to wahi, warna import ki date), purani dates history me rehti hain. **Reports → Scheme Catalog** page se date + category filter karke dekha ja sakta hai (`/api/ops/getSchemeCatalog`); columns dynamic hain (jo bhi file me hon).
+
+### 0.3 Tally Bridge auto-processing (15-Sep-2026)
+
+Drive folder me agar Busy ki **"List of Supply Outward Vouchers"** export (`.xlsx`, naam me "supply" ya "outward") mile, to `busy-drive.js` (`kindFromName` -> kind `SUPPLY`) use import nahi, seedha **Tally Bridge** processing chalata hai (`tally-bridge.js` `processListOfSupply`, wahi CA-match jo Tally Bridge page manually karta tha) — Tally Bridge Settings ke saved distributor code + CA table use hote hain. Result table `ops_tally_output` me jaata hai, **aaj ki date + kind (2W/4W)** ke hisaab se upsert (2026-09-15: pehle "sirf latest" tha, ab date-wise archive — usi din ka dobara sync ho to sirf wahi din replace hota hai, purani dates rehti hain). Tally Bridge page par ab koi upload nahi — sirf ek date-dropdown (`/api/ops/getTallyOutput`) se koi bhi din ka 2W/4W InvoiceTally dekha/download kiya ja sakta hai. Har sync (30 min) is file ke badalne par dobara chal jaata hai, jaise Stock/Outstanding.
+
 App me:
-- **Reports → Busy Outstanding**: Due from (din ke saath), Account name (mobile/DSR/last payment), VK amount, Michelin amount, Total, **WhatsApp** button (0/advance walon par nahi) + **Statement** (PDF preview).
+- **Reports → Busy Outstanding**: Due from (din ke saath), Account name (mobile/DSR/last payment), VK amount, Other amount, Michelin amount, Total, **WhatsApp** button (0/advance walon par nahi) + **Statement** (PDF preview).
 - WhatsApp sheet: "Account statement bhi bhejna hai?" → haan to date range → message + PDF. **WhatsApp provider ab Waumfy hai** (14-Sep-2026; Masters → WhatsApp me provider + API key, `app_settings` `wa.*`): message ka text app me `ops-wati.js` TEXTS se banta hai (Wati template ki zaroorat nahi), PDF seedha base64 file ke roop me jaata hai (`send-message` type pdf). Link bhi message me rehta hai (45 din valid, `/api/ops/statement/<token>.pdf`). Wati chuno to purane template naam + `sendSessionFile` wala raasta chalta hai.
 - **IMS** page: min/max level (admin edit), status color (OUT/LOW/OK/OVER), avg/day (snapshot ke girne se), days cover, day-by-day grid.
 - **Stock** page: tabs All / Michelin (SC+MC+RE+PC) / VK / Other; filters segment, pattern, TL/TT, stock status, sort; qty color min/max se.

@@ -534,10 +534,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
           <div class="hint" id="tb-note"></div>
         </div>
         <div class="card">
-          <div class="h">Busy "List of Supply Outward Vouchers" <small>upload → 2W aur 4W InvoiceTally file alag-alag download</small></div>
-          <input type="file" id="tb-list" accept=".xlsx" style="font-size:13px;width:100%">
-          <div class="hint">Busy se export ki hui .xlsx chuno (2W + car items ek saath chalenge). Scooter/Motorcycle/RE items 2W file me, car tyre 4W file me; tube / naya SKU "Skipped" me dikhega. Download asli .xlsx hai, seedha Michelin portal par upload karo.</div>
-          <div id="tb-result" style="margin-top:12px"><div class="empty">File upload karte hi yahan preview aur download button aa jayega.</div></div>
+          <div class="h">Busy "List of Supply Outward Vouchers" <small>date select karo, 2W/4W InvoiceTally file download</small><span style="flex:1"></span><select class="inp" id="tb-date" style="width:auto;display:none"></select></div>
+          <div class="hint" style="margin:0 0 8px">Automatic hai — Busy Drive folder me is report ka export daal do (Stock Status/Amount Receivable jaisa hi), naam me "supply" ya "outward" ho. Har 30 min sync me app khud match karke neeche save kar deta hai; upload karne ki zaroorat nahi, bas date chuno.</div>
+          <div id="tb-result" style="margin-top:12px"><div class="empty">Loading…</div></div>
         </div>
       </div>
     </div>
@@ -1509,9 +1508,9 @@ $('rm-send').onclick=function(){
 var OUTS=[], OUTS_ROW=null;
 function loadOutsReport(){
   call('getOutstandingReport',{},function(d){
-    OUTS=d.rows; var tot=0,tm=0,tv=0; d.rows.forEach(function(r){ tot+=r.amount; tm+=r.michelin; tv+=r.vk; });
+    OUTS=d.rows; var tot=0,tm=0,tv=0,to=0; d.rows.forEach(function(r){ tot+=r.amount; tm+=r.michelin; tv+=r.vk; to+=r.other; });
     var c=$('outs-card'); if(!c) return;
-    c.innerHTML='<div class="h">Busy Outstanding <small>'+d.rows.length+' accounts · total '+fmt(tot)+' · Michelin '+fmt(tm)+' · VK/other '+fmt(tv)+(d.rows[0]?' · as on '+esc(d.rows[0].asOn):'')+'</small><span style="flex:1"></span><input class="inp" id="outs-q" placeholder="Search..." style="width:160px;padding:6px 8px;font-size:12px"></div>'+(d.ledgerRows?'':'<div class="warn">Busy ledger abhi import nahi hua — agla Drive sync hone do (Busy Import → Abhi sync), tab Michelin/VK split aur due-from dikhega.</div>')+'<div id="outs-tbl"></div><div class="hint">Due from = sabse purana bill jo abhi bhi bakaya hai (bakaya latest bills par lagaya, FIFO). Michelin = "Michelin" series ke bills, VK/other = baaki. 0 ya advance walon ko message nahi jaata.</div>';
+    c.innerHTML='<div class="h">Busy Outstanding <small>'+d.rows.length+' accounts · total '+fmt(tot)+' · Michelin '+fmt(tm)+' · VK '+fmt(tv)+' · Other '+fmt(to)+(d.rows[0]?' · as on '+esc(d.rows[0].asOn):'')+'</small><span style="flex:1"></span><input class="inp" id="outs-q" placeholder="Search..." style="width:160px;padding:6px 8px;font-size:12px"></div>'+(d.ledgerRows?'':'<div class="warn">Busy ledger abhi import nahi hua — agla Drive sync hone do (Busy Import → Abhi sync), tab Michelin/VK split aur due-from dikhega.</div>')+'<div id="outs-tbl"></div><div class="hint">Due from = sabse purana bill jo abhi bhi bakaya hai (bakaya latest bills par lagaya, FIFO). Michelin = "Michelin" series ke bills, VK = baaki sale bills, Other = opening/journal se bacha bakaya (kisi bill se judaa nahi). 0 ya advance walon ko message nahi jaata.</div>';
     renderOuts(); $('outs-q').addEventListener('input',renderOuts);
   });
 }
@@ -1521,6 +1520,7 @@ function renderOuts(){
     {h:'Due from',f:function(r){ return r.dueFrom?esc(r.dueFrom)+(r.dueDays!=null?'<br><span style="color:'+(r.dueDays>45?'var(--red)':r.dueDays>30?'var(--amber)':'var(--t3)')+';font-size:11px">'+r.dueDays+' din</span>':''):'<span style="color:var(--t3)">—</span>'; }},
     {h:'Account name',f:function(r){ return '<b>'+esc(r.name)+'</b><br><span style="color:var(--t3);font-size:11px">'+esc(r.mobile||'mobile nahi')+(r.dsr?' · '+esc(r.dsr):'')+(r.lastReceipt?' · last pay '+esc(r.lastReceipt):'')+'</span>'; }},
     {h:'VK amount',f:function(r){ return r.vk?fmt(r.vk):'—'; },r:1},
+    {h:'Other amount',f:function(r){ return r.other?fmt(r.other):'—'; },r:1},
     {h:'Michelin amount',f:function(r){ return r.michelin?fmt(r.michelin):'—'; },r:1},
     {h:'Total outstanding',f:function(r){ return '<b style="color:'+(r.amount<0?'var(--green)':'inherit')+'">'+fmt(r.amount)+(r.amount<0?' Cr':'')+'</b>'; },r:1},
     {h:'',f:function(r){ return (r.amount>0?'<button class="btn xs gold" data-owa="'+esc(r.name)+'">WhatsApp</button> ':'')+'<button class="btn xs ghost" data-ost="'+esc(r.name)+'">Statement</button>'+(r.lastSent?'<br><span style="color:var(--t3);font-size:10px">sent '+esc(r.lastSent)+'</span>':''); }}
@@ -1532,7 +1532,7 @@ function fyStartISO(){ var d=new Date(); var y=d.getMonth()>=3?d.getFullYear():d
 function openOutsWa(name){
   OUTS_ROW=null; OUTS.forEach(function(r){ if(r.name===name) OUTS_ROW=r; }); if(!OUTS_ROW) return;
   var r=OUTS_ROW;
-  $('ow-info').innerHTML='<b>'+esc(r.name)+'</b> · bakaya <b>'+fmt(r.amount)+'</b>'+(r.dueFrom?' · due from '+esc(r.dueFrom):'')+'<br>Michelin '+fmt(r.michelin)+' · VK/other '+fmt(r.vk);
+  $('ow-info').innerHTML='<b>'+esc(r.name)+'</b> · bakaya <b>'+fmt(r.amount)+'</b>'+(r.dueFrom?' · due from '+esc(r.dueFrom):'')+'<br>Michelin '+fmt(r.michelin)+' · VK '+fmt(r.vk)+' · Other '+fmt(r.other);
   $('ow-mob').value=r.mobile||''; $('ow-st-no').checked=true; $('ow-dates').style.display='none'; $('ow-from').value=fyStartISO(); $('ow-to').value=todayISO(); $('ow-result').textContent='';
   openOv('ov-outs');
 }
@@ -1546,6 +1546,28 @@ $('ow-send').onclick=function(){
     hideLoad(); $('ow-result').innerHTML='Bhej diya '+esc(d.sentTo)+' ko'+(d.url?' · <a class="doclink" target="_blank" href="'+esc(d.url)+'">statement PDF link</a>':'')+(d.note?'<br><span style="color:var(--amber)">'+esc(d.note)+'</span>':''); toast('Outstanding message gaya','ok'); loadOutsReport();
   });
 };
+
+/* ═══ SCHEME CATALOG (v4): Busy Drive se Michelin/VK scheme .xlsx, date+category wise archive ═══ */
+var SCHEME=null, SCHEME_DATE='', SCHEME_CAT='';
+function loadSchemeReport(){
+  call('getSchemeCatalog',{date:SCHEME_DATE,category:SCHEME_CAT},function(d){
+    SCHEME=d; SCHEME_DATE=d.asOn||'';
+    var c=$('scheme-card'); if(!c) return;
+    if(!d.dates.length){ c.innerHTML='<div class="empty">Abhi koi scheme file process nahi hui. Busy Drive folder me "Scheme" naam ka .xlsx export daal do (ek "Category" column ke saath) — agla auto-sync khud save kar dega.</div>'; return; }
+    var dateOpts=d.dates.map(function(x){ return '<option value="'+esc(x)+'"'+(x===SCHEME_DATE?' selected':'')+'>'+esc(x)+'</option>'; }).join('');
+    var catOpts='<option value="">Sab categories</option>'+d.categories.map(function(x){ return '<option value="'+esc(x)+'"'+(x===SCHEME_CAT?' selected':'')+'>'+esc(x)+'</option>'; }).join('');
+    c.innerHTML='<div class="h">Scheme Catalog <small>'+d.rows.length+' rows'+(d.asOn?' · as on '+esc(d.asOn):'')+'</small><span style="flex:1"></span><select class="inp" id="sch-date" style="width:auto;margin-right:6px">'+dateOpts+'</select><select class="inp" id="sch-cat" style="width:auto">'+catOpts+'</select></div><div id="sch-tbl"></div>';
+    $('sch-date').onchange=function(){ SCHEME_DATE=this.value; SCHEME_CAT=''; loadSchemeReport(); };
+    $('sch-cat').onchange=function(){ SCHEME_CAT=this.value; loadSchemeReport(); };
+    renderScheme();
+  });
+}
+function renderScheme(){
+  if(!SCHEME) return;
+  var keys=[]; SCHEME.rows.forEach(function(r){ Object.keys(r.data||{}).forEach(function(k){ if(!/^category$/i.test(k) && keys.indexOf(k)<0) keys.push(k); }); });
+  var cols=[{h:'Category',f:function(r){ return '<b>'+esc(r.category)+'</b>'; }}].concat(keys.map(function(k){ return {h:k,f:function(r){ var v=r.data[k]; return v==null||v===''?'—':esc(String(v)); }}; }));
+  $('sch-tbl').innerHTML=tbl(cols,SCHEME.rows,'Is category/date me koi row nahi');
+}
 
 /* ═══ IMS (v4) ═══ */
 var IMS=null, IMS_DIRTY={};
@@ -1577,7 +1599,7 @@ $('ims-save').onclick=function(){ var rows=Object.keys(IMS_DIRTY).map(function(k
 /* ═══ REPORTS (admin) ═══ */
 var RP_TAB='delivery', RP=null;
 function loadReports(){
-  var tabs=[['delivery','Delivery Pending'],['payment','Payment Pending'],['outstanding','Busy Outstanding'],['perf','DSR Performance'],['busy','Busy Import']];
+  var tabs=[['delivery','Delivery Pending'],['payment','Payment Pending'],['outstanding','Busy Outstanding'],['scheme','Scheme Catalog'],['perf','DSR Performance'],['busy','Busy Import']];
   $('rp-tabs').innerHTML=tabs.map(function(t){return '<button data-rp="'+t[0]+'"'+(RP_TAB===t[0]?' class="on"':'')+'>'+t[1]+'</button>';}).join('');
   $('rp-body').innerHTML='<div class="empty"><div class="spin" style="margin:0 auto"></div></div>';
   if(RP_TAB==='busy'){ call('getImportLog',{},function(rows){ $('rp-body').innerHTML='<div class="card"><div class="h">Busy Import report <small>pichle '+rows.length+' imports</small><span style="flex:1"></span><button class="btn sm gold" id="rp-busy2">⇪ Nayi file import</button></div>'+tbl([{h:'Time',k:'time'},{h:'File',k:'file'},{h:'Result',f:function(r){return (/^(ERROR|SKIP)/.test(r.result)?'<span class="neg">':'<span>')+esc(r.result)+'</span>';}},{h:'Unmatched / Notes',f:function(r){return r.notes?'<span style="font-size:11.5px;color:var(--amber);white-space:pre-wrap">'+esc(r.notes)+'</span>':'—';}}],rows,'Abhi koi import nahi hua')+'</div>'; $('rp-busy2').onclick=openBusy; }); return; }
@@ -1595,6 +1617,8 @@ function renderReport(){
   } else if(RP_TAB==='outstanding'){
     var to=0; d.outstanding.forEach(function(r){to+=r.amount;});
     h='<div class="card" id="outs-card"><div class="empty"><div class="spin" style="margin:0 auto"></div></div></div>'; setTimeout(loadOutsReport,0);
+  } else if(RP_TAB==='scheme'){
+    h='<div class="card" id="scheme-card"><div class="empty"><div class="spin" style="margin:0 auto"></div></div></div>'; setTimeout(loadSchemeReport,0);
   } else {
     h='<div class="card"><div class="h">DSR Performance <small>is mahine</small></div>'+tbl([{h:'DSR',f:function(r){return '<b>'+esc(r.name)+'</b><br><span style="color:var(--t3)">'+esc(r.mob)+'</span>';}},{h:'Orders',k:'orders',r:1},{h:'Tyres',k:'qty',r:1},{h:'Amount',f:function(r){return fmt(r.amount);},r:1},{h:'Delivered',k:'delivered',r:1},{h:'New dealers',k:'dealers',r:1},{h:'Attend. days',k:'attendDays',r:1},{h:'Visits',f:function(r){return r.visited+' / '+r.planned;},r:1},{h:'Expenses',f:function(r){return fmt(r.expApproved)+(r.expPending?'<br><span style="color:var(--amber)">'+r.expPending+' pending</span>':'');},r:1}],d.performance,'Koi DSR nahi')+'</div>';
   }
@@ -1713,10 +1737,22 @@ $('tr-save').onclick=function(){ showLoad('Save...'); call('saveTransporter',{id
 /* ═══ TALLY BRIDGE (admin) — 2W (SC/MC/RE) + 4W (car) alag code/CA table, ek Busy file se dono output ═══ */
 var TB_KINDS=['2W','4W'], TB_CA={}, TB_DATA=null;
 function tbStatus(k){ var el=$('tb-castatus-'+k.kind); if(el) el.innerHTML='<b>'+k.caCount+'</b> items loaded ('+esc(k.caSourceLabel)+(k.caUpdatedAt?', '+esc(k.caUpdatedAt):'')+')'; var c=$('tb-code-'+k.kind); if(c) c.value=k.distributorCode||''; }
+var TB_DATE='';
 function loadTally(){
   TB_KINDS.forEach(function(k){ $('tb-castatus-'+k).textContent='Loading…'; });
   call('tallyGetSettings',{},function(s){ (s.kinds||[]).forEach(tbStatus); });
+  loadTallyOutput();
 }
+function loadTallyOutput(){
+  call('getTallyOutput',{date:TB_DATE},function(d){
+    TB_DATA=d; TB_DATE=d.asOn||'';
+    if(!d.dates.length){ $('tb-date').style.display='none'; $('tb-result').innerHTML='<div class="empty">Abhi tak koi file process nahi hui. Busy Drive folder me "List of Supply Outward Vouchers" export daal do (naam me "supply" ya "outward" ho) — agla auto-sync khud process kar dega.</div>'; return; }
+    $('tb-date').style.display='inline-block';
+    $('tb-date').innerHTML=d.dates.map(function(x){ return '<option value="'+esc(x)+'"'+(x===TB_DATE?' selected':'')+'>'+esc(x)+'</option>'; }).join('');
+    renderTally(d,'<div class="hint">Source: <b>'+esc(d.fileName)+'</b></div>');
+  });
+}
+$('tb-date').addEventListener('change',function(){ TB_DATE=this.value; loadTallyOutput(); });
 TB_KINDS.forEach(function(k){
   $('tb-cafile-'+k).addEventListener('change',function(){ var f=this.files[0]; if(!f) return; var rd=new FileReader(); rd.onload=function(){ TB_CA[k]={name:f.name,b64:rd.result.split(',')[1]}; $('tb-castatus-'+k).textContent='ready to save: '+f.name+' (Save dabao)'; }; rd.readAsDataURL(f); });
 });
@@ -1726,21 +1762,10 @@ $('tb-save').onclick=function(){
   showLoad('Settings save...');
   call('tallySaveSettings',{kinds:kinds},function(s){ hideLoad(); TB_CA={}; TB_KINDS.forEach(function(k){ $('tb-cafile-'+k).value=''; }); (s.kinds||[]).forEach(tbStatus); $('tb-note').textContent='Save ho gaya — ab sab isi ke saath kaam karenge.'; toast('Settings save ho gayi','ok'); });
 };
-$('tb-list').addEventListener('change',function(){
-  var f=this.files[0], inp=this; if(!f) return;
-  $('tb-result').innerHTML='<div class="empty"><div class="spin" style="margin:0 auto"></div><div>Processing…</div></div>';
-  var codes={}; TB_KINDS.forEach(function(k){ codes[k]=V('tb-code-'+k); });
-  var rd=new FileReader(); rd.onload=function(){
-    gas('tallyProcess',JSON.stringify({b64:rd.result.split(',')[1],name:f.name,codes:codes}),function(r){
-      inp.value=''; var d=JSON.parse(r); if(!d.ok){ $('tb-result').innerHTML='<div class="empty" style="color:var(--red)">'+esc(d.error)+'</div>'; return; }
-      TB_DATA=d; renderTally(d);
-    });
-  }; rd.readAsDataURL(f);
-});
 function tbDownload(b64,filename){ var bin=atob(b64), arr=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i); var blob=new Blob([arr],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}); var u=URL.createObjectURL(blob), a=document.createElement('a'); a.href=u; a.download=filename; document.body.appendChild(a); a.click(); setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(u); },1000); }
-function renderTally(d){
+function renderTally(d,banner){
   var cols=['DistributorCode','DealerShipName','InvoiceNumber','InvoiceDate','CAI','ItemPricePerUnit','Quantity','TotalAmount','GSTIN','SalesReturnNumber'];
-  var h='<div class="grid2"><div><div class="kpi g"><div class="v">'+d.matchedCount+'</div><div class="l">Rows ready (2W + 4W)</div></div></div><div><div class="kpi r"><div class="v">'+d.droppedCount+'</div><div class="l">Skipped (no CA match)</div></div></div></div>';
+  var h=(banner||'')+'<div class="grid2"><div><div class="kpi g"><div class="v">'+d.matchedCount+'</div><div class="l">Rows ready (2W + 4W)</div></div></div><div><div class="kpi r"><div class="v">'+d.droppedCount+'</div><div class="l">Skipped (no CA match)</div></div></div></div>';
   if(!d.matchedCount) h+='<div class="warn">Koi item match nahi hua — CA data ya file format check karo.</div>';
   (d.outputs||[]).forEach(function(o){
     h+='<div class="card" style="margin-top:10px;padding:12px"><div class="h" style="font-size:14px">'+esc(o.label)+' <small>'+esc(o.sub)+(o.code?' · code '+esc(o.code):'')+'</small></div>';

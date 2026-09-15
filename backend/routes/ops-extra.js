@@ -364,6 +364,16 @@ module.exports = function registerOpsExtra(S) {
     return { kind, code, caTable, caSourceLabel: (await getSetting(K.label)) || 'default', caUpdatedAt: (await getSetting(K.at)) || '' };
   }
   async function tallySettings() { return { '2W': await kindSettings('2W'), '4W': await kindSettings('4W') }; }
+  // tallySettings() + optional per-kind distributor code override -> { '2W': {caTable, code}, '4W': {...} } jo tally.processListOfSupply chahta hai
+  function buildTallyKinds(s, over) {
+    const kinds = {}; over = over || {};
+    for (const k of tally.KINDS) { const code = String(over[k.kind] || s[k.kind].code || '').trim(); kinds[k.kind] = { caTable: s[k.kind].caTable, code }; }
+    return kinds;
+  }
+  // processListOfSupply() ka result -> UI/state ke liye plain JSON (xlsx base64 ke saath)
+  function tallyOutputsOf(r) {
+    return r.outputs.map(o => ({ kind: o.kind, label: o.label, sub: o.sub, code: o.code, matchedCount: o.matchedCount, preview: o.preview, totals: o.totals, base64: o.xlsx ? o.xlsx.toString('base64') : null, filename: o.xlsx ? `InvoiceTally_${o.kind}_${o.code || 'nocode'}.xlsx` : null, warn: o.matchedCount && !o.code ? 'Distributor code set nahi — file me code khali jayega' : '' }));
+  }
   const settingsOut = s => ({ ok: true, kinds: tally.KINDS.map(k => { const x = s[k.kind]; return { kind: k.kind, label: k.label, sub: k.sub, distributorCode: x.code, caCount: x.caTable.length, caSourceLabel: x.caSourceLabel, caUpdatedAt: x.caUpdatedAt }; }) });
   router.post('/tallyGetSettings', requireOps, adminOnly, rpc(async () => J(settingsOut(await tallySettings()))));
   // body: { kinds: { '2W': { distributorCode, caFile:{name,b64}|null }, '4W': {...} } }
@@ -387,18 +397,40 @@ module.exports = function registerOpsExtra(S) {
   router.post('/tallyProcess', requireOps, adminOnly, rpc(async (u, j) => {
     const d = parse(j);
     if (!d.b64) return err('File nahi mili');
-    const s = await tallySettings(), kinds = {}, over = d.codes || {};
-    for (const k of tally.KINDS) { const code = String(over[k.kind] || s[k.kind].code || '').trim(); kinds[k.kind] = { caTable: s[k.kind].caTable, code }; }
+    const s = await tallySettings(), kinds = buildTallyKinds(s, d.codes);
     if (!kinds['2W'].code && !kinds['4W'].code) return err('Distributor code set nahi hai — pehle Settings mein save karein.');
     const r = tally.processListOfSupply(Buffer.from(d.b64, 'base64'), kinds);
-    const outputs = r.outputs.map(o => ({ kind: o.kind, label: o.label, sub: o.sub, code: o.code, matchedCount: o.matchedCount, preview: o.preview, totals: o.totals, base64: o.xlsx ? o.xlsx.toString('base64') : null, filename: o.xlsx ? `InvoiceTally_${o.kind}_${o.code || 'nocode'}.xlsx` : null, warn: o.matchedCount && !o.code ? 'Distributor code set nahi — file me code khali jayega' : '' }));
+    const outputs = tallyOutputsOf(r);
     return J({ ok: true, outputs, matchedCount: r.matchedCount, droppedCount: r.droppedCount, dropped: r.dropped });
+  }));
+  // Busy Drive auto-sync (neeche) jab "List of Supply Outward Vouchers" file dekhta hai to yahi processing khud
+  // chala deta hai aur ops_tally_output me (as_on date + kind ke hisaab se) save karta hai — koi upload nahi
+  // chahiye, Tally Bridge page se seedha date select karke us din ka 2W/4W file dekh/download ho jaata hai.
+  const TALLY_KMETA = { '2W': { label: '2 Wheeler', sub: 'Scooter / Motorcycle / Royal Enfield' }, '4W': { label: '4 Wheeler', sub: 'Car (PCR)' } };
+  router.post('/getTallyOutput', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = parse(j);
+    const [dates] = await db.query('SELECT DISTINCT as_on FROM ops_tally_output ORDER BY as_on DESC');
+    const asOn = (d.date && dates.some(r => r.as_on === d.date)) ? d.date : (dates[0] ? dates[0].as_on : '');
+    if (!asOn) return J({ ok: true, dates: [], asOn: '', outputs: [] });
+    const [rows] = await db.query('SELECT kind, label, file_name, code, matched_count, dropped_count, totals_json, preview_json, dropped_json, xlsx_base64 FROM ops_tally_output WHERE as_on=? ORDER BY kind', [asOn]);
+    const jparse = (s, fb) => { try { return JSON.parse(s || ''); } catch (_) { return fb; } };
+    const outputs = rows.map(r => {
+      const m = TALLY_KMETA[r.kind] || {};
+      return { kind: r.kind, label: m.label || r.label, sub: m.sub || '', code: r.code, matchedCount: r.matched_count, totals: jparse(r.totals_json, {}), preview: jparse(r.preview_json, []), base64: r.xlsx_base64 || null, filename: r.xlsx_base64 ? `InvoiceTally_${r.kind}_${r.code || 'nocode'}.xlsx` : null, warn: r.matched_count && !r.code ? 'Distributor code set nahi — file me code khali jayega' : '' };
+    });
+    return J({
+      ok: true, dates: dates.map(r => r.as_on), asOn, fileName: rows[0] ? rows[0].file_name : '',
+      matchedCount: rows.reduce((a, r) => a + (r.matched_count || 0), 0),
+      droppedCount: rows[0] ? rows[0].dropped_count : 0,
+      dropped: jparse((rows[0] || {}).dropped_json, []),
+      outputs,
+    });
   }));
 
   // ══════════ BUSY DRIVE AUTO-IMPORT ══════════
   // Devmaniwarehouses Drive folder (Apps Script web app, docs/apps-script-busy-drive) se
   // Busy exports har 30 min khud import. Settings app_settings me (busyDrive.*).
-  const busyDrive = require('../lib/busy-drive').makeBusyDrive({ db, nowIST, afterImport: () => (scanPayments ? scanPayments() : null) });
+  const busyDrive = require('../lib/busy-drive').makeBusyDrive({ db, nowIST, afterImport: () => (scanPayments ? scanPayments() : null), tallySettings, buildTallyKinds, tallyOutputsOf });
   router.post('/busyDriveGet', requireOps, adminOnly, rpc(async () => J(Object.assign({ ok: true }, busyDrive.publicView(await busyDrive.settings())))));
   router.post('/busyDriveSave', requireOps, adminOnly, rpc(async (u, j) => {
     const d = parse(j);
