@@ -1765,12 +1765,16 @@ $('tb-save').onclick=function(){
   showLoad('Settings save...');
   call('tallySaveSettings',{kinds:kinds},function(s){ hideLoad(); TB_CA={}; TB_KINDS.forEach(function(k){ $('tb-cafile-'+k).value=''; }); (s.kinds||[]).forEach(tbStatus); $('tb-note').textContent='Save ho gaya — ab sab isi ke saath kaam karenge.'; toast('Settings save ho gayi','ok'); });
 };
-$('tb-probe').onclick=function(){
-  showLoad('Backup se schema nikaal rahe hain...');
-  call('busySchemaProbe',{},function(d){
-    hideLoad(); var t=$('tb-probe-out'); t.style.display='block';
-    t.value=JSON.stringify(d,null,2); t.select();
+function tbProbePoll(){
+  call('busySchemaProbeGet',{},function(d){
+    var t=$('tb-probe-out'); t.style.display='block';
+    if(d.running){ t.value='Processing... (poora backup ~25MB download + parse ho raha hai, 1-3 min lagega)'; setTimeout(tbProbePoll,3000); return; }
+    if(d.error){ t.value='ERROR: '+d.error; return; }
+    t.value=d.result?JSON.stringify(d.result,null,2):'Kuch nahi mila';
   });
+}
+$('tb-probe').onclick=function(){
+  call('busySchemaProbeStart',{},function(){ tbProbePoll(); });
 };
 function tbDownload(b64,filename){ var bin=atob(b64), arr=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i); var blob=new Blob([arr],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}); var u=URL.createObjectURL(blob), a=document.createElement('a'); a.href=u; a.download=filename; document.body.appendChild(a); a.click(); setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(u); },1000); }
 function renderTally(d,banner){

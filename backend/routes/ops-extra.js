@@ -442,8 +442,10 @@ module.exports = function registerOpsExtra(S) {
   router.post('/busyDriveTest', requireOps, adminOnly, rpc(async () => { try { return J(Object.assign({ ok: true }, await busyDrive.test())); } catch (e) { return err(e.message); } }));
   // Diagnostic (temporary, hataya ja sakta hai): backup DB ka raw schema + ek Sale voucher sample — koi
   // data likhta nahi. "List of Supply Outward Vouchers" seedha backup se nikalne se pehle real field
-  // names (item-line rate/amount, GSTIN) verify karne ke liye.
-  router.post('/busySchemaProbe', requireOps, adminOnly, rpc(async () => { try { return J(Object.assign({ ok: true }, await busyDrive.probeSchema())); } catch (e) { return err(e.message); } }));
+  // names (item-line rate/amount, GSTIN) verify karne ke liye. Poora backup download 1-3 min leta hai
+  // (hosting proxy 60s par kaat deta hai), isliye background me + UI poll karta hai (jaise busyDriveSync).
+  router.post('/busySchemaProbeStart', requireOps, adminOnly, rpc(async () => { busyDrive.startProbe(); return J({ ok: true }); }));
+  router.post('/busySchemaProbeGet', requireOps, adminOnly, rpc(async () => J(Object.assign({ ok: true }, busyDrive.probeStatus()))));
   // Sync 1-3 min leta hai (backup download + parse) — hosting proxy 60s par kaat deta hai, isliye
   // background me shuru karke turant jawab; UI busyDriveGet se poll karta hai (running / lastRun).
   router.post('/busyDriveSync', requireOps, adminOnly, rpc(async (u, j) => {

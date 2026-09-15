@@ -264,6 +264,9 @@ function makeBusyDrive({ db, nowIST, afterImport, tallySettings, buildTallyKinds
   // Diagnostic (temporary): sabse naya backup utha kar raw Tran1/Tran2/Master1 column names + ek
   // sample Sale voucher dikhata hai — DB me kuch likhta nahi. "List of Supply Outward Vouchers" ko
   // seedha backup se nikalne ka rasta banane se pehle asli field names (rate/amount/GSTIN) verify karne ke liye.
+  // Poora backup (~25MB) download + parse 1-3 min leta hai — hosting proxy 60s par request kaat deta hai
+  // (jaise sync()), isliye background me chalta hai; UI probeStatus() se poll karta hai.
+  let probeState = { running: false, result: null, error: '' };
   async function probeSchema() {
     const s = await settings();
     if (!s.url || !s.secret) throw new Error('Drive script URL / secret set nahi');
@@ -274,7 +277,15 @@ function makeBusyDrive({ db, nowIST, afterImport, tallySettings, buildTallyKinds
     const zip = await downloadRaw(s.url, s.secret, f.id, f.size);
     return Object.assign({ backupFile: f.name, backupModified: f.modified }, busyDb.inspectBackup(zip));
   }
-  return { settings, saveSettings, publicView, test, sync, syncIfEnabled, snapshotStock, applyBackup, probeSchema, isRunning: () => running, SYNC_EVERY_MIN, kindFromName };
+  function startProbe() {
+    if (probeState.running) return;
+    probeState = { running: true, result: null, error: '' };
+    probeSchema()
+      .then(r => { probeState = { running: false, result: r, error: '' }; })
+      .catch(e => { probeState = { running: false, result: null, error: String(e.message || e).slice(0, 500) }; });
+  }
+  const probeStatus = () => probeState;
+  return { settings, saveSettings, publicView, test, sync, syncIfEnabled, snapshotStock, applyBackup, probeSchema, startProbe, probeStatus, isRunning: () => running, SYNC_EVERY_MIN, kindFromName };
 }
 
 module.exports = { makeBusyDrive, callScript, kindFromName, KEYS, SYNC_EVERY_MIN };
