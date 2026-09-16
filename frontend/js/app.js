@@ -2860,7 +2860,16 @@ function _setOps(ops) {
 function _opsRoleChanged() { document.getElementById('uOpsPermsWrap').style.display = document.getElementById('uOpsRole').value ? 'block' : 'none'; }
 function _getOpsPerms() { return [...document.querySelectorAll('.ops-pg:checked')].map(x => x.value); }
 
+// User modal — "User" (profile/basic) vs "Access" (role + Ops) tabs
+function switchUserModalTab(tab) {
+  document.getElementById('userTabUser').style.display = tab==='user' ? '' : 'none';
+  document.getElementById('userTabAccess').style.display = tab==='access' ? '' : 'none';
+  document.getElementById('userTabBtnUser').classList.toggle('active', tab==='user');
+  document.getElementById('userTabBtnAccess').classList.toggle('active', tab==='access');
+}
+
 function openAddUser() {
+  switchUserModalTab('user');
   document.getElementById('userModalTitle').textContent='Add User';
   _setOps(null);
   ['editUserId','uName','uEmail','uNotifEmail','uPhone','uPassword'].forEach(id=>document.getElementById(id).value='');
@@ -2888,6 +2897,7 @@ function setUserViewOnly(on) {
 function openEditUser(id) {
   const u = _usersMap[id];
   if (!u) { showToast('User data not found. Please refresh the page.','error'); return; }
+  switchUserModalTab('user');
   setUserViewOnly(Number(u.view_only) === 1);
   document.getElementById('userModalTitle').textContent='Edit User';
   document.getElementById('editUserId').value=u.id;

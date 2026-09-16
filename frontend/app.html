@@ -1283,46 +1283,32 @@
     <div class="alert error" id="userErr"></div>
     <div class="alert success" id="userSuccess"></div>
     <input type="hidden" id="editUserId"/>
-    <div class="form-row">
-      <div class="form-group"><label>Full Name</label><input type="text" id="uName" placeholder="Enter full name"/></div>
-      <div class="form-group"><label>Email <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(login)</span></label><input type="email" id="uEmail" placeholder="Enter login email"/></div>
+    <!-- User details vs Role/Ops-access — do alag tabs, form lamba na lage -->
+    <div class="tab-group" style="width:fit-content;margin-bottom:14px">
+      <div class="tab active" id="userTabBtnUser" onclick="switchUserModalTab('user')">👤 User</div>
+      <div class="tab" id="userTabBtnAccess" onclick="switchUserModalTab('access')">🔐 Access</div>
     </div>
-    <div class="form-row">
-      <div class="form-group"><label>Notification Email <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(real Gmail for task notifications)</span></label><input type="email" id="uNotifEmail" placeholder="real email for notifications"/></div>
-      <div class="form-group"><label>WhatsApp Number <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(weekly reminders here)</span></label><input type="tel" id="uPhone" placeholder="10-digit mobile, e.g. 9876543210"/></div>
-    </div>
-    <div class="form-row">
+
+    <div id="userTabUser">
+      <div class="form-row">
+        <div class="form-group"><label>Full Name</label><input type="text" id="uName" placeholder="Enter full name"/></div>
+        <div class="form-group"><label>Email <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(login)</span></label><input type="email" id="uEmail" placeholder="Enter login email"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Notification Email <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(real Gmail for task notifications)</span></label><input type="email" id="uNotifEmail" placeholder="real email for notifications"/></div>
+        <div class="form-group"><label>WhatsApp Number <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(weekly reminders here)</span></label><input type="tel" id="uPhone" placeholder="10-digit mobile, e.g. 9876543210"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Department</label>
+          <select id="uDepartment" onchange="handleDeptChange()"></select>
+          <input type="text" id="uDepartmentNew" placeholder="Enter new department name, press Enter to save" style="display:none;margin-top:6px"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();saveNewDepartment();}" onblur="saveNewDepartment()"/>
+        </div>
+      </div>
       <div class="form-group">
-        <label>Department</label>
-        <select id="uDepartment" onchange="handleDeptChange()"></select>
-        <input type="text" id="uDepartmentNew" placeholder="Enter new department name, press Enter to save" style="display:none;margin-top:6px"
-               onkeydown="if(event.key==='Enter'){event.preventDefault();saveNewDepartment();}" onblur="saveNewDepartment()"/>
-      </div>
-    </div>
-    <div class="form-group">
-      <label>Password <span id="pwdOptional" style="color:var(--muted-foreground);font-weight:400;text-transform:none">(leave blank to keep current)</span></label>
-      <input type="password" id="uPassword" placeholder="Enter password"/>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label>Role</label>
-        <select id="uRole">
-          <option value="user">User</option>
-          <option value="hod">HOD</option>
-          <option value="pc">PC (View + Approve)</option>
-          <option value="admin">Admin</option>
-        </select>
-      </div>
-      <div class="form-group"><label>Access</label>
-        <div id="uAccessWrap" style="display:flex;gap:6px;padding:3px;background:var(--muted);border-radius:var(--radius-md)">
-          <button type="button" class="tab active" id="uAccessFull" onclick="setUserViewOnly(false)"
-                  style="flex:1;text-align:center;border:none;font-family:inherit">✏️ Full</button>
-          <button type="button" class="tab" id="uAccessView" onclick="setUserViewOnly(true)"
-                  style="flex:1;text-align:center;border:none;font-family:inherit">👁 View only</button>
-        </div>
-        <input type="hidden" id="uViewOnly" value="0"/>
-        <div id="uAccessHint" style="display:none;font-size:11px;color:var(--warning);margin-top:5px;line-height:1.4">
-          This user will see everything but cannot add, edit or delete anything.
-        </div>
+        <label>Password <span id="pwdOptional" style="color:var(--muted-foreground);font-weight:400;text-transform:none">(leave blank to keep current)</span></label>
+        <input type="password" id="uPassword" placeholder="Enter password"/>
       </div>
       <div class="form-group">
         <label>Week Off <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(checklist will be skipped)</span></label>
@@ -1336,38 +1322,64 @@
           <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:500;cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" class="woff-cb" value="6" style="accent-color:var(--primary)"/> Sat</label>
         </div>
       </div>
+      <!-- Extra Off Section -->
+      <div class="form-group">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label style="margin:0">Extra Off <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(e.g. 2nd & 4th Saturday)</span></label>
+          <button type="button" class="btn btn-outline btn-sm" onclick="addExtraOff()" style="font-size:11px;padding:3px 10px">+ Add</button>
+        </div>
+        <div id="extraOffList" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
     </div>
-    <!-- Michelin Ops access (v4): ops_users row is user se linked -->
-    <div class="form-group" style="border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--card)">
-      <label style="margin:0 0 6px">Michelin Ops access <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(devmanierp.com/ops — Bansal Oil)</span></label>
+
+    <div id="userTabAccess" style="display:none">
       <div class="form-row">
-        <div class="form-group" style="margin:0"><label>Ops role</label>
-          <select id="uOpsRole" onchange="_opsRoleChanged()">
-            <option value="">— No access —</option>
-            <option value="ADMIN">Admin (sab)</option>
-            <option value="CRM">CRM</option>
-            <option value="BILLING">Billing</option>
-            <option value="ACCOUNTS">Accounts</option>
-            <option value="RM">RM</option>
-            <option value="DSR">DSR (field)</option>
+        <div class="form-group"><label>Role</label>
+          <select id="uRole">
+            <option value="user">User</option>
+            <option value="hod">HOD</option>
+            <option value="pc">PC (View + Approve)</option>
+            <option value="admin">Admin</option>
           </select>
         </div>
-        <div class="form-group" style="margin:0"><label>Ops password <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(sirf phone se /ops kholne ke liye; blank = same)</span></label><input type="text" id="uOpsPass" placeholder="optional" autocomplete="off"/></div>
+        <div class="form-group"><label>Access</label>
+          <div id="uAccessWrap" style="display:flex;gap:6px;padding:3px;background:var(--muted);border-radius:var(--radius-md)">
+            <button type="button" class="tab active" id="uAccessFull" onclick="setUserViewOnly(false)"
+                    style="flex:1;text-align:center;border:none;font-family:inherit">✏️ Full</button>
+            <button type="button" class="tab" id="uAccessView" onclick="setUserViewOnly(true)"
+                    style="flex:1;text-align:center;border:none;font-family:inherit">👁 View only</button>
+          </div>
+          <input type="hidden" id="uViewOnly" value="0"/>
+          <div id="uAccessHint" style="display:none;font-size:11px;color:var(--warning);margin-top:5px;line-height:1.4">
+            This user will see everything but cannot add, edit or delete anything.
+          </div>
+        </div>
       </div>
-      <div id="uOpsPermsWrap" style="display:none;margin-top:8px">
-        <label style="margin:0 0 4px">Pages <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(kuch tick na ho = role ka default)</span></label>
-        <div id="uOpsPerms" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      <!-- Michelin Ops access (v4): ops_users row is user se linked -->
+      <div class="form-group" style="border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--card)">
+        <label style="margin:0 0 6px">Michelin Ops access <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(devmanierp.com/ops — Bansal Oil)</span></label>
+        <div class="form-row">
+          <div class="form-group" style="margin:0"><label>Ops role</label>
+            <select id="uOpsRole" onchange="_opsRoleChanged()">
+              <option value="">— No access —</option>
+              <option value="ADMIN">Admin (sab)</option>
+              <option value="CRM">CRM</option>
+              <option value="BILLING">Billing</option>
+              <option value="ACCOUNTS">Accounts</option>
+              <option value="RM">RM</option>
+              <option value="DSR">DSR (field)</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0"><label>Ops password <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(sirf phone se /ops kholne ke liye; blank = same)</span></label><input type="text" id="uOpsPass" placeholder="optional" autocomplete="off"/></div>
+        </div>
+        <div id="uOpsPermsWrap" style="display:none;margin-top:8px">
+          <label style="margin:0 0 4px">Pages <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(kuch tick na ho = role ka default)</span></label>
+          <div id="uOpsPerms" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
+        <div id="uOpsHint" style="font-size:11px;color:var(--muted-foreground);margin-top:6px">Is app me login karne par Michelin Ops bina doosre login ke khul jaata hai. WhatsApp Number upar wala hi Ops me use hota hai.</div>
       </div>
-      <div id="uOpsHint" style="font-size:11px;color:var(--muted-foreground);margin-top:6px">Is app me login karne par Michelin Ops bina doosre login ke khul jaata hai. WhatsApp Number upar wala hi Ops me use hota hai.</div>
     </div>
-    <!-- Extra Off Section -->
-    <div class="form-group">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <label style="margin:0">Extra Off <span style="color:var(--muted-foreground);font-weight:400;font-size:11px">(e.g. 2nd & 4th Saturday)</span></label>
-        <button type="button" class="btn btn-outline btn-sm" onclick="addExtraOff()" style="font-size:11px;padding:3px 10px">+ Add</button>
-      </div>
-      <div id="extraOffList" style="display:flex;flex-direction:column;gap:6px"></div>
-    </div>
+
     <div class="modal-footer" style="justify-content:space-between">
       <button class="btn btn-outline" onclick="closeModal('userModal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveUser()">Save</button>
