@@ -532,14 +532,12 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
           <div style="height:10px"></div>
           <button class="btn gold" id="tb-save">Settings save karo</button>
           <div class="hint" id="tb-note"></div>
-          <div style="height:14px"></div>
-          <button class="btn ghost sm" id="tb-probe">🔧 Backup schema check (diagnostic, temp)</button>
-          <textarea id="tb-probe-out" readonly style="display:none;width:100%;height:220px;margin-top:8px;font-family:monospace;font-size:11px" onclick="this.select()"></textarea>
         </div>
         <div class="card">
-          <div class="h">Busy "List of Supply Outward Vouchers" <small>date select karo, 2W/4W InvoiceTally file download</small><span style="flex:1"></span><select class="inp" id="tb-date" style="width:auto;display:none"></select></div>
-          <div class="hint" style="margin:0 0 8px">Automatic hai — Busy Drive folder me is report ka export daal do (Stock Status/Amount Receivable jaisa hi), naam me "supply" ya "outward" ho. Har 30 min sync me app khud match karke neeche save kar deta hai; upload karne ki zaroorat nahi, bas date chuno.</div>
-          <div id="tb-result" style="margin-top:12px"><div class="empty">Loading…</div></div>
+          <div class="h">Busy "List of Supply Outward Vouchers" <small>upload → 2W aur 4W InvoiceTally file alag-alag download</small></div>
+          <input type="file" id="tb-list" accept=".xlsx" style="font-size:13px;width:100%">
+          <div class="hint">Busy se export ki hui .xlsx chuno (2W + car items ek saath chalenge). Scooter/Motorcycle/RE items 2W file me, car tyre 4W file me; tube / naya SKU "Skipped" me dikhega. Download asli .xlsx hai, seedha Michelin portal par upload karo.</div>
+          <div id="tb-result" style="margin-top:12px"><div class="empty">File upload karte hi yahan preview aur download button aa jayega.</div></div>
         </div>
       </div>
     </div>
@@ -1796,22 +1794,10 @@ $('tr-save').onclick=function(){ showLoad('Save...'); call('saveTransporter',{id
 /* ═══ TALLY BRIDGE (admin) — 2W (SC/MC/RE) + 4W (car) alag code/CA table, ek Busy file se dono output ═══ */
 var TB_KINDS=['2W','4W'], TB_CA={}, TB_DATA=null;
 function tbStatus(k){ var el=$('tb-castatus-'+k.kind); if(el) el.innerHTML='<b>'+k.caCount+'</b> items loaded ('+esc(k.caSourceLabel)+(k.caUpdatedAt?', '+esc(k.caUpdatedAt):'')+')'; var c=$('tb-code-'+k.kind); if(c) c.value=k.distributorCode||''; }
-var TB_DATE='';
 function loadTally(){
   TB_KINDS.forEach(function(k){ $('tb-castatus-'+k).textContent='Loading…'; });
   call('tallyGetSettings',{},function(s){ (s.kinds||[]).forEach(tbStatus); });
-  loadTallyOutput();
 }
-function loadTallyOutput(){
-  call('getTallyOutput',{date:TB_DATE},function(d){
-    TB_DATA=d; TB_DATE=d.asOn||'';
-    if(!d.dates.length){ $('tb-date').style.display='none'; $('tb-result').innerHTML='<div class="empty">Abhi tak koi file process nahi hui. Busy Drive folder me "List of Supply Outward Vouchers" export daal do (naam me "supply" ya "outward" ho) — agla auto-sync khud process kar dega.</div>'; return; }
-    $('tb-date').style.display='inline-block';
-    $('tb-date').innerHTML=d.dates.map(function(x){ return '<option value="'+esc(x)+'"'+(x===TB_DATE?' selected':'')+'>'+esc(x)+'</option>'; }).join('');
-    renderTally(d,'<div class="hint">Source: <b>'+esc(d.fileName)+'</b></div>');
-  });
-}
-$('tb-date').addEventListener('change',function(){ TB_DATE=this.value; loadTallyOutput(); });
 TB_KINDS.forEach(function(k){
   $('tb-cafile-'+k).addEventListener('change',function(){ var f=this.files[0]; if(!f) return; var rd=new FileReader(); rd.onload=function(){ TB_CA[k]={name:f.name,b64:rd.result.split(',')[1]}; $('tb-castatus-'+k).textContent='ready to save: '+f.name+' (Save dabao)'; }; rd.readAsDataURL(f); });
 });
@@ -1821,21 +1807,21 @@ $('tb-save').onclick=function(){
   showLoad('Settings save...');
   call('tallySaveSettings',{kinds:kinds},function(s){ hideLoad(); TB_CA={}; TB_KINDS.forEach(function(k){ $('tb-cafile-'+k).value=''; }); (s.kinds||[]).forEach(tbStatus); $('tb-note').textContent='Save ho gaya — ab sab isi ke saath kaam karenge.'; toast('Settings save ho gayi','ok'); });
 };
-function tbProbePoll(){
-  call('busySchemaProbeGet',{},function(d){
-    var t=$('tb-probe-out'); t.style.display='block';
-    if(d.running){ t.value='Processing... (poora backup ~25MB download + parse ho raha hai, 1-3 min lagega)'; setTimeout(tbProbePoll,3000); return; }
-    if(d.error){ t.value='ERROR: '+d.error; return; }
-    t.value=d.result?JSON.stringify(d.result,null,2):'Kuch nahi mila';
-  });
-}
-$('tb-probe').onclick=function(){
-  call('busySchemaProbeStart',{},function(){ tbProbePoll(); });
-};
+$('tb-list').addEventListener('change',function(){
+  var f=this.files[0], inp=this; if(!f) return;
+  $('tb-result').innerHTML='<div class="empty"><div class="spin" style="margin:0 auto"></div><div>Processing…</div></div>';
+  var codes={}; TB_KINDS.forEach(function(k){ codes[k]=V('tb-code-'+k); });
+  var rd=new FileReader(); rd.onload=function(){
+    gas('tallyProcess',JSON.stringify({b64:rd.result.split(',')[1],name:f.name,codes:codes}),function(r){
+      inp.value=''; var d=JSON.parse(r); if(!d.ok){ $('tb-result').innerHTML='<div class="empty" style="color:var(--red)">'+esc(d.error)+'</div>'; return; }
+      TB_DATA=d; renderTally(d);
+    });
+  }; rd.readAsDataURL(f);
+});
 function tbDownload(b64,filename){ var bin=atob(b64), arr=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i); var blob=new Blob([arr],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}); var u=URL.createObjectURL(blob), a=document.createElement('a'); a.href=u; a.download=filename; document.body.appendChild(a); a.click(); setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(u); },1000); }
-function renderTally(d,banner){
+function renderTally(d){
   var cols=['DistributorCode','DealerShipName','InvoiceNumber','InvoiceDate','CAI','ItemPricePerUnit','Quantity','TotalAmount','GSTIN','SalesReturnNumber'];
-  var h=(banner||'')+'<div class="grid2"><div><div class="kpi g"><div class="v">'+d.matchedCount+'</div><div class="l">Rows ready (2W + 4W)</div></div></div><div><div class="kpi r"><div class="v">'+d.droppedCount+'</div><div class="l">Skipped (no CA match)</div></div></div></div>';
+  var h='<div class="grid2"><div><div class="kpi g"><div class="v">'+d.matchedCount+'</div><div class="l">Rows ready (2W + 4W)</div></div></div><div><div class="kpi r"><div class="v">'+d.droppedCount+'</div><div class="l">Skipped (no CA match)</div></div></div></div>';
   if(!d.matchedCount) h+='<div class="warn">Koi item match nahi hua — CA data ya file format check karo.</div>';
   (d.outputs||[]).forEach(function(o){
     h+='<div class="card" style="margin-top:10px;padding:12px"><div class="h" style="font-size:14px">'+esc(o.label)+' <small>'+esc(o.sub)+(o.code?' · code '+esc(o.code):'')+'</small></div>';

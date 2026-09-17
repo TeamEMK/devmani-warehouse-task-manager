@@ -403,34 +403,10 @@ module.exports = function registerOpsExtra(S) {
     const outputs = tallyOutputsOf(r);
     return J({ ok: true, outputs, matchedCount: r.matchedCount, droppedCount: r.droppedCount, dropped: r.dropped });
   }));
-  // Busy Drive auto-sync (neeche) jab "List of Supply Outward Vouchers" file dekhta hai to yahi processing khud
-  // chala deta hai aur ops_tally_output me (as_on date + kind ke hisaab se) save karta hai — koi upload nahi
-  // chahiye, Tally Bridge page se seedha date select karke us din ka 2W/4W file dekh/download ho jaata hai.
-  const TALLY_KMETA = { '2W': { label: '2 Wheeler', sub: 'Scooter / Motorcycle / Royal Enfield' }, '4W': { label: '4 Wheeler', sub: 'Car (PCR)' } };
-  router.post('/getTallyOutput', requireOps, adminOnly, rpc(async (u, j) => {
-    const d = parse(j);
-    const [dates] = await db.query('SELECT DISTINCT as_on FROM ops_tally_output ORDER BY as_on DESC');
-    const asOn = (d.date && dates.some(r => r.as_on === d.date)) ? d.date : (dates[0] ? dates[0].as_on : '');
-    if (!asOn) return J({ ok: true, dates: [], asOn: '', outputs: [] });
-    const [rows] = await db.query('SELECT kind, label, file_name, code, matched_count, dropped_count, totals_json, preview_json, dropped_json, xlsx_base64 FROM ops_tally_output WHERE as_on=? ORDER BY kind', [asOn]);
-    const jparse = (s, fb) => { try { return JSON.parse(s || ''); } catch (_) { return fb; } };
-    const outputs = rows.map(r => {
-      const m = TALLY_KMETA[r.kind] || {};
-      return { kind: r.kind, label: m.label || r.label, sub: m.sub || '', code: r.code, matchedCount: r.matched_count, totals: jparse(r.totals_json, {}), preview: jparse(r.preview_json, []), base64: r.xlsx_base64 || null, filename: r.xlsx_base64 ? `InvoiceTally_${r.kind}_${r.code || 'nocode'}.xlsx` : null, warn: r.matched_count && !r.code ? 'Distributor code set nahi — file me code khali jayega' : '' };
-    });
-    return J({
-      ok: true, dates: dates.map(r => r.as_on), asOn, fileName: rows[0] ? rows[0].file_name : '',
-      matchedCount: rows.reduce((a, r) => a + (r.matched_count || 0), 0),
-      droppedCount: rows[0] ? rows[0].dropped_count : 0,
-      dropped: jparse((rows[0] || {}).dropped_json, []),
-      outputs,
-    });
-  }));
-
   // ══════════ BUSY DRIVE AUTO-IMPORT ══════════
   // Devmaniwarehouses Drive folder (Apps Script web app, docs/apps-script-busy-drive) se
   // Busy exports har 30 min khud import. Settings app_settings me (busyDrive.*).
-  const busyDrive = require('../lib/busy-drive').makeBusyDrive({ db, nowIST, afterImport: () => (scanPayments ? scanPayments() : null), tallySettings, buildTallyKinds, tallyOutputsOf });
+  const busyDrive = require('../lib/busy-drive').makeBusyDrive({ db, nowIST, afterImport: () => (scanPayments ? scanPayments() : null) });
   router.post('/busyDriveGet', requireOps, adminOnly, rpc(async () => J(Object.assign({ ok: true }, busyDrive.publicView(await busyDrive.settings())))));
   router.post('/busyDriveSave', requireOps, adminOnly, rpc(async (u, j) => {
     const d = parse(j);
@@ -440,12 +416,6 @@ module.exports = function registerOpsExtra(S) {
     return J(Object.assign({ ok: true }, busyDrive.publicView(s)));
   }));
   router.post('/busyDriveTest', requireOps, adminOnly, rpc(async () => { try { return J(Object.assign({ ok: true }, await busyDrive.test())); } catch (e) { return err(e.message); } }));
-  // Diagnostic (temporary, hataya ja sakta hai): backup DB ka raw schema + ek Sale voucher sample — koi
-  // data likhta nahi. "List of Supply Outward Vouchers" seedha backup se nikalne se pehle real field
-  // names (item-line rate/amount, GSTIN) verify karne ke liye. Poora backup download 1-3 min leta hai
-  // (hosting proxy 60s par kaat deta hai), isliye background me + UI poll karta hai (jaise busyDriveSync).
-  router.post('/busySchemaProbeStart', requireOps, adminOnly, rpc(async () => { busyDrive.startProbe(); return J({ ok: true }); }));
-  router.post('/busySchemaProbeGet', requireOps, adminOnly, rpc(async () => J(Object.assign({ ok: true }, busyDrive.probeStatus()))));
   // Sync 1-3 min leta hai (backup download + parse) — hosting proxy 60s par kaat deta hai, isliye
   // background me shuru karke turant jawab; UI busyDriveGet se poll karta hai (running / lastRun).
   router.post('/busyDriveSync', requireOps, adminOnly, rpc(async (u, j) => {
