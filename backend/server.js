@@ -10,6 +10,7 @@ const nodemailer = require('nodemailer');
 // BRANDING
 // Client ka naam, logo aur rang — sab lib/brand.js se (wahi single source).
 const BRAND = require('./lib/brand');
+const permissions = require('./lib/permissions');
 // IST ka hisaab — server kis timezone me hai isse farak nahi padta.
 const { istParts: _istParts, fmtDMY: _fmtDMY, lastWeekMonSat } = require('./lib/dates');
 // WhatsApp (Waumfy): number normalize, bhejna, aur message ka text. "Kis-ko-
@@ -79,7 +80,7 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 // undefined milta.
 const ROUTE_CTX = {
   db,
-  requireAuth, requireAdmin, requireAdminOrHod, requireAdminOrPC,
+  requireAuth, requireAdmin, requireAdminOrHod, requireAdminOrPC, requirePerm,
   handleServerError,
   // Jo route session_version ya view_only badalta hai, wo ise bulaye — warna
   // requireAuth ka cache kuch second tak purani baat maanta rahega.
@@ -866,16 +867,17 @@ async function requireAuth(req, res, next) {
     if (!cached) {
       let rows;
       try {
-        [rows] = await db.query('SELECT session_version, view_only FROM users WHERE id=?', [decoded.userId]);
+        [rows] = await db.query('SELECT session_version, view_only, perms FROM users WHERE id=?', [decoded.userId]);
       } catch (e) {
         // Column abhi migrate na hua ho to app chalta rahe (42703 = undefined_column)
         if (e.code !== '42703') throw e;
-        [rows] = await db.query('SELECT session_version FROM users WHERE id=?', [decoded.userId]);
+        [rows] = await db.query('SELECT session_version, view_only FROM users WHERE id=?', [decoded.userId]);
       }
       // User hi na mile to cache mat karo — warna delete kiya hua user 10
       // second tak "abhi bhi hai" jaisa vyavhaar karta.
       if (!rows.length) return res.status(401).json({ error: 'Invalid token' });
-      cached = { sv: rows[0].session_version, viewOnly: rows[0].view_only === 1, at: now };
+      // Role token (JWT) se hi aata hai — perms yahan role ke saath resolve karke cache karte hain.
+      cached = { sv: rows[0].session_version, viewOnly: rows[0].view_only === 1, perms: permissions.resolvePerms({ role: decoded.role, perms: rows[0].perms }), at: now };
       _authCache.set(decoded.userId, cached);
       _authCacheSweep(now);
     }
@@ -884,7 +886,7 @@ async function requireAuth(req, res, next) {
       return res.status(401).json({ error: 'Invalid token' });
     }
     const viewOnly = cached.viewOnly;
-    req.session = { userId: decoded.userId, role: decoded.role, name: decoded.name, viewOnly };
+    req.session = { userId: decoded.userId, role: decoded.role, name: decoded.name, viewOnly, perms: cached.perms };
 
     // Yahi ek jagah saare writes rukte hain. Har endpoint par alag check lagate
     // to 56 mutating routes me se koi na koi chhoot jaata — isliye gate yahan hai.
@@ -905,6 +907,14 @@ function requireAdminOrHod(req, res, next) {
 function requireAdminOrPC(req, res, next) {
   if (req.session.role === 'admin' || req.session.role === 'pc') return next();
   res.status(403).json({ error: 'Admin or PC only' });
+}
+// Granular per-user permission gate (backend/lib/permissions.js) — admin hamesha
+// pass, baaki ke liye users.perms (ya role ka default) me key hona zaroori hai.
+function requirePerm(key) {
+  return (req, res, next) => {
+    if (req.session.role === 'admin' || (req.session.perms || []).includes(key)) return next();
+    res.status(403).json({ error: 'Permission nahi hai' });
+  };
 }
 
 // Shared fallback for route `catch` blocks — same 500 response repeated
@@ -1457,6 +1467,7 @@ app.get('/api/me', requireAuth, async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: 'User not found' });
     rows[0].extra_off = rows[0].extra_off || '';
     rows[0].isFmsDoer = isFmsDoer;
+    rows[0].perms = req.session.perms || [];
     res.json(rows[0]);
   } catch (err) { handleServerError(res, err); }
 });
@@ -1586,7 +1597,7 @@ app.post('/api/tasks', requireAuth, async (req, res) => {
   } catch (err) { handleServerError(res, err); }
 });
 
-app.post('/api/tasks/bulk-checklist', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/tasks/bulk-checklist', requireAuth, requirePerm('alltasks.assign'), async (req, res) => {
   try {
     const { desc, assignedTo, priority, remarks, dates, frequency } = req.body;
     if (!desc || !assignedTo || !dates || !dates.length) return res.status(400).json({ error: 'Missing fields' });
@@ -1862,7 +1873,7 @@ app.put('/api/tasks/:id/status', requireAuth, async (req, res) => {
   } catch (err) { handleServerError(res, err); }
 });
 
-app.get('/api/tasks/:id/detail', requireAuth, requireAdmin, async (req, res) => {
+app.get('/api/tasks/:id/detail', requireAuth, requirePerm('alltasks.edit'), async (req, res) => {
   try {
     const { type } = req.query;
     const table = getTable(type||'delegation');
@@ -1872,7 +1883,7 @@ app.get('/api/tasks/:id/detail', requireAuth, requireAdmin, async (req, res) => 
   } catch (err) { handleServerError(res, err); }
 });
 
-app.put('/api/tasks/:id/edit', requireAuth, requireAdmin, async (req, res) => {
+app.put('/api/tasks/:id/edit', requireAuth, requirePerm('alltasks.edit'), async (req, res) => {
   try {
     const { type, desc, date, priority, approval, remarks } = req.body;
     const table = getTable(type||'delegation');
@@ -1882,7 +1893,7 @@ app.put('/api/tasks/:id/edit', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) { handleServerError(res, err); }
 });
 
-app.delete('/api/tasks/:id', requireAuth, requireAdmin, async (req, res) => {
+app.delete('/api/tasks/:id', requireAuth, requirePerm('alltasks.delete'), async (req, res) => {
   try {
     const { type, skipCompleted } = req.query;
     const table = getTable(type||'delegation');
@@ -1899,7 +1910,7 @@ app.delete('/api/tasks/:id', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // Bulk delete by user — v16: completed tasks excluded
-app.delete('/api/tasks/user/:userId', requireAuth, requireAdmin, async (req, res) => {
+app.delete('/api/tasks/user/:userId', requireAuth, requirePerm('alltasks.delete'), async (req, res) => {
   try {
     const { type } = req.query;
     const table = getTable(type || 'delegation');
@@ -1909,7 +1920,7 @@ app.delete('/api/tasks/user/:userId', requireAuth, requireAdmin, async (req, res
 });
 
 // Transfer pending tasks to today
-app.put('/api/tasks/user/:userId/transfer-today', requireAuth, requireAdmin, async (req, res) => {
+app.put('/api/tasks/user/:userId/transfer-today', requireAuth, requirePerm('alltasks.bulkEdit'), async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
     const { type } = req.query;
@@ -1920,7 +1931,7 @@ app.put('/api/tasks/user/:userId/transfer-today', requireAuth, requireAdmin, asy
   } catch (err) { handleServerError(res, err); }
 });
 
-app.delete('/api/tasks/delete-by-date', requireAuth, requireAdmin, async (req, res) => {
+app.delete('/api/tasks/delete-by-date', requireAuth, requirePerm('alltasks.delete'), async (req, res) => {
   try {
     const { date } = req.body;
     if (!date) return res.status(400).json({ error: 'Date required' });
@@ -1931,7 +1942,7 @@ app.delete('/api/tasks/delete-by-date', requireAuth, requireAdmin, async (req, r
 
 // Count checklist tasks for a user (all time or by year, optionally filtered by frequency).
 // v16: completed tasks are EXCLUDED — bulk delete sirf pending/revised pe lagti hai.
-app.get('/api/tasks/checklist-year-count', requireAuth, requireAdmin, async (req, res) => {
+app.get('/api/tasks/checklist-year-count', requireAuth, requirePerm('alltasks.delete'), async (req, res) => {
   try {
     const { userId, year, frequency, description } = req.query;
     if (!userId) return res.status(400).json({ error: 'userId required' });
@@ -1948,7 +1959,7 @@ app.get('/api/tasks/checklist-year-count', requireAuth, requireAdmin, async (req
 
 // Ek employee ke distinct checklist task naam (bulk-delete ke "specific task"
 // filter ke liye). Completed exclude; frequency optional.
-app.get('/api/tasks/checklist-task-names', requireAuth, requireAdmin, async (req, res) => {
+app.get('/api/tasks/checklist-task-names', requireAuth, requirePerm('alltasks.delete'), async (req, res) => {
   try {
     const { userId, frequency } = req.query;
     if (!userId) return res.status(400).json({ error: 'userId required' });
@@ -1964,7 +1975,7 @@ app.get('/api/tasks/checklist-task-names', requireAuth, requireAdmin, async (req
 
 // Delete checklist tasks for a user — optionally filtered by frequency and/or a specific task.
 // v16: completed tasks NEVER deleted in bulk; frequency filter respected.
-app.post('/api/tasks/checklist-year-delete', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/tasks/checklist-year-delete', requireAuth, requirePerm('alltasks.delete'), async (req, res) => {
   try {
     const { userId, frequency, description, descriptions } = req.body;
     if (!userId) return res.status(400).json({ error: 'userId required' });
@@ -1984,7 +1995,7 @@ app.post('/api/tasks/checklist-year-delete', requireAuth, requireAdmin, async (r
 // Bulk EDIT checklist tasks — employee (+ frequency / specific task) ke pending/revised
 // tasks par priority / due-date (shift ya set) / description (rename) ek saath.
 // Completed tasks NEVER touch hote.
-app.post('/api/tasks/checklist-bulk-edit', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/tasks/checklist-bulk-edit', requireAuth, requirePerm('alltasks.bulkEdit'), async (req, res) => {
   try {
     const { userId, frequency, description, newDescription, priority, shiftDays, newDueDate } = req.body;
     if (!userId) return res.status(400).json({ error: 'userId required' });
@@ -2205,7 +2216,7 @@ app.get('/api/mis', requireAuth, async (req, res) => {
 // Admin-only: date range daalo -> saare users ki full MIS report (Checklist +
 // Delegation, har user ke full task table ke saath) ek hi PDF me. Har user ki
 // har section wahi layout use karta hai jo pop-up / WhatsApp MIS me hai.
-app.get('/api/mis/combined-pdf', requireAuth, requireAdmin, async (req, res) => {
+app.get('/api/mis/combined-pdf', requireAuth, requirePerm('mis.exportPdf'), async (req, res) => {
   try {
     const { start, end } = req.query;
     if (!start || !end) return res.status(400).json({ error: 'Start and end date required' });
@@ -2726,7 +2737,7 @@ require('./routes/comments')(app, ROUTE_CTX);
 // FMS ADMIN APIs
 // ══════════════════════════════════════════════════════
 
-app.get('/api/fms', requireAuth, requireAdmin, async (req, res) => {
+app.get('/api/fms', requireAuth, requirePerm('fmsAdmin.manage'), async (req, res) => {
   try {
     // LEFT JOIN jaan-boojh kar: pehle INNER tha, jisse jis FMS ka banane wala
     // user delete ho chuka ho wo poori list se hi gayab ho jaati thi.
@@ -2741,7 +2752,7 @@ app.get('/api/fms', requireAuth, requireAdmin, async (req, res) => {
 // Sheet ke ek column ki unique values padhta hai aur unhe DB users se match
 // karta hai — FMS Admin me "Load Doers" isi se step doers auto-fill karta hai.
 // Query: ?sheetId=...&tabName=...&col=E&headerRow=1
-app.get('/api/fms/sheet-column-values', requireAuth, requireAdmin, async (req, res) => {
+app.get('/api/fms/sheet-column-values', requireAuth, requirePerm('fmsAdmin.manage'), async (req, res) => {
   try {
     const { sheetId, tabName, col, headerRow } = req.query;
     if (!sheetId || !col) return res.status(400).json({ error: 'sheetId and col required' });
@@ -2787,7 +2798,7 @@ app.get('/api/fms/sheet-column-values', requireAuth, requireAdmin, async (req, r
   }
 });
 
-app.get('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
+app.get('/api/fms/:id', requireAuth, requirePerm('fmsAdmin.manage'), async (req, res) => {
   try {
     const [sheets] = await db.query('SELECT * FROM fms_sheets WHERE id=?', [req.params.id]);
     if (!sheets[0]) return res.status(404).json({ error: 'FMS not found' });
@@ -2820,7 +2831,7 @@ app.get('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) { handleServerError(res, err); }
 });
 
-app.post('/api/fms', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/fms', requireAuth, requirePerm('fmsAdmin.manage'), async (req, res) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
@@ -2847,7 +2858,7 @@ app.post('/api/fms', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) { await conn.rollback(); handleServerError(res, err); } finally { conn.release(); }
 });
 
-app.put('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
+app.put('/api/fms/:id', requireAuth, requirePerm('fmsAdmin.manage'), async (req, res) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
@@ -2876,7 +2887,7 @@ app.put('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) { await conn.rollback(); handleServerError(res, err); } finally { conn.release(); }
 });
 
-app.delete('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
+app.delete('/api/fms/:id', requireAuth, requirePerm('fmsAdmin.manage'), async (req, res) => {
   try {
     await db.query('DELETE FROM fms_sheets WHERE id=?', [req.params.id]);
     res.json({ success: true });
@@ -2884,7 +2895,7 @@ app.delete('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // Intake Form config save (admin). Config: { enabled, targetSheetId, targetTab, targetHeaderRow, fields:[...] }
-app.put('/api/fms/:id/intake', requireAuth, requireAdmin, async (req, res) => {
+app.put('/api/fms/:id/intake', requireAuth, requirePerm('fmsAdmin.manage'), async (req, res) => {
   try {
     const cfg = req.body?.config;
     let json = null;
@@ -2987,7 +2998,7 @@ app.post('/api/fms/fetch-headers', requireAuth, async (req, res) => {
 });
 
 // ── Sync data (full) — FIX: now uses sheet.sheet_name as tab name ──
-app.get('/api/fms/:id/sync', requireAuth, requireAdmin, async (req, res) => {
+app.get('/api/fms/:id/sync', requireAuth, requirePerm('fmsAdmin.manage'), async (req, res) => {
   try {
     const [sheets] = await db.query('SELECT * FROM fms_sheets WHERE id=?', [req.params.id]);
     if (!sheets[0]) return res.status(404).json({ error: 'FMS not found' });
@@ -3200,9 +3211,8 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/update-extra', requireAuth, async 
 
 // ADMIN: poori FMS ki summary — KPIs + stage-wise breakdown + per-order table
 // (search order no. se frontend par hota hai; poora set ek baar bhej dete hain).
-app.get('/api/fms-tasks/:fmsId/summary', requireAuth, async (req, res) => {
+app.get('/api/fms-tasks/:fmsId/summary', requireAuth, requirePerm('fmsTasks.manageAnyStep'), async (req, res) => {
   try {
-    if (req.session.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
     const [sheets] = await db.query('SELECT * FROM fms_sheets WHERE id=?', [req.params.fmsId]);
     if (!sheets[0]) return res.status(404).json({ error: 'FMS not found' });
     const sheet = sheets[0];

@@ -344,6 +344,18 @@ tbody tr:last-child td{border-bottom:none;}
 ══════════════════════════════════════ */
 .users-grid{background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow-xs);}
 
+/* Access tab permission matrix — sticky name column, grouped headers, centered checkboxes */
+#accessTable{white-space:nowrap;}
+#accessTable th,#accessTable td{text-align:center;}
+#accessTable thead tr.access-group-row th{background:var(--card);border-bottom:none;color:var(--muted-foreground);font-size:10px;}
+#accessTable th.access-user-col,#accessTable td.access-user-col{
+  position:sticky;left:0;background:var(--card);text-align:left;z-index:2;box-shadow:1px 0 0 var(--border);
+}
+#accessTable tbody tr:hover td.access-user-col{background:var(--secondary);}
+#accessTable input[type=checkbox]{width:16px;height:16px;accent-color:var(--primary);cursor:pointer;}
+#accessTable .access-pill{font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;background:color-mix(in srgb,var(--success) 14%,transparent);color:var(--success);}
+#accessTable .access-check{color:var(--success);font-weight:700;}
+
 /* ══════════════════════════════════════
    PROFILE
 ══════════════════════════════════════ */

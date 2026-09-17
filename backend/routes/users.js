@@ -10,16 +10,34 @@ const bcrypt = require('bcryptjs');
 module.exports = function registerUsersRoutes(app, ctx) {
   const { db, requireAuth, requireAdmin, segmentFilter, authCacheDrop, handleServerError } = ctx;
   const opsAccess = require('../lib/ops-access');
+  const permissions = require('../lib/permissions');
 
   app.get('/api/users', requireAuth, async (req, res) => {
     try {
       const seg = segmentFilter(req, '');
       const params = seg.param ? [seg.param] : [];
       const [rows] = await db.query(
-        `SELECT id,name,email,notification_email,role,view_only,phone,department,week_off,extra_off,staff_type FROM users WHERE 1=1${seg.clause} ORDER BY role DESC,name ASC`, params);
+        `SELECT id,name,email,notification_email,role,view_only,phone,department,week_off,extra_off,staff_type,perms FROM users WHERE 1=1${seg.clause} ORDER BY role DESC,name ASC`, params);
       // Michelin Ops access (ops_users) — Users page me role/pages dikhane ke liye
       try { const om = await opsAccess.opsInfoMap(db, rows); rows.forEach(r => { r.ops = om[r.id] || null; }); } catch (e) { console.error('ops info', e.message); }
+      // Access tab matrix — resolved granular perms (grant ho ya role ka default)
+      rows.forEach(r => { r.perms = permissions.resolvePerms(r); });
       res.json(rows);
+    } catch (err) { handleServerError(res, err); }
+  });
+
+  // Access matrix ke liye — konse pages/actions grant kiye ja sakte hain
+  app.get('/api/permissions/catalog', requireAuth, (req, res) => {
+    res.json({ catalog: permissions.PERM_CATALOG });
+  });
+
+  // Access matrix se ek user ke grants save karo (admin-only)
+  app.put('/api/users/:id/perms', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const perms = Array.isArray(req.body.perms) ? req.body.perms.filter(k => permissions.ALL_KEYS.includes(k)) : [];
+      await db.query('UPDATE users SET perms=? WHERE id=?', [JSON.stringify(perms), req.params.id]);
+      authCacheDrop(req.params.id);
+      res.json({ success: true, perms });
     } catch (err) { handleServerError(res, err); }
   });
 

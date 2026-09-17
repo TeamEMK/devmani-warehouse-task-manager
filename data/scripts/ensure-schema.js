@@ -60,18 +60,24 @@ const OPS_V2_COLUMNS = {
     credit_limit: 'decimal(14,2) NOT NULL DEFAULT 0',
   },
 };
-async function ensureColumns() {
-  for (const [table, cols] of Object.entries(OPS_V2_COLUMNS)) {
+// Main app tables (users waghera) — ops schema se independent, hamesha chalta hai.
+// 16-Sep-2026: users.perms — granular page/action access (backend/lib/permissions.js).
+const MAIN_COLUMNS = {
+  users: { perms: 'longtext' },
+};
+async function ensureColumnsFor(map) {
+  for (const [table, cols] of Object.entries(map)) {
     const [have] = await db.query(
       'SELECT column_name AS c FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=?', [table]);
     const set = new Set(have.map(r => String(r.c || r.COLUMN_NAME).toLowerCase()));
     for (const [col, def] of Object.entries(cols)) {
       if (set.has(col)) continue;
       try { await db.query(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`); console.log(`   ${table}.${col} joda`); }
-      catch (err) { console.log('   ops column skip:', err.message.slice(0, 120)); }
+      catch (err) { console.log('   column skip:', err.message.slice(0, 120)); }
     }
   }
 }
+async function ensureColumns() { return ensureColumnsFor(OPS_V2_COLUMNS); }
 
 function splitStatements(file) {
   return fs.readFileSync(file, 'utf8')
@@ -102,6 +108,7 @@ async function ensureSchema() {
     await runFile(BOOTSTRAP, 'bootstrap');
     created = true;
   }
+  await ensureColumnsFor(MAIN_COLUMNS);
 
   // Staff seed — idempotent, har boot par. Kitne naye bane wo count se dikhta hai.
   if (fs.existsSync(SEED_USERS)) {

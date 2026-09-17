@@ -6,7 +6,7 @@
 // kram na badle (wildcard :id routes ka kram maayne rakhta hai).
 
 module.exports = function registerTransfersRoutes(app, ctx) {
-  const { db, requireAuth, requireAdminOrHod, getTable, handleServerError } = ctx;
+  const { db, requireAuth, requirePerm, getTable, handleServerError } = ctx;
 
 
   // POST — Create transfer request (user/hod/admin)
@@ -72,7 +72,7 @@ module.exports = function registerTransfersRoutes(app, ctx) {
   });
 
   // GET — Pending transfers for approval (admin sees all, HOD sees dept)
-  app.get('/api/transfers', requireAuth, requireAdminOrHod, async (req, res) => {
+  app.get('/api/transfers', requireAuth, requirePerm('approvals.transfers'), async (req, res) => {
     try {
       const uid = req.session.userId;
       const role = req.session.role;
@@ -116,7 +116,7 @@ module.exports = function registerTransfersRoutes(app, ctx) {
   });
 
   // GET — Transfer count for badge
-  app.get('/api/transfers/count', requireAuth, requireAdminOrHod, async (req, res) => {
+  app.get('/api/transfers/count', requireAuth, requirePerm('approvals.transfers'), async (req, res) => {
     try {
       const uid = req.session.userId;
       const role = req.session.role;
@@ -139,7 +139,7 @@ module.exports = function registerTransfersRoutes(app, ctx) {
   });
 
   // PUT — Approve or reject transfer
-  app.put('/api/transfers/:id', requireAuth, requireAdminOrHod, async (req, res) => {
+  app.put('/api/transfers/:id', requireAuth, requirePerm('approvals.transfers'), async (req, res) => {
     try {
       const { action, note } = req.body; // action: 'approved' | 'rejected'
       const [rows] = await db.query('SELECT * FROM task_transfers WHERE id=?', [req.params.id]);

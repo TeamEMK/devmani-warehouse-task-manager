@@ -6,9 +6,9 @@
 // kram na badle (wildcard :id routes ka kram maayne rakhta hai).
 
 module.exports = function registerWeekPlanRoutes(app, ctx) {
-  const { db, requireAuth, requireAdminOrHod } = ctx;
+  const { db, requireAuth, requirePerm } = ctx;
 
-  app.post('/api/week-plan', requireAuth, requireAdminOrHod, async (req, res) => {
+  app.post('/api/week-plan', requireAuth, requirePerm('weekPlan.manage'), async (req, res) => {
     try {
       const { employeeId, startDate, targetCount, hodId, improvementPct } = req.body;
       if (!employeeId || !startDate) {
@@ -105,7 +105,7 @@ module.exports = function registerWeekPlanRoutes(app, ctx) {
   //   ?from=YYYY-MM-DD     → start_date >= from
   //   ?to=YYYY-MM-DD       → start_date <= to
   //   ?limit=N             → default 500 (Reports tab ke liye sufficient; pagination future)
-  app.get('/api/week-plan', requireAuth, requireAdminOrHod, async (req, res) => {
+  app.get('/api/week-plan', requireAuth, requirePerm('weekPlan.manage'), async (req, res) => {
     try {
       const { employeeId, from, to } = req.query;
       const limit = Math.min(parseInt(req.query.limit) || 500, 2000);
@@ -147,7 +147,7 @@ module.exports = function registerWeekPlanRoutes(app, ctx) {
   // GET history endpoint — Reports tab ke liye dedicated:
   //   /api/week-plan/history/:employeeId
   // Returns sare weeks (newest first) for a single employee, with HOD name aur timestamps.
-  app.get('/api/week-plan/history/:employeeId', requireAuth, requireAdminOrHod, async (req, res) => {
+  app.get('/api/week-plan/history/:employeeId', requireAuth, requirePerm('weekPlan.manage'), async (req, res) => {
     try {
       const empId = parseInt(req.params.employeeId);
       if (!empId) return res.json({ error: 'Invalid employeeId' });

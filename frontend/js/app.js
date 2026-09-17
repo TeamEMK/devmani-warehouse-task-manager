@@ -167,6 +167,12 @@ function isFmsManager() {
   return !!ME && (ME.role === 'admin' || ME.role === 'hod' || ME.role === 'pc');
 }
 
+// Granular page/action permission (backend/lib/permissions.js — ME.perms) — admin
+// hamesha sab kar sakta hai, baaki ke liye grant/role-default me key honi chahiye.
+function can(key) {
+  return !!ME && (ME.role === 'admin' || (ME.perms || []).includes(key));
+}
+
 // ══════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════
@@ -231,33 +237,27 @@ async function init() {
     // ye sirf isliye ki click karne par har baar error toast na mile.
     document.documentElement.classList.toggle('view-only', Number(ME.view_only) === 1);
 
+    // Users management + Michelin Ops nav hamesha sirf Admin ke liye (matrix se
+    // grant nahi hoti — dono hi bahut sensitive hain, jaanbujh kar hardcoded).
     if (ME.role === 'admin') {
       document.getElementById('nav-users').style.display = 'flex';
-      document.getElementById('nav-mis').style.display = 'flex';
-      document.getElementById('nav-fms').style.display = 'flex';
       document.getElementById('sec-ops').style.display = 'block';
-      document.getElementById('bulkDeleteBtn').style.display = 'inline-flex';
-      document.getElementById('bulkEditBtn').style.display = 'inline-flex';
-      document.getElementById('misCombinedBtn').style.display = 'inline-flex';
     }
-    if (ME.role === 'hod') {
-      // HOD ko MIS dikhta hai (apne department ka)
-      document.getElementById('nav-mis').style.display = 'flex';
-      document.getElementById('setPlanBtn').style.display = 'inline-flex';
-    }
-    if (ME.role === 'pc') {
-      // PC: can view all tasks + approve, but cannot edit/delete
-      // Nav items same as employee (dashboard, alltasks, approvals, profile, fms-tasks)
-    }
+    // Baaki page/action visibility ab granular permission (ME.perms) se —
+    // backend/lib/permissions.js. Default per role aaj jaisa hi hai.
+    if (can('mis.view')) document.getElementById('nav-mis').style.display = 'flex';
+    if (can('fmsAdmin.manage')) document.getElementById('nav-fms').style.display = 'flex';
+    if (can('alltasks.delete')) document.getElementById('bulkDeleteBtn').style.display = 'inline-flex';
+    if (can('alltasks.bulkEdit')) document.getElementById('bulkEditBtn').style.display = 'inline-flex';
+    if (can('mis.exportPdf')) document.getElementById('misCombinedBtn').style.display = 'inline-flex';
+    if (can('weekPlan.manage')) document.getElementById('setPlanBtn').style.display = 'inline-flex';
     if (ME.role === 'user') {
-      // Regular user ko MIS dikhta hai — sirf apni (self-only, backend filter karta hai)
-      document.getElementById('nav-mis').style.display = 'flex';
-      // FMS MIS cross-user view hai — regular user ke liye hide
+      // FMS MIS cross-user view hai — regular user ke liye hide (scope, permission se nahi)
       const fmsTab = document.getElementById('misTabFMS');
       if (fmsTab) fmsTab.style.display = 'none';
     }
-    // Approvals admin / HOD / PC ko, aur HR ko (leave approve karne ke liye)
-    if (ME.role === 'admin' || ME.role === 'hod' || ME.role === 'pc' || isHR()) {
+    // Approvals: granular grant, aur HR ko hamesha (leave approve karne ke liye)
+    if (can('approvals.view') || isHR()) {
       document.getElementById('nav-approvals').style.display = 'flex';
     }
     // Records tab temporarily disabled
@@ -1615,16 +1615,15 @@ async function loadAllTasks() {
   const isAdmin = ME.role==='admin';
   const isHod = ME.role==='hod';
   const isPC = ME.role==='pc';
-  const isUser = ME.role==='user';
   const isDesktop = window.innerWidth >= 768;
 
-  // Show/hide assign task button based on role
+  // Show/hide assign task button — granular permission (jaise pehle admin/hod/user default)
   const assignBtn = document.getElementById('tasksAssignBtn');
-  if (assignBtn) assignBtn.style.display = (isAdmin || isHod || isUser) ? '' : 'none';
+  if (assignBtn) assignBtn.style.display = can('alltasks.assign') ? '' : 'none';
 
   // Delegate by Me button — sirf un users ko dikhao jo task assign kar sakte hain
   const dbmBtn = document.getElementById('delegateByMeBtn');
-  if (dbmBtn) dbmBtn.style.display = (isAdmin || isHod || isUser) ? '' : 'none';
+  if (dbmBtn) dbmBtn.style.display = can('alltasks.assign') ? '' : 'none';
 
   // PC desktop: show user filter + date range
   const filtersDiv = document.getElementById('tasksUserDateFilters');
@@ -1858,7 +1857,7 @@ async function openFmsDoneFromRow(ref) {
 
     const steps = stepsData?.steps || [];
     const step = steps.find(s => Number(s.id) === Number(ref.stepId));
-    if (step && !(step.isMyStep || ME.role === 'admin')) {
+    if (step && !(step.isMyStep || can('fmsTasks.manageAnyStep'))) {
       showToast('This FMS step is not assigned to you', 'error');
       return;
     }
@@ -1946,8 +1945,8 @@ function renderTasksTable() {
     const isCompleted = t.status === 'completed';
     const isWaiting = t.waiting_approval == 1;
     return isAdmin ? `
-      <button class="action-btn edit" style="padding:4px 7px" onclick="openEditTask(${t.id},'${tasksType}')" title="Edit">✏️</button>
-      <button class="action-btn delete" style="padding:4px 7px;margin-left:3px" onclick="deleteTask(${t.id},'${tasksType}')" title="Delete">🗑</button>
+      ${can('alltasks.edit') ? `<button class="action-btn edit" style="padding:4px 7px" onclick="openEditTask(${t.id},'${tasksType}')" title="Edit">✏️</button>` : ''}
+      ${can('alltasks.delete') ? `<button class="action-btn delete" style="padding:4px 7px;margin-left:3px" onclick="deleteTask(${t.id},'${tasksType}')" title="Delete">🗑</button>` : ''}
       <button class="action-btn" style="background:var(--accent);color:var(--accent-foreground);padding:4px 7px;margin-left:3px" onclick="openComments(${t.id},'${tasksType}')" title="Comments">💬</button>
       ${proofAllBtns(t)}
       ${remarkBtn(t, tasksType, 'left')}
@@ -2722,24 +2721,54 @@ function renderUsersTable(users) {
   _syncUserSelection();
 }
 
-// Access tab — role / view-only / Michelin Ops access ek jagah, edit seedha modal ke Access tab par
+// Access tab — page/action permission matrix (backend/lib/permissions.js ka catalog).
+// Admin ki row hamesha full/locked; HOD/PC/User ki row editable checkboxes,
+// har toggle turant PUT /api/users/:id/perms se save hota hai.
+let PERM_CATALOG = null;
+async function ensurePermCatalog() {
+  if (PERM_CATALOG) return PERM_CATALOG;
+  const d = await api('/api/permissions/catalog');
+  PERM_CATALOG = (d && d.catalog) || [];
+  return PERM_CATALOG;
+}
 function renderAccessTable(users) {
-  const tbody = document.getElementById('accessTbody');
-  if (!users.length) {
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--muted-foreground)">No users found</td></tr>`;
-    return;
-  }
-  users.forEach(u => { _usersMap[u.id] = u; });
-  const roleLabel = r => r==='admin'?'👑 Admin':r==='hod'?'🏢 HOD':r==='pc'?'🖥️ PC':'👤 User';
-  tbody.innerHTML = users.map(u=>`
-    <tr>
-      <td style="font-weight:600">${u.name}<br><span style="font-weight:400;color:var(--muted-foreground);font-size:12px">${u.email}</span></td>
-      <td><span class="role-badge ${u.role}">${roleLabel(u.role)}</span>${Number(u.view_only)===1?' <span class="status-badge revised" title="Can view everything, cannot make changes">👁 View only</span>':' <span class="status-badge" style="font-size:10px">✏️ Full</span>'}</td>
-      <td>${u.ops&&u.ops.active
-        ? `<span class="status-badge" title="Michelin Ops access">🛞 ${u.ops.role}</span>${u.ops.perms&&u.ops.perms.length?` <span style="color:var(--muted-foreground);font-size:11px">(${u.ops.perms.length} pages)</span>`:''}`
-        : `<span style="color:var(--muted-foreground)">— No access —</span>`}</td>
-      <td><button class="action-btn edit" onclick="openEditUserAccess(${u.id})">Edit Access</button></td>
-    </tr>`).join('');
+  const table = document.getElementById('accessTable');
+  table.innerHTML = `<tbody><tr><td style="padding:24px;text-align:center;color:var(--muted-foreground)">Loading…</td></tr></tbody>`;
+  ensurePermCatalog().then(catalog => {
+    if (!users.length) { table.innerHTML = `<tbody><tr><td style="padding:24px;text-align:center;color:var(--muted-foreground)">No users found</td></tr></tbody>`; return; }
+    users.forEach(u => { _usersMap[u.id] = u; });
+    const groups = [];
+    catalog.forEach(p => { let g = groups.find(x => x.group === p.group); if (!g) { g = { group: p.group, items: [] }; groups.push(g); } g.items.push(p); });
+    const roleLabel = r => r==='admin'?'👑 Admin':r==='hod'?'🏢 HOD':r==='pc'?'🖥️ PC':'👤 User';
+    const groupRow = `<tr class="access-group-row"><th class="access-user-col"></th>${groups.map(g=>`<th colspan="${g.items.length}">${g.group}</th>`).join('')}<th>Michelin Ops</th></tr>`;
+    const keyRow = `<tr><th class="access-user-col">User</th>${groups.flatMap(g=>g.items).map(p=>`<th title="${p.label}">${p.label}</th>`).join('')}<th>Access</th></tr>`;
+    const rows = users.map(u => {
+      const isAdmin = u.role === 'admin';
+      const cells = groups.flatMap(g=>g.items).map(p => isAdmin
+        ? `<td class="access-check">✓</td>`
+        : `<td><input type="checkbox" ${(u.perms||[]).includes(p.key)?'checked':''} onchange="toggleUserPerm(${u.id},'${p.key}',this.checked)"/></td>`
+      ).join('');
+      const opsCell = u.ops && u.ops.active
+        ? `<span class="status-badge" title="Michelin Ops access">🛞 ${u.ops.role}</span>`
+        : `<span style="color:var(--muted-foreground);font-size:12px">— none —</span>`;
+      return `<tr>
+        <td class="access-user-col"><b>${u.name}</b><br><span style="font-size:11px;color:var(--muted-foreground)">${u.email}</span><br>
+          <span class="role-badge ${u.role}" style="margin-top:2px;display:inline-block">${roleLabel(u.role)}</span>${isAdmin?' <span class="access-pill">default (all)</span>':''}</td>
+        ${cells}
+        <td>${opsCell}<br><button class="action-btn edit" style="margin-top:4px;font-size:11px" onclick="openEditUserAccess(${u.id})">Edit</button></td>
+      </tr>`;
+    }).join('');
+    table.innerHTML = `<thead>${groupRow}${keyRow}</thead><tbody>${rows}</tbody>`;
+  });
+}
+async function toggleUserPerm(id, key, checked) {
+  const u = _usersMap[id]; if (!u) return;
+  const cur = new Set(u.perms||[]);
+  if (checked) cur.add(key); else cur.delete(key);
+  const perms = [...cur];
+  const r = await api(`/api/users/${id}/perms`,'PUT',{perms});
+  if (r && r.error) { showToast(r.error,'error'); renderUsersPageTab(_filteredUsers()); return; }
+  u.perms = perms;
 }
 
 // ── Bulk select / delete ──────────────────────────────
@@ -3162,12 +3191,11 @@ async function loadApprovals() {
     switchApprovalTab('leave', document.getElementById('apprTabLeave'));
     return;
   }
-  // Show Transfer + Leave tabs for admin/HOD/PC
-  if (ME.role === 'admin' || ME.role === 'hod' || ME.role === 'pc') {
+  // Transfer + Leave tabs — granular grant
+  if (can('approvals.transfers')) {
     document.getElementById('apprTabTransfer').style.display = 'block';
   }
-  // Leave approve sirf admin/HOD kar sakte hain
-  if ((ME.role === 'admin' || ME.role === 'hod') && !leaveOff) {
+  if (can('approvals.leaveRequests') && !leaveOff) {
     document.getElementById('apprTabLeave').style.display = 'block';
   }
 
@@ -3651,10 +3679,9 @@ let misAllData = [];
 
 // Department filter (Admin only)
 async function initMISDeptFilter() {
-  // Only show for admin
   const wrap = document.getElementById('misDeptFilterWrap');
   if (!wrap) return;
-  if (ME && ME.role === 'admin') {
+  if (can('mis.deptFilter')) {
     wrap.style.display = '';
     // Departments turant bharo (Generate ka wait na karna pade) — current segment ke users se
     try {
@@ -3699,7 +3726,7 @@ function switchMisTab(type, el) {
   el.classList.add('active');
   // Department dropdown: show only on 'all' and delegation/checklist tabs for admin
   const deptWrap = document.getElementById('misDeptFilterWrap');
-  if (deptWrap && ME && ME.role === 'admin') {
+  if (deptWrap && can('mis.deptFilter')) {
     deptWrap.style.display = (type !== 'fms') ? '' : 'none';
   }
   if (type === 'fms') {
@@ -6232,7 +6259,7 @@ async function onFMSTasksSelect() {
   // AUR current user allowed ho (admin, ya recordCreators khaali, ya list me shaamil).
   let _cfg = null; try { _cfg = JSON.parse((data.sheet && data.sheet.intake_config) || 'null'); } catch (e) {}
   const _creators = (_cfg && Array.isArray(_cfg.recordCreators)) ? _cfg.recordCreators.map(Number) : [];
-  const _canCreate = ME.role === 'admin' || !_creators.length || _creators.includes(Number(ME.id));
+  const _canCreate = can('fmsTasks.manageAnyStep') || !_creators.length || _creators.includes(Number(ME.id));
   const _intakeOn = !!(_cfg && _cfg.enabled !== false && Array.isArray(_cfg.fields) && _cfg.fields.length);
   if (nrBtn) nrBtn.style.display = (_intakeOn && _canCreate) ? 'inline-flex' : 'none';
   if (editBtn) editBtn.style.display = (_intakeOn && _canCreate) ? 'inline-flex' : 'none';
@@ -6246,12 +6273,11 @@ function buildFMSTrain(steps, sheet) {
     return;
   }
   window._fmsAllSteps = steps; // Store all steps for modal use
-  const isAdmin = ME.role === 'admin';
   const uid = ME.id;
 
   // Build double set for infinite scroll loop
   const buildCoaches = () => steps.map((s, i) => {
-    const isMine = isAdmin || s.isMyStep;
+    const isMine = can('fmsTasks.manageAnyStep') || s.isMyStep;
     const doerNames = (s.doers || []).map(d => d.name).join(', ') || '—';
     return `
       <div class="fms-coach ${isMine ? 'mine' : 'not-mine'}" 
