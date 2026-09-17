@@ -179,6 +179,7 @@ function makeBusyDrive({ db, nowIST, afterImport, tallySettings, buildTallyKinds
       if (parsed.noHeader) throw new Error('File me "Category" column nahi mila');
       if (!parsed.rows.length) throw new Error('Koi row nahi mili');
       const r = await schemeCatalog.importSchemeCatalog(db, parsed, nowIST().iso);
+      await schemeCatalog.saveSchemeFile(db, r.asOn, name, buf);
       result = `SCHEME: ${r.count} rows, ${r.categories.length} categories, as on ${r.asOn}`;
       notes = 'Categories: ' + r.categories.join(', ');
     } catch (e) { result = 'ERROR: ' + String(e.message || e).slice(0, 250); }

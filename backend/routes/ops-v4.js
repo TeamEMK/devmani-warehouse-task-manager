@@ -13,6 +13,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { buildStatementPdf } = require('../lib/statement-pdf');
 const busyDb = require('../lib/busy-db');
+const schemeCatalog = require('../lib/scheme-catalog');
 
 // Pages jo Access page me tick ho sakte hain (key = frontend page id)
 const ALL_PAGES = ['home', 'order', 'orders', 'crm', 'stock', 'ims', 'dealers', 'reports', 'track', 'day', 'route', 'exp', 'tally', 'masters', 'access'];
@@ -150,6 +151,36 @@ module.exports = function registerOpsV4(S) {
       ok: true, asOn, dates: dates.map(r => r.as_on), categories: cats.map(r => r.category),
       rows: rows.map(r => { let data = {}; try { data = JSON.parse(r.data || '{}'); } catch (_) {} return { id: r.id, category: r.category, label: r.row_label, data }; }),
     });
+  }));
+  // Manual upload (Drive auto-sync ke alawa) — admin seedha yahin se .xlsx daal sake
+  router.post('/uploadSchemeCatalog', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = parse(j);
+    if (!d.b64) return err('File chuno');
+    const buf = Buffer.from(d.b64, 'base64');
+    let parsed;
+    try { parsed = schemeCatalog.parseSchemeXlsx(buf); } catch (e) { return err('File padh nahi paye: ' + e.message); }
+    if (parsed.noHeader) return err('File me "Category" column nahi mila');
+    if (!parsed.rows.length) return err('Koi row nahi mili');
+    const r = await schemeCatalog.importSchemeCatalog(db, parsed, nowIST().iso);
+    await schemeCatalog.saveSchemeFile(db, r.asOn, d.name || 'scheme.xlsx', buf);
+    await db.query('INSERT INTO ops_import_log (file_name,result,notes) VALUES (?,?,?)',
+      [String(d.name || 'scheme.xlsx').slice(0, 200), `SCHEME: ${r.count} rows, ${r.categories.length} categories, as on ${r.asOn}`, 'Categories: ' + r.categories.join(', ')]);
+    return J({ ok: true, asOn: r.asOn, count: r.count, categories: r.categories });
+  }));
+  // Client ko WhatsApp par asli file bhejo (jo Drive/upload se aayi thi, admin ka filtered view nahi)
+  router.post('/sendSchemeCatalog', requireOps, adminOnly, rpc(async (u, j) => {
+    const d = parse(j);
+    const mob = clean(d.mobile); if (mob.length !== 10) return err('Dealer ka 10-digit WhatsApp number daalo');
+    let row;
+    if (d.date) { const [[f]] = await db.query('SELECT file_name, xlsx_base64 FROM ops_scheme_file WHERE as_on=?', [d.date]); row = f; }
+    if (!row) { const [[f]] = await db.query('SELECT file_name, xlsx_base64 FROM ops_scheme_file ORDER BY as_on DESC LIMIT 1'); row = f; }
+    if (!row || !row.xlsx_base64) return err('Is date ki asli file save nahi hai — dobara sync/upload karo');
+    const buf = Buffer.from(row.xlsx_base64, 'base64');
+    const status = await wati.sendFile(mob, buf, row.file_name || 'Scheme_Catalog.xlsx', 'Michelin/VK Scheme Catalog' + (d.date ? ' — as on ' + d.date : ''));
+    await db.query('INSERT INTO ops_notif_log (notif_key, event, oid, to_number, status) VALUES (?,?,?,?,?)',
+      [`SCHEME|${mob}|${Date.now()}`, 'SCHEME', String(d.date || '').slice(0, 24), wati.watiMob(mob), status === 'SENT' ? 'SENT' : String(status).slice(0, 120)]).catch(() => {});
+    if (status !== 'SENT') return err('File send nahi hui: ' + status);
+    return J({ ok: true, sentTo: mob });
   }));
 
   // ══════════ STATEMENT ══════════

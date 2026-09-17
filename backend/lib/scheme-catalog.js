@@ -65,4 +65,11 @@ async function importSchemeCatalog(db, parsed, asOnFallbackIso) {
   return { asOn, count: parsed.rows.length, categories: [...new Set(parsed.rows.map(r => r.category))] };
 }
 
-module.exports = { findHeaderRow, findAsOn, parseSchemeXlsx, importSchemeCatalog };
+// Asli file (jaise Michelin/VK ne di thi) as_on ke against archive — "Send to client" isi ko
+// forward karta hai, admin ka parsed/reformatted data nahi.
+async function saveSchemeFile(db, asOn, name, buf) {
+  await db.query('INSERT INTO ops_scheme_file (as_on, file_name, xlsx_base64) VALUES (?,?,?) ON DUPLICATE KEY UPDATE file_name=VALUES(file_name), xlsx_base64=VALUES(xlsx_base64), uploaded_at=NOW()',
+    [asOn, String(name || '').slice(0, 200), buf.toString('base64')]);
+}
+
+module.exports = { findHeaderRow, findAsOn, parseSchemeXlsx, importSchemeCatalog, saveSchemeFile };

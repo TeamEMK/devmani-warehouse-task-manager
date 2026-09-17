@@ -701,6 +701,27 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
   <div id="busy-log" style="margin-top:12px"></div>
 </div></div>
 
+<!-- SCHEME CATALOG: manual upload (Drive auto-sync ke alawa) -->
+<div class="ov" id="ov-scheme-upload"><div class="sheet">
+  <div class="hh"><div class="h">Scheme Catalog Upload</div><button data-close="ov-scheme-upload">&#10005;</button></div>
+  <div class="hint" style="margin-top:0">Michelin/VK scheme wali .xlsx chuno (ek column <b>"Category"</b> honi chahiye). Drive auto-sync se alag, turant import ho jaayegi.</div>
+  <label class="l">File</label>
+  <input type="file" id="sch-up-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="font-size:13px;width:100%">
+  <div id="sch-up-result" style="margin-top:10px;font-size:13px"></div>
+</div></div>
+
+<!-- SCHEME CATALOG: send asli file client ko WhatsApp par -->
+<div class="ov" id="ov-scheme-send"><div class="sheet">
+  <div class="hh"><div class="h">Scheme Catalog — Send to client</div><button data-close="ov-scheme-send">&#10005;</button></div>
+  <div id="sch-send-info" class="hint" style="margin-top:0"></div>
+  <label class="l" style="margin-top:0">Dealer</label>
+  <select class="inp" id="sch-send-dealer"></select>
+  <label class="l">WhatsApp number</label><input class="inp" id="sch-send-mob" type="tel" maxlength="10">
+  <div style="height:8px"></div>
+  <button class="btn gold" id="sch-send-btn2">WhatsApp Bhejo &rarr;</button>
+  <div id="sch-send-result" style="margin-top:10px;font-size:13px"></div>
+</div></div>
+
 <!-- RM REPORT SHEET (admin): message seedha dikhta hai, edit karke bhejo -->
 <div class="ov" id="ov-rm"><div class="sheet">
   <div class="hh"><div class="h">RM ko WhatsApp Report</div><button data-close="ov-rm">&#10005;</button></div>
@@ -1556,15 +1577,50 @@ function loadSchemeReport(){
   call('getSchemeCatalog',{date:SCHEME_DATE,category:SCHEME_CAT},function(d){
     SCHEME=d; SCHEME_DATE=d.asOn||'';
     var c=$('scheme-card'); if(!c) return;
-    if(!d.dates.length){ c.innerHTML='<div class="empty">Abhi koi scheme file process nahi hui. Busy Drive folder me "Scheme" naam ka .xlsx export daal do (ek "Category" column ke saath) — agla auto-sync khud save kar dega.</div>'; return; }
+    var uploadBtn='<button class="btn sm ghost" id="sch-upload-btn">&#8916; Upload</button>';
+    if(!d.dates.length){ c.innerHTML='<div class="h">Scheme Catalog<span style="flex:1"></span>'+uploadBtn+'</div><div class="empty">Abhi koi scheme file process nahi hui. Busy Drive folder me "Scheme" naam ka .xlsx export daal do (ek "Category" column ke saath) — agla auto-sync khud save kar dega, ya upar se seedha upload karo.</div>'; $('sch-upload-btn').onclick=openSchemeUpload; return; }
     var dateOpts=d.dates.map(function(x){ return '<option value="'+esc(x)+'"'+(x===SCHEME_DATE?' selected':'')+'>'+esc(x)+'</option>'; }).join('');
     var catOpts='<option value="">Sab categories</option>'+d.categories.map(function(x){ return '<option value="'+esc(x)+'"'+(x===SCHEME_CAT?' selected':'')+'>'+esc(x)+'</option>'; }).join('');
-    c.innerHTML='<div class="h">Scheme Catalog <small>'+d.rows.length+' rows'+(d.asOn?' · as on '+esc(d.asOn):'')+'</small><span style="flex:1"></span><select class="inp" id="sch-date" style="width:auto;margin-right:6px">'+dateOpts+'</select><select class="inp" id="sch-cat" style="width:auto">'+catOpts+'</select></div><div id="sch-tbl"></div>';
+    c.innerHTML='<div class="h">Scheme Catalog <small>'+d.rows.length+' rows'+(d.asOn?' · as on '+esc(d.asOn):'')+'</small><span style="flex:1"></span><select class="inp" id="sch-date" style="width:auto;margin-right:6px">'+dateOpts+'</select><select class="inp" id="sch-cat" style="width:auto;margin-right:6px">'+catOpts+'</select>'+uploadBtn+' <button class="btn sm gold" id="sch-send-btn">&#128228; Send to client</button></div><div id="sch-tbl"></div>';
     $('sch-date').onchange=function(){ SCHEME_DATE=this.value; SCHEME_CAT=''; loadSchemeReport(); };
     $('sch-cat').onchange=function(){ SCHEME_CAT=this.value; loadSchemeReport(); };
+    $('sch-upload-btn').onclick=openSchemeUpload;
+    $('sch-send-btn').onclick=openSchemeSend;
     renderScheme();
   });
 }
+function openSchemeUpload(){ $('sch-up-file').value=''; $('sch-up-result').textContent=''; openOv('ov-scheme-upload'); }
+$('sch-up-file').addEventListener('change',function(){
+  var f=this.files[0]; if(!f) return;
+  if(f.size>15*1024*1024){ toast('File 15MB se chhoti rakho','err'); this.value=''; return; }
+  var inp=this, rd=new FileReader();
+  rd.onload=function(){
+    showLoad('Scheme file import ho rahi hai...');
+    call('uploadSchemeCatalog',{name:f.name,b64:rd.result.split(',')[1]},function(d){
+      hideLoad(); inp.value='';
+      toast(d.count+' rows import ho gayi ('+d.categories.length+' categories)','ok');
+      closeOv('ov-scheme-upload'); SCHEME_DATE=d.asOn; SCHEME_CAT=''; loadSchemeReport();
+    });
+  };
+  rd.readAsDataURL(f);
+});
+function openSchemeSend(){
+  $('sch-send-mob').value=''; $('sch-send-result').textContent='';
+  $('sch-send-info').textContent='As on '+(SCHEME_DATE||'—')+' wali asli file WhatsApp par jayegi.';
+  if(!DEALERS.length) gas('getDealers',null,function(r){ DEALERS=JSON.parse(r); renderSchemeSendDealers(); }); else renderSchemeSendDealers();
+  openOv('ov-scheme-send');
+}
+function renderSchemeSendDealers(){
+  $('sch-send-dealer').innerHTML='<option value="">— Number seedha daalo —</option>'+DEALERS.map(function(d){ return '<option value="'+esc(d.mob||'')+'">'+esc(d.name)+'</option>'; }).join('');
+}
+$('sch-send-dealer').onchange=function(){ if(this.value) $('sch-send-mob').value=this.value; };
+$('sch-send-btn2').onclick=function(){
+  var mob=V('sch-send-mob'); if(mob.length!==10){ toast('10-digit WhatsApp number daalo','err'); return; }
+  showLoad('WhatsApp bhej rahe hain...');
+  call('sendSchemeCatalog',{date:SCHEME_DATE,mobile:mob},function(d){
+    hideLoad(); toast('Scheme catalog bhej diya '+d.sentTo+' ko','ok'); $('sch-send-result').textContent='Bhej diya '+d.sentTo+' ko';
+  });
+};
 function renderScheme(){
   if(!SCHEME) return;
   var keys=[]; SCHEME.rows.forEach(function(r){ Object.keys(r.data||{}).forEach(function(k){ if(!/^category$/i.test(k) && keys.indexOf(k)<0) keys.push(k); }); });

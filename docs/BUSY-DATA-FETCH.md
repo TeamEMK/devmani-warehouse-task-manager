@@ -67,7 +67,9 @@ Backup import ab ye bhi karta hai (`busy-drive.js` → `applyBackup`):
 
 ### 0.2 Scheme Catalog auto-import (15-Sep-2026)
 
-Drive folder me agar naam me **"scheme"** ho aisi `.xlsx` mile (Michelin/VK scheme catalog — ek column **"Category"** honi chahiye, scheme ka apna naam/type jaise "Volume Discount"/"Cashback"; baaki columns jo bhi hon sab as-is), to `busy-drive.js` (kind `SCHEME`) use `scheme-catalog.js` (`parseSchemeXlsx` + `importSchemeCatalog`) se `ops_scheme_catalog` me daal deta hai — poora replace sirf us "as on" date ka (file me "As On : DD-MM-YYYY" likha ho to wahi, warna import ki date), purani dates history me rehti hain. **Reports → Scheme Catalog** page se date + category filter karke dekha ja sakta hai (`/api/ops/getSchemeCatalog`); columns dynamic hain (jo bhi file me hon).
+Drive folder me agar naam me **"scheme"** ho aisi `.xlsx` mile (Michelin/VK scheme catalog — ek column **"Category"** honi chahiye, scheme ka apna naam/type jaise "Volume Discount"/"Cashback"; baaki columns jo bhi hon sab as-is), to `busy-drive.js` (kind `SCHEME`) use `scheme-catalog.js` (`parseSchemeXlsx` + `importSchemeCatalog`) se `ops_scheme_catalog` me daal deta hai — poora replace sirf us "as on" date ka (file me "As On : DD-MM-YYYY" likha ho to wahi, warna import ki date), purani dates history me rehti hain. **Reports → Scheme Catalog** page se date + category filter karke dekha ja sakta hai (`/api/ops/getSchemeCatalog`); columns dynamic hain (jo bhi file me hon). Asli `.xlsx` file bhi (as_on ke against) `ops_scheme_file` me archive hoti hai.
+
+**16-Sep-2026**: page par ab **"⇪ Upload"** (Drive sync ka intezaar kiye bina turant `.xlsx` daalo, `/api/ops/uploadSchemeCatalog`) aur **"📤 Send to client"** (dealer chuno ya number daalo, us as-on date ki **asli file** WhatsApp par jaati hai — admin ka filtered table nahi — `/api/ops/sendSchemeCatalog`) button hain.
 
 ### 0.3 Tally Bridge auto-processing (15-Sep-2026)
 
