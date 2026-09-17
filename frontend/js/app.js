@@ -2654,23 +2654,38 @@ async function uploadCSVC() {
 // USERS
 // ══════════════════════════════════════════════════════
 let allUsersData = [];
+let usersPageTab = 'users';
 
 async function loadUsers() {
   allUsersData = await api(withSeg('/api/users'));
-  renderUsersTable(allUsersData);
+  renderUsersPageTab(allUsersData);
 }
 
-function filterUsers() {
+function _filteredUsers() {
   const q = (document.getElementById('userSearch')?.value||'').toLowerCase().trim();
-  if (!q) { renderUsersTable(allUsersData); return; }
-  const filtered = allUsersData.filter(u =>
+  if (!q) return allUsersData;
+  return allUsersData.filter(u =>
     (u.name||'').toLowerCase().includes(q) ||
     (u.email||'').toLowerCase().includes(q) ||
     (u.department||'').toLowerCase().includes(q) ||
     (u.role||'').toLowerCase().includes(q) ||
     (u.phone||'').includes(q)
   );
-  renderUsersTable(filtered);
+}
+function filterUsers() { renderUsersPageTab(_filteredUsers()); }
+
+// Users page — "Users" (naam/email/dept/role) vs "Access" (app + Michelin Ops access) tabs
+function switchUsersPageTab(tab) {
+  usersPageTab = tab;
+  document.getElementById('usersView-users').style.display = tab==='users' ? '' : 'none';
+  document.getElementById('usersView-access').style.display = tab==='access' ? '' : 'none';
+  document.getElementById('usersTabUsers').classList.toggle('active', tab==='users');
+  document.getElementById('usersTabAccess').classList.toggle('active', tab==='access');
+  document.getElementById('userBulkDeleteBtn').style.display = 'none';
+  renderUsersPageTab(_filteredUsers());
+}
+function renderUsersPageTab(users) {
+  if (usersPageTab === 'access') renderAccessTable(users); else renderUsersTable(users);
 }
 
 // Map to store full user data for safe edit access (avoids inline special-char bugs)
@@ -2705,6 +2720,26 @@ function renderUsersTable(users) {
   // Table dobara render hone par purani selection chali jaati hai (search
   // filter, delete ke baad refresh) — count aur button usi hisaab se reset.
   _syncUserSelection();
+}
+
+// Access tab — role / view-only / Michelin Ops access ek jagah, edit seedha modal ke Access tab par
+function renderAccessTable(users) {
+  const tbody = document.getElementById('accessTbody');
+  if (!users.length) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--muted-foreground)">No users found</td></tr>`;
+    return;
+  }
+  users.forEach(u => { _usersMap[u.id] = u; });
+  const roleLabel = r => r==='admin'?'👑 Admin':r==='hod'?'🏢 HOD':r==='pc'?'🖥️ PC':'👤 User';
+  tbody.innerHTML = users.map(u=>`
+    <tr>
+      <td style="font-weight:600">${u.name}<br><span style="font-weight:400;color:var(--muted-foreground);font-size:12px">${u.email}</span></td>
+      <td><span class="role-badge ${u.role}">${roleLabel(u.role)}</span>${Number(u.view_only)===1?' <span class="status-badge revised" title="Can view everything, cannot make changes">👁 View only</span>':' <span class="status-badge" style="font-size:10px">✏️ Full</span>'}</td>
+      <td>${u.ops&&u.ops.active
+        ? `<span class="status-badge" title="Michelin Ops access">🛞 ${u.ops.role}</span>${u.ops.perms&&u.ops.perms.length?` <span style="color:var(--muted-foreground);font-size:11px">(${u.ops.perms.length} pages)</span>`:''}`
+        : `<span style="color:var(--muted-foreground)">— No access —</span>`}</td>
+      <td><button class="action-btn edit" onclick="openEditUserAccess(${u.id})">Edit Access</button></td>
+    </tr>`).join('');
 }
 
 // ── Bulk select / delete ──────────────────────────────
@@ -2894,6 +2929,11 @@ function setUserViewOnly(on) {
   document.getElementById('uAccessHint').style.display = on ? 'block' : 'none';
 }
 
+// Access tab ke "Edit Access" button se — wahi Edit User modal, bas seedha Access tab khula
+function openEditUserAccess(id) {
+  openEditUser(id);
+  switchUserModalTab('access');
+}
 function openEditUser(id) {
   const u = _usersMap[id];
   if (!u) { showToast('User data not found. Please refresh the page.','error'); return; }

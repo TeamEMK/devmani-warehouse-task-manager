@@ -351,7 +351,10 @@
   <!-- ── USERS ── -->
   <div id="page-users" class="page">
     <div class="page-header">
-      <div></div>
+      <div class="tab-group" id="usersPageTabGroup">
+        <div class="tab active" id="usersTabUsers" onclick="switchUsersPageTab('users')">👤 Users</div>
+        <div class="tab" id="usersTabAccess" onclick="switchUsersPageTab('access')">🔐 Access</div>
+      </div>
       <div style="display:flex;align-items:center;gap:10px">
         <div style="position:relative">
           <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted-foreground)">🔍</span>
@@ -363,13 +366,21 @@
         <button class="btn btn-primary" onclick="openAddUser()">+ Add User</button>
       </div>
     </div>
-    <div class="users-grid">
+    <div id="usersView-users" class="users-grid">
       <table>
         <thead><tr>
           <th style="width:36px"><input type="checkbox" id="userSelectAll" onclick="toggleAllUsers(this)" title="Select all" style="accent-color:var(--primary);cursor:pointer"/></th>
           <th>Name</th><th>Email</th><th>Phone</th><th>Department</th><th>Role</th><th>Action</th>
         </tr></thead>
         <tbody id="usersTbody"></tbody>
+      </table>
+    </div>
+    <div id="usersView-access" class="users-grid" style="display:none">
+      <table>
+        <thead><tr>
+          <th>Name</th><th>App Access</th><th>Michelin Ops Access</th><th>Action</th>
+        </tr></thead>
+        <tbody id="accessTbody"></tbody>
       </table>
     </div>
   </div>
