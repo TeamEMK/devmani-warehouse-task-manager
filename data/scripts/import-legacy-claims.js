@@ -32,9 +32,15 @@ const argv = process.argv.slice(2);
 const flag = n => argv.includes(n);
 const DRY = flag('--dry-run');
 const WRITE_SQL = !flag('--no-sql');
+// Pehli baar --full se poora history (Without Online jaisi bina-claim-no rows
+// samet) ek-baar daalte hain. Uske baad plain resync: sirf claim_no wali rows
+// upsert hoti hain (status/remark/receiving refresh), bina-claim-no rows dobara
+// nahi jodi jaatin (unka koi stable identity nahi — dobara jodna duplicate kar
+// deta). Status-log sirf DB me jo pehle se hai uske baad ka hi jodta hai.
+const FULL = flag('--full');
 
 const MIGR = path.join(__dirname, '..', 'migrations', 'mysql');
-const SEED_FILE = path.join(MIGR, 'seed-claims-legacy.sql');
+const SEED_FILE = path.join(MIGR, FULL ? 'seed-claims-legacy.sql' : `seed-claims-resync-${new Date().toISOString().slice(0, 10)}.sql`);
 
 const DATA_SHEET = '1KWIKthVwl8CTc1xGeLSdlOWvPbFIO86Ee1nC3hEg_Hw';
 const AREA_SHEET = '1sO_yB_XKJjsz1WJjZyGyl3ww8lwZ8Z08TFNuXK2Shys';
@@ -86,7 +92,11 @@ function parseDT(v) {
   const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
   if (m) {
     const [, a, b, y, hh, mm, ss] = m;
-    const [dd, mo] = padded ? [a, b] : [b, a];
+    let [dd, mo] = padded ? [a, b] : [b, a];
+    // Ek tarafa heuristic kabhi-kabhi galat padta hai (mixed formatting, saal
+    // bhar ki manual entry) — agar mahina 12 se zyada nikle to dd/mo palat do,
+    // varna invalid date MySQL me insert hote hi fail ho jaati.
+    if (+mo > 12 && +dd <= 12) [dd, mo] = [mo, dd];
     const date = `${y}-${mo.padStart(2, '0')}-${dd.padStart(2, '0')}`;
     return { date, ts: `${date} ${hh.padStart(2, '0')}:${mm}:${ss || '00'}` };
   }
@@ -353,8 +363,10 @@ function mapStatusText(v) { return STATUS_TEXT_MAP[(v || '').trim().toLowerCase(
   for (const c of noNumberClaims) if (c.dealer_name) dealerSet.add(c.dealer_name);
 
   // ═══════════════════════════════════════════════════════════════════════
-  const allClaims = [...claims.values(), ...noNumberClaims];
-  console.log('\n── SUMMARY (DB me abhi kuch nahi likha) ──');
+  // Resync me (default) sirf claim_no wali rows jaati hain — Without Online jaisi
+  // bina-number rows sirf --full wale pehle-baar-import me shaamil hoti hain.
+  const allClaims = FULL ? [...claims.values(), ...noNumberClaims] : [...claims.values()];
+  console.log('\n── SUMMARY (DB me abhi kuch nahi likha) ──' + (FULL ? '' : '  [RESYNC — sirf claim_no wali rows upsert]'));
   console.log(`total claims to insert : ${allClaims.length}`);
   const byStatus = {};
   for (const c of allClaims) byStatus[c.status] = (byStatus[c.status] || 0) + 1;
@@ -367,35 +379,45 @@ function mapStatusText(v) { return STATUS_TEXT_MAP[(v || '').trim().toLowerCase(
 
   // ── DB likhna ─────────────────────────────────────────────────────────
   console.log('\nDB me likh rahe hain...');
+  const UPSERT_SQL = FULL
+    ? 'INSERT IGNORE INTO claims (claim_no,entry_type,dealer_name,material,stencil_no,mould_no,status,remark,receiving,received_at,created_at) VALUES ?'
+    : 'INSERT INTO claims (claim_no,entry_type,dealer_name,material,stencil_no,mould_no,status,remark,receiving,received_at,created_at) VALUES ? ' +
+      'ON DUPLICATE KEY UPDATE status=VALUES(status), remark=VALUES(remark), receiving=VALUES(receiving), received_at=VALUES(received_at)';
   for (let i = 0; i < allClaims.length; i += 500) {
     const chunk = allClaims.slice(i, i + 500).map(c => [
       c.claim_no, c.entry_type, c.dealer_name || '', c.material || '', c.stencil_no || '', c.mould_no || '',
       c.status, c.remark || '', c.receiving, c.received_at, c.created_at,
     ]);
-    await db.query(
-      'INSERT IGNORE INTO claims (claim_no,entry_type,dealer_name,material,stencil_no,mould_no,status,remark,receiving,received_at,created_at) VALUES ?',
-      [chunk]);
+    await db.query(UPSERT_SQL, [chunk]);
   }
-  console.log(`  ✓ claims inserted (INSERT IGNORE, ${allClaims.length} rows attempted)`);
+  console.log(`  ✓ claims ${FULL ? 'inserted (INSERT IGNORE)' : 'upserted (naye insert, purane status/remark/receiving refresh)'}: ${allClaims.length} rows`);
 
+  // Resync me sirf watermark (jo already DB me hai usse aage) ke baad ka status-log
+  // jodte hain — poora NOTIFICATIONS dobara daalne se history duplicate ho jaati.
+  const [[wm]] = await db.query('SELECT MAX(changed_at) w FROM claim_status_log');
+  const watermark = FULL ? null : wm.w;
+  if (watermark) console.log(`  status-log watermark: ${watermark.toISOString ? watermark.toISOString() : watermark} se aage ka hi jodenge`);
   const [dbClaims] = await db.query('SELECT id, claim_no FROM claims WHERE claim_no IS NOT NULL');
   const idByClaimNo = new Map(dbClaims.map(r => [r.claim_no, r.id]));
+  const logsToInsert = watermark ? statusLogs.filter(l => l.changed_at && new Date(l.changed_at) > new Date(watermark)) : statusLogs;
   let logInserted = 0, logSkipped = 0;
-  for (let i = 0; i < statusLogs.length; i += 500) {
-    const chunk = statusLogs.slice(i, i + 500)
+  for (let i = 0; i < logsToInsert.length; i += 500) {
+    const chunk = logsToInsert.slice(i, i + 500)
       .map(l => { const cid = idByClaimNo.get(l.claim_no); return cid ? [cid, '', l.to_status, l.note, l.changed_at || new Date()] : null; })
       .filter(Boolean);
-    logSkipped += statusLogs.slice(i, i + 500).length - chunk.length;
+    logSkipped += logsToInsert.slice(i, i + 500).length - chunk.length;
     if (chunk.length) { await db.query('INSERT INTO claim_status_log (claim_id,from_status,to_status,note,changed_at) VALUES ?', [chunk]); logInserted += chunk.length; }
   }
-  console.log(`  ✓ status log inserted: ${logInserted} (${logSkipped} skipped, claim id not resolved)`);
+  console.log(`  ✓ status log inserted: ${logInserted} (${logSkipped} skipped, claim id not resolved${watermark ? `; ${statusLogs.length - logsToInsert.length} pehle se DB me the (watermark se pehle)` : ''})`);
 
   if (ackOut.length) {
+    // ACK Tracking hamesha poora replace hota hai (jaisa admin-upload feature bhi karta hai).
+    await db.query('DELETE FROM claim_ack');
     for (let i = 0; i < ackOut.length; i += 500) {
       const chunk = ackOut.slice(i, i + 500).map(a => [a.claim_no, a.dealer_name, a.item_desc, a.stencil_no, a.claim_date, a.status]);
       await db.query('INSERT INTO claim_ack (claim_no,dealer_name,item_desc,stencil_no,claim_date,status) VALUES ?', [chunk]);
     }
-    console.log(`  ✓ claim_ack inserted: ${ackOut.length}`);
+    console.log(`  ✓ claim_ack replaced: ${ackOut.length}`);
   }
 
   if (dealerSet.size) {
@@ -407,28 +429,40 @@ function mapStatusText(v) { return STATUS_TEXT_MAP[(v || '').trim().toLowerCase(
   // ── production ke liye seed .sql (phpMyAdmin se apply — jaisa checklist import me hua) ──
   if (WRITE_SQL) {
     const lines = [
-      '-- Legacy Claims migration (Google Sheets se, data/scripts/import-legacy-claims.js ne banaya).',
-      '-- EK BAAR chalayen (phpMyAdmin me poora paste karke Go). Dobara chalana bhi safe hai:',
-      '-- claims.claim_no UNIQUE hai (INSERT IGNORE), status-log/ack me dedupe nahi hai isliye dobara mat chalana.',
-      `-- Generated: ${new Date().toISOString().slice(0, 10)}  |  claims: ${allClaims.length}  status-log: ${logInserted}  ack: ${ackOut.length}  dealers: ${dealerSet.size}`,
+      FULL
+        ? '-- Legacy Claims migration (Google Sheets se, data/scripts/import-legacy-claims.js ne banaya).'
+        : '-- Legacy Claims RESYNC (Google Sheets se, data/scripts/import-legacy-claims.js --resync ne banaya).',
+      FULL
+        ? '-- EK BAAR chalayen (phpMyAdmin me poora paste karke Go). Dobara chalana bhi safe hai:'
+        : '-- Naye/badle hue claims hi upsert karta hai (status/remark/receiving refresh); Without Online jaisi',
+      FULL
+        ? '-- claims.claim_no UNIQUE hai (INSERT IGNORE), status-log/ack me dedupe nahi hai isliye dobara mat chalana.'
+        : '-- bina-claim-no rows dobara nahi jodta. Status-log khud watermark se aage ka hi jodta hai (safe re-run).',
+      `-- Generated: ${new Date().toISOString().slice(0, 10)}  |  claims: ${allClaims.length}  status-log candidates: ${statusLogs.length}  ack: ${ackOut.length}  dealers: ${dealerSet.size}`,
       '',
     ];
     for (let i = 0; i < allClaims.length; i += 200) {
       const vals = allClaims.slice(i, i + 200).map(c =>
         `(${sqlv(c.claim_no)}, ${sqlvS(c.entry_type)}, ${sqlvS(c.dealer_name)}, ${sqlvS(c.material)}, ${sqlvS(c.stencil_no)}, ${sqlvS(c.mould_no)}, ${sqlvS(c.status)}, ${sqlvS(c.remark)}, ${sqlv(c.receiving)}, ${sqlv(c.received_at)}, ${sqlv(c.created_at) === 'NULL' ? 'CURRENT_TIMESTAMP' : sqlv(c.created_at)})`);
-      lines.push('INSERT IGNORE INTO claims (claim_no,entry_type,dealer_name,material,stencil_no,mould_no,status,remark,receiving,received_at,created_at) VALUES\n' + vals.join(',\n') + ';');
+      const insertHead = FULL
+        ? 'INSERT IGNORE INTO claims (claim_no,entry_type,dealer_name,material,stencil_no,mould_no,status,remark,receiving,received_at,created_at) VALUES\n'
+        : 'INSERT INTO claims (claim_no,entry_type,dealer_name,material,stencil_no,mould_no,status,remark,receiving,received_at,created_at) VALUES\n';
+      const insertTail = FULL ? ';' : '\nON DUPLICATE KEY UPDATE status=VALUES(status), remark=VALUES(remark), receiving=VALUES(receiving), received_at=VALUES(received_at);';
+      lines.push(insertHead + vals.join(',\n') + insertTail);
     }
     for (let i = 0; i < statusLogs.length; i += 500) {
       const branches = statusLogs.slice(i, i + 500).map(l =>
         `SELECT ${sqlv(l.claim_no)} claim_no, '' from_status, ${sqlvS(l.to_status)} to_status, ${sqlvS(l.note)} note, ${sqlv(l.changed_at) === 'NULL' ? 'CURRENT_TIMESTAMP' : sqlv(l.changed_at)} changed_at`);
+      const watermarkFilter = FULL ? '' : '\nAND t.changed_at > (SELECT MAX(w.changed_at) FROM claim_status_log w)';
       lines.push(
         'INSERT INTO claim_status_log (claim_id, from_status, to_status, note, changed_at)\n' +
         'SELECT c.id, t.from_status, t.to_status, t.note, t.changed_at FROM (\n' +
         branches.join('\nUNION ALL\n') + '\n' +
-        ') t JOIN claims c ON c.claim_no = t.claim_no;'
+        ') t JOIN claims c ON c.claim_no = t.claim_no' + watermarkFilter + ';'
       );
     }
     if (ackOut.length) {
+      lines.push('DELETE FROM claim_ack;');
       for (let i = 0; i < ackOut.length; i += 200) {
         const vals = ackOut.slice(i, i + 200).map(a =>
           `(${sqlvS(a.claim_no)}, ${sqlvS(a.dealer_name)}, ${sqlvS(a.item_desc)}, ${sqlvS(a.stencil_no)}, ${sqlv(a.claim_date)}, ${sqlvS(a.status)})`);
