@@ -251,7 +251,7 @@ async function init() {
     if (can('alltasks.bulkEdit')) document.getElementById('bulkEditBtn').style.display = 'inline-flex';
     if (can('mis.exportPdf')) document.getElementById('misCombinedBtn').style.display = 'inline-flex';
     if (can('weekPlan.manage')) document.getElementById('setPlanBtn').style.display = 'inline-flex';
-    if (can('claims.manage')) document.getElementById('nav-claims').style.display = 'flex';
+    if (can('claims.manage')) document.getElementById('sec-claims').style.display = 'block';
     if (ME.role === 'user') {
       // FMS MIS cross-user view hai — regular user ke liye hide (scope, permission se nahi)
       const fmsTab = document.getElementById('misTabFMS');
@@ -479,7 +479,12 @@ function navigate(page, el, sub) {
   if (page==='leaves') loadLeaves();
   if (page==='query') loadQueries();
   if (page==='records') loadRecords();
-  if (page==='claims') loadClaimsTab();
+  if (page==='claims') {
+    const h = sub || CLAIMS_TAB || 'entry';
+    try { localStorage.setItem('claimsSub', h); } catch (e) {}
+    switchClaimsTab(h);
+    document.getElementById('topbarTitle').textContent = 'Claims · ' + ({entry:'Claim Entry',dashboard:'Claim Dashboard',ack:'ACK Tracking',recUpload:'Receiving Upload',recPending:'Receiving Pending'}[h] || h);
+  }
   // Michelin Ops iframe pehli baar khulne par hi load — baad me wahi rehta hai,
   // taaki tab badalne par uska cart/login state na jaye.
   if (page==='ops') {
@@ -513,11 +518,13 @@ function _restoreActivePage() {
   // Michelin Ops: sub-page bhi yaad rakhte hain, aur usi sub-item ko highlight
   let sub = '';
   if (saved === 'ops') { try { sub = localStorage.getItem('opsSub') || 'home'; } catch(e) { sub = 'home'; } }
+  if (saved === 'claims') { try { sub = localStorage.getItem('claimsSub') || 'entry'; } catch(e) { sub = 'entry'; } }
   const navEl = [...document.querySelectorAll('.nav-item')]
     .find(n => (n.getAttribute('onclick') || '').includes(sub ? `navigate('${saved}',this,'${sub}')` : `navigate('${saved}'`));
   // Nav item hai par role ke liye hidden (display:none) → allowed nahi → Dashboard
   if (navEl && navEl.style.display === 'none') { navigate('dashboard'); return; }
   if (saved === 'ops' && document.getElementById('sec-ops').style.display === 'none') { navigate('dashboard'); return; }
+  if (saved === 'claims' && document.getElementById('sec-claims').style.display === 'none') { navigate('dashboard'); return; }
   navigate(saved, navEl || null, sub || undefined);
 }
 
@@ -4392,8 +4399,13 @@ function switchClaimsTab(tab) {
   CLAIMS_TAB = tab;
   ['entry','dashboard','ack','recUpload','recPending'].forEach(t => {
     document.getElementById('claimsView-'+t).style.display = (t===tab) ? '' : 'none';
-    document.getElementById('claimsTab'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('active', t===tab);
   });
+  // Sidebar sub-item highlight: click ke through navigate() pehle hi laga chuka hota hai,
+  // par internal jump (jaise Receiving Pending → Receiving Upload) me bhi sync karna hai.
+  document.querySelectorAll('#sec-claims .nav-item').forEach(n => n.classList.remove('active'));
+  const navEl = document.querySelector(`#sec-claims .nav-item[onclick*="'claims',this,'${tab}'"]`);
+  if (navEl) navEl.classList.add('active');
+  try { localStorage.setItem('claimsSub', tab); } catch (e) {}
   loadClaimsTab();
 }
 function loadClaimsTab() {
