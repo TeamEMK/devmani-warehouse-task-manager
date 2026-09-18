@@ -134,6 +134,11 @@ const STATUS_TEXT_MAP = {
 };
 function mapStatusText(v) { return STATUS_TEXT_MAP[(v || '').trim().toLowerCase()] || null; }
 
+// REJECTED DISPATCHED tab ke RECEIVING column me sirf Drive link matlab "receive ho
+// gaya"; kuch rows me wahan literal text "Pending" likha hota hai (abhi tak nahi
+// aayi) — usko truthy maan lena galat "already received" bana deta tha.
+function isRealLink(v) { return /^https?:\/\//i.test((v || '').trim()); }
+
 (async () => {
   console.log(DRY ? '[DRY RUN — DB me kuch nahi likhega]' : '[LIVE — local DB me likhega]');
 
@@ -220,7 +225,7 @@ function mapStatusText(v) { return STATUS_TEXT_MAP[(v || '').trim().toLowerCase(
       }
       if (spec.receivingCol) {
         const link = g(C.receiving);
-        if (link) { existing.receiving = link; existing.received_at = existing.received_at || (t ? (t.ts || `${t.date} 00:00:00`) : null); receivingSetInline++; }
+        if (isRealLink(link)) { existing.receiving = link; existing.received_at = existing.received_at || (t ? (t.ts || `${t.date} 00:00:00`) : null); receivingSetInline++; }
       }
     }
     console.log(`  ${rows.length - 1} rows: ${matched} overlaid onto Data-tab claims, ${added} naye (orphan) claims` + (spec.receivingCol ? `, ${receivingSetInline} receiving inline se mila` : ''));
@@ -297,7 +302,7 @@ function mapStatusText(v) { return STATUS_TEXT_MAP[(v || '').trim().toLowerCase(
     const ts1 = c1('TIMESTAMP'), cn1 = c1('CLAIM NUMBER'), link1 = c1('PDF LINK');
     for (let i = 1; i < r1.length; i++) {
       const row = r1[i]; const cn = realClaimNo(row[cn1]); const link = (row[link1] || '').trim();
-      if (!cn || !link) continue;
+      if (!cn || !isRealLink(link)) continue;
       const t = parseDT((row[ts1] || '').trim());
       if (!map.has(cn)) map.set(cn, { link, at: t ? (t.ts || `${t.date} 00:00:00`) : null });
     }
@@ -309,7 +314,7 @@ function mapStatusText(v) { return STATUS_TEXT_MAP[(v || '').trim().toLowerCase(
     let added = 0;
     for (let i = 1; i < r2.length; i++) {
       const row = r2[i]; const cn = realClaimNo(row[cn2]); const link = (row[link2] || '').trim();
-      if (!cn || !link || map.has(cn)) continue;
+      if (!cn || !isRealLink(link) || map.has(cn)) continue;
       const t = parseDT((row[ts2] || '').trim());
       map.set(cn, { link, at: t ? (t.ts || `${t.date} 00:00:00`) : null }); added++;
     }
