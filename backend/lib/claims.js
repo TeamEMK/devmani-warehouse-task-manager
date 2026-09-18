@@ -55,6 +55,13 @@ const STATUS_CARDS = [
 
 function nextStatusesFor(status) { return Object.keys(STATUS_TRANSITIONS[status] || {}); }
 
+// Purana system resolved claims ko dashboard se hata deta tha (Rejected Dispatched
+// jaise hi receiving mil jaati, sheet se row gayab; Without Online/No Data Tyre
+// jaise hi remark bhar jaata). Data delete nahi karte — bas dashboard count/list me
+// "abhi bhi pending" wale hi dikhte hain, resolved history search se milti rehti hai.
+const ACTIVE_ONLY_SQL =
+  "NOT ((status='REJECTED_DISPATCHED' AND received_at IS NOT NULL) OR (status IN ('WITHOUT_ONLINE','NO_DATA_TYRE') AND remark<>''))";
+
 // Dashboard ke liye — Dashboard/Bulk action buttons ke labels + colors (purane
 // "actionMap" jaisa hi), aur read-only/remark-only areas — sab ek jagah, frontend
 // GET /api/claims/meta se fetch karta hai (koi duplicate catalog nahi rakhna padta).
@@ -86,5 +93,5 @@ async function applyStatusChange(db, claimId, newStatus, userId, note) {
 module.exports = {
   CLAIM_PREFIX, formatClaimNo, ENTRY_INITIAL_STATUS, STATUS_TRANSITIONS,
   REMARK_STATUSES, READONLY_STATUSES, STATUS_CARDS, STATUS_LABELS, STATUS_COLOR,
-  nextStatusesFor, applyStatusChange,
+  nextStatusesFor, applyStatusChange, ACTIVE_ONLY_SQL,
 };

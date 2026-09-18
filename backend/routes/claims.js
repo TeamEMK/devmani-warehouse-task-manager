@@ -86,7 +86,7 @@ module.exports = function registerClaimsRoutes(app, ctx) {
 
   app.get('/api/claims/counts', requireAuth, gate, async (req, res) => {
     try {
-      const [rows] = await db.query('SELECT status, COUNT(*) AS n FROM claims GROUP BY status');
+      const [rows] = await db.query(`SELECT status, COUNT(*) AS n FROM claims WHERE ${claims.ACTIVE_ONLY_SQL} GROUP BY status`);
       const byStatus = {}; rows.forEach(r => { byStatus[r.status] = r.n; });
       const cards = claims.STATUS_CARDS.map(c => ({ key: c.key, label: c.label, count: byStatus[c.key] || 0 }));
       res.json({ cards, total: rows.reduce((a, r) => a + r.n, 0) });
@@ -95,12 +95,13 @@ module.exports = function registerClaimsRoutes(app, ctx) {
 
   app.get('/api/claims', requireAuth, gate, async (req, res) => {
     try {
-      const { status, dealer, q, pendingReceiving } = req.query;
+      const { status, dealer, q, pendingReceiving, all } = req.query;
       const where = [], params = [];
       if (status) { where.push('status=?'); params.push(status); }
       if (dealer) { where.push('dealer_name=?'); params.push(dealer); }
       if (q) { where.push('claim_no LIKE ?'); params.push(`%${q}%`); }
       if (pendingReceiving === '1') where.push('received_at IS NULL');
+      else if (all !== '1') where.push(claims.ACTIVE_ONLY_SQL);
       const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
       const [rows] = await db.query(`SELECT * FROM claims ${whereSql} ORDER BY id DESC`, params);
       res.json(rows);
