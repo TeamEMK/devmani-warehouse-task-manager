@@ -251,6 +251,7 @@ async function init() {
     if (can('alltasks.bulkEdit')) document.getElementById('bulkEditBtn').style.display = 'inline-flex';
     if (can('mis.exportPdf')) document.getElementById('misCombinedBtn').style.display = 'inline-flex';
     if (can('weekPlan.manage')) document.getElementById('setPlanBtn').style.display = 'inline-flex';
+    if (can('claims.manage')) document.getElementById('nav-claims').style.display = 'flex';
     if (ME.role === 'user') {
       // FMS MIS cross-user view hai — regular user ke liye hide (scope, permission se nahi)
       const fmsTab = document.getElementById('misTabFMS');
@@ -379,7 +380,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',alltasks:'All Tasks',approvals:'Approvals',leaves:'Leave',query:'Query',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',ops:'Michelin Ops',newcopy:'New Client Copy',updateclient:'Update Client'};
+const pageTitles = {dashboard:'Dashboard',alltasks:'All Tasks',approvals:'Approvals',leaves:'Leave',query:'Query',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',ops:'Michelin Ops',claims:'Claims',newcopy:'New Client Copy',updateclient:'Update Client'};
 
 // Sidebar par cursor jaate hi (jab wo expand hone lagta hai) koi bhi khula dropdown
 // band kar do — warna native select popup sidebar ke upar overlap dikhta hai.
@@ -478,6 +479,7 @@ function navigate(page, el, sub) {
   if (page==='leaves') loadLeaves();
   if (page==='query') loadQueries();
   if (page==='records') loadRecords();
+  if (page==='claims') loadClaimsTab();
   // Michelin Ops iframe pehli baar khulne par hi load — baad me wahi rehta hai,
   // taaki tab badalne par uska cart/login state na jaye.
   if (page==='ops') {
@@ -4379,6 +4381,99 @@ function setDefaultRecordDates() {
   const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
   document.getElementById('recStart').value = monday.toISOString().split('T')[0];
   document.getElementById('recEnd').value   = sunday.toISOString().split('T')[0];
+}
+
+// ══════════════════════════════════════════════════════
+// CLAIMS (tyre warranty claim management — port from Apps Script)
+// ══════════════════════════════════════════════════════
+let CLAIMS_TAB = 'entry';
+let CLAIM_DEALERS = [];
+function switchClaimsTab(tab) {
+  CLAIMS_TAB = tab;
+  ['entry','dashboard','ack','recUpload','recPending'].forEach(t => {
+    document.getElementById('claimsView-'+t).style.display = (t===tab) ? '' : 'none';
+    document.getElementById('claimsTab'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('active', t===tab);
+  });
+  loadClaimsTab();
+}
+function loadClaimsTab() {
+  if (CLAIMS_TAB === 'entry') ceInit();
+  // dashboard/ack/recUpload/recPending — aayenge agle phase me
+}
+
+// ── Claim Entry ──
+async function ceEnsureDealers() {
+  if (CLAIM_DEALERS.length) return CLAIM_DEALERS;
+  const rows = await api('/api/claims/dealers');
+  CLAIM_DEALERS = Array.isArray(rows) ? rows : [];
+  return CLAIM_DEALERS;
+}
+function ceInit() {
+  document.getElementById('ceErr').style.display = 'none';
+  document.getElementById('ceSuccess').style.display = 'none';
+  ceShowCards();
+}
+function ceShowCards() {
+  document.getElementById('ceCards').style.display = 'flex';
+  document.getElementById('ceForm').style.display = 'none';
+}
+async function ceShowForm(entryType) {
+  await ceEnsureDealers();
+  document.getElementById('ceErr').style.display = 'none';
+  document.getElementById('ceSuccess').style.display = 'none';
+  document.getElementById('ceCards').style.display = 'none';
+  document.getElementById('ceForm').style.display = 'block';
+  document.getElementById('ceForm').dataset.entryType = entryType;
+  document.getElementById('ceClaimNo').value = '';
+  document.getElementById('ceMaterial').value = '';
+  document.getElementById('ceStencil').value = '';
+  document.getElementById('ceMould').value = '';
+  document.getElementById('ceDealerOther').value = '';
+  document.getElementById('ceDealerOther').style.display = 'none';
+  document.getElementById('ceDealer').innerHTML = CLAIM_DEALERS.map(d=>`<option value="${d.name}">${d.name}</option>`).join('') + '<option value="__other__">-- Other --</option>';
+  const titles = { NEW_CLAIM: '📝 New Claim Entry', WITHOUT_ONLINE: '📄 Without Online Claim', RETURN_DEALER: '🔄 Return By Dealer' };
+  document.getElementById('ceFormTitle').textContent = titles[entryType] || '';
+  document.getElementById('ceClaimNoWrap').style.display = (entryType === 'NEW_CLAIM' || entryType === 'RETURN_DEALER') ? '' : 'none';
+  document.getElementById('ceAutoFindBtn').style.display = (entryType === 'NEW_CLAIM') ? '' : 'none';
+  document.getElementById('ceMouldWrap').style.display = (entryType === 'WITHOUT_ONLINE') ? '' : 'none';
+}
+function ceBack() { ceInit(); }
+function cev(id) { return (document.getElementById(id).value || '').trim(); }
+function ceToggleOtherDealer() {
+  const isOther = cev('ceDealer') === '__other__';
+  document.getElementById('ceDealerOther').style.display = isOther ? '' : 'none';
+  if (isOther) document.getElementById('ceDealerOther').focus();
+}
+async function ceAutoFind() {
+  const claimNo = cev('ceClaimNo');
+  if (!claimNo) { showToast('Claim No daalo', 'error'); return; }
+  document.getElementById('ceLoading').style.display = 'block';
+  const data = await api('/api/claims/master-ref?claimNo=' + encodeURIComponent(claimNo));
+  document.getElementById('ceLoading').style.display = 'none';
+  if (!data) { showToast('Sheet me data nahi mila, manually bharo', 'error'); return; }
+  const dealerSel = document.getElementById('ceDealer');
+  const has = [...dealerSel.options].some(o => o.value === data.dealerName);
+  if (!has) { dealerSel.value = '__other__'; ceToggleOtherDealer(); document.getElementById('ceDealerOther').value = data.dealerName; }
+  else dealerSel.value = data.dealerName;
+  document.getElementById('ceMaterial').value = data.material || '';
+  document.getElementById('ceStencil').value = data.stencilNo || '';
+}
+async function ceSubmit() {
+  const err = document.getElementById('ceErr'); err.style.display = 'none';
+  const suc = document.getElementById('ceSuccess'); suc.style.display = 'none';
+  const entryType = document.getElementById('ceForm').dataset.entryType;
+  const dealerSel = cev('ceDealer');
+  const dealerName = dealerSel === '__other__' ? cev('ceDealerOther') : dealerSel;
+  if (!dealerName) { err.textContent = 'Dealer naam daalo'; err.style.display = 'block'; return; }
+  if ((entryType === 'NEW_CLAIM' || entryType === 'RETURN_DEALER') && !cev('ceClaimNo')) { err.textContent = 'Claim No daalo'; err.style.display = 'block'; return; }
+  if (dealerSel === '__other__') await api('/api/claims/dealers', 'POST', { name: dealerName }).catch(()=>{});
+  const body = { entryType, dealerName, material: cev('ceMaterial'), stencilNo: cev('ceStencil'), mouldNo: cev('ceMould'), claimNo: cev('ceClaimNo') };
+  const r = await api('/api/claims', 'POST', body);
+  if (r && r.error) { err.textContent = r.error; err.style.display = 'block'; return; }
+  CLAIM_DEALERS = []; // dealer list badla ho sakta hai
+  suc.textContent = '✅ Claim saved successfully!' + (r.claimNo ? ' (' + r.claimNo + ')' : '');
+  suc.style.display = 'block';
+  ceShowCards();
 }
 
 function loadRecords() {

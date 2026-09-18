@@ -35,6 +35,9 @@ const OPS_SCHEMA_SCHEME = path.join(MIGR, '008_ops_scheme.sql');
 const OPS_SCHEMA_TALLY = path.join(MIGR, '009_ops_tally.sql');
 const OPS_SCHEMA_SCHEME_FILE = path.join(MIGR, '010_ops_scheme_file.sql');
 const SEED_OPS = path.join(MIGR, 'seed-ops.sql');
+// Claim Management System (18-Sep-2026) — main app ka hissa, ops se independent.
+const CLAIMS_SCHEMA = path.join(MIGR, '011_claims.sql');
+const SEED_CLAIMS = path.join(MIGR, 'seed-claims.sql');
 
 // MySQL me ADD COLUMN IF NOT EXISTS nahi hai — information_schema se poochh kar
 // sirf missing columns jodte hain. Har boot par chalta hai, idempotent.
@@ -128,6 +131,14 @@ async function ensureSchema() {
       const [[after]] = await db.query('SELECT COUNT(*) AS n FROM checklist_tasks');
       console.log(`   ${after.n} checklist tasks bane`);
     }
+  }
+
+  // Claim Management System — ops se independent, main app ka apna feature.
+  if (fs.existsSync(CLAIMS_SCHEMA)) {
+    for (const st of splitStatements(CLAIMS_SCHEMA)) {
+      try { await db.query(st); } catch (err) { console.log('   claims schema skip:', err.message.slice(0, 120)); }
+    }
+    if (fs.existsSync(SEED_CLAIMS)) await runFile(SEED_CLAIMS, 'seed-claims');
   }
 
   // Michelin Ops tables — purane database par bhi. Sab IF NOT EXISTS hain,

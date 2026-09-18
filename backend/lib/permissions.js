@@ -25,6 +25,7 @@ const PERM_CATALOG = [
   { key: 'weekPlan.manage', label: 'Set Plan (any employee)', group: 'Week Plan' },
   { key: 'fmsAdmin.manage', label: 'Manage FMS Admin', group: 'FMS Admin' },
   { key: 'fmsTasks.manageAnyStep', label: 'Act on any step / create intake', group: 'FMS Tasks' },
+  { key: 'claims.manage', label: 'Claim Management System', group: 'Claims' },
 ];
 const ALL_KEYS = PERM_CATALOG.map(p => p.key);
 const KEY_SET = new Set(ALL_KEYS);
@@ -33,7 +34,8 @@ const KEY_SET = new Set(ALL_KEYS);
 // achanak nahi badalta, sirf aage se admin-adjustable ho jaata hai.
 const ROLE_DEFAULT = {
   admin: ALL_KEYS,
-  hod: ALL_KEYS.filter(k => k !== 'fmsAdmin.manage'),
+  // Claims naya module hai — hod ko bhi by default nahi, admin dega jise chahiye.
+  hod: ALL_KEYS.filter(k => k !== 'fmsAdmin.manage' && k !== 'claims.manage'),
   pc: ['approvals.view', 'approvals.transfers', 'approvals.bulkDelete', 'weekPlan.manage', 'fmsTasks.manageAnyStep'],
   user: ['alltasks.assign', 'mis.view'],
 };

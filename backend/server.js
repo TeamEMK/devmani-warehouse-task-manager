@@ -4094,6 +4094,11 @@ require('./routes/transfers')(app, ROUTE_CTX);
 require('./routes/week-plan')(app, ROUTE_CTX);
 
 // ══════════════════════════════════════════════════════
+// CLAIMS (tyre warranty claim management)
+// ══════════════════════════════════════════════════════
+require('./routes/claims')(app, ROUTE_CTX);
+
+// ══════════════════════════════════════════════════════
 // PAGES
 // ══════════════════════════════════════════════════════
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '..', 'frontend', 'index.html')));

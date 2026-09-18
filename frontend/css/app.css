@@ -356,6 +356,16 @@ tbody tr:last-child td{border-bottom:none;}
 #accessTable .access-pill{font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;background:color-mix(in srgb,var(--success) 14%,transparent);color:var(--success);}
 #accessTable .access-check{color:var(--success);font-weight:700;}
 
+/* Claims — entry-type chooser cards */
+.claim-card-grid{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;}
+.claim-card{
+  background:var(--card);border-radius:var(--radius-lg);border:1.5px solid var(--border);
+  box-shadow:var(--shadow-xs);width:180px;padding:24px 16px;text-align:center;cursor:pointer;
+  font-size:28px;transition:transform .15s,border-color .15s;
+}
+.claim-card div{font-size:13px;font-weight:600;color:var(--foreground);margin-top:8px;}
+.claim-card:hover{transform:translateY(-3px);border-color:var(--primary);}
+
 /* ══════════════════════════════════════
    PROFILE
 ══════════════════════════════════════ */
