@@ -5,7 +5,7 @@
 // jaisa pattern) — RPC wrapper nahi, plain Express req/res.
 
 const claims = require('../lib/claims');
-const { readXlsx } = require('../lib/xlsx');
+const { readXlsx, parseCellDate } = require('../lib/xlsx');
 
 module.exports = function registerClaimsRoutes(app, ctx) {
   const { db, requireAuth, requirePerm, handleServerError } = ctx;
@@ -203,8 +203,8 @@ module.exports = function registerClaimsRoutes(app, ctx) {
         const row = rows[r]; if (!row || cClaim < 0 || !row[cClaim]) continue;
         let claimDate = null;
         if (cDate >= 0 && row[cDate]) {
-          const d = row[cDate] instanceof Date ? row[cDate] : new Date(row[cDate]);
-          if (!isNaN(d.getTime())) claimDate = d.toISOString().slice(0, 10);
+          const d = parseCellDate(row[cDate]);
+          if (d && !isNaN(d.getTime())) claimDate = d.toISOString().slice(0, 10);
         }
         parsed.push([String(row[cClaim]).trim(), cDealer >= 0 ? (row[cDealer] || '') : '', cItem >= 0 ? (row[cItem] || '') : '', cStencil >= 0 ? (row[cStencil] || '') : '', claimDate, cStatus >= 0 ? (row[cStatus] || '') : '']);
       }

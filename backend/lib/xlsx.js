@@ -173,4 +173,17 @@ function writeXlsx(rows, sheetName) {
   });
 }
 
-module.exports = { readXlsx, excelSerialToDate, unzip, writeXlsx };
+// Ek cell ka date value — Excel serial (number), Date object, ya "dd-mm-yyyy" /
+// "dd/mm/yyyy" / ISO "yyyy-mm-dd" text — sab handle karta hai (tally-bridge.js ke
+// toDate() jaisa hi, generic import/upload routes ke liye yahan share kiya).
+function parseCellDate(v) {
+  if (v instanceof Date) return v;
+  if (typeof v === 'number') return excelSerialToDate(v);
+  const m = String(v || '').match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})/);
+  if (m) { const y = m[3].length === 2 ? 2000 + +m[3] : +m[3]; return new Date(Date.UTC(y, +m[2] - 1, +m[1])); }
+  const iso = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(Date.UTC(+iso[1], +iso[2] - 1, +iso[3]));
+  return null;
+}
+
+module.exports = { readXlsx, excelSerialToDate, unzip, writeXlsx, parseCellDate };

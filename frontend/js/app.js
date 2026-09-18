@@ -4399,9 +4399,9 @@ function switchClaimsTab(tab) {
 function loadClaimsTab() {
   if (CLAIMS_TAB === 'entry') ceInit();
   if (CLAIMS_TAB === 'dashboard') cdInit();
+  if (CLAIMS_TAB === 'ack') ackInit();
   if (CLAIMS_TAB === 'recUpload') ruInit();
   if (CLAIMS_TAB === 'recPending') rpLoad();
-  // ack — agle phase me
 }
 let CLAIMS_META = null;
 async function ensureClaimsMeta() {
@@ -4747,6 +4747,73 @@ function rpUpload(claimNo) {
   document.getElementById('ruSearch').value = claimNo;
   ruSearch();
 }
+
+// ── ACK Tracking ──
+let ACK_DATA = [];
+async function ackInit() {
+  document.getElementById('ackFrom').value = '';
+  document.getElementById('ackTo').value = '';
+  const dealers = await api('/api/claims/ack/dealers');
+  document.getElementById('ackDealer').innerHTML = '<option value="">All Dealers</option>' + (Array.isArray(dealers) ? dealers : []).map(d => `<option value="${d}">${d}</option>`).join('');
+  ackLoad();
+}
+async function ackLoad() {
+  document.getElementById('ackTableWrap').innerHTML = '<div class="empty">Loading…</div>';
+  const params = new URLSearchParams();
+  const from = document.getElementById('ackFrom').value, to = document.getElementById('ackTo').value, dealer = document.getElementById('ackDealer').value;
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  if (dealer) params.set('dealer', dealer);
+  const rows = await api('/api/claims/ack?' + params.toString());
+  ACK_DATA = Array.isArray(rows) ? rows : [];
+  document.getElementById('ackCountBar').textContent = ACK_DATA.length + ' record(s) found';
+  if (!ACK_DATA.length) { document.getElementById('ackTableWrap').innerHTML = '<div class="empty" style="background:var(--card);border-radius:12px;border:1px solid var(--border);padding:24px;text-align:center;color:var(--muted-foreground)">No records found</div>'; return; }
+  let html = '<div class="users-grid"><table><thead><tr><th>Claim Number</th><th>Dealer</th><th>Item</th><th>Stencil</th><th>Claim Date</th><th>Status</th></tr></thead><tbody>';
+  ACK_DATA.forEach(r => { html += `<tr><td>${r.claim_no || ''}</td><td>${r.dealer_name || ''}</td><td>${r.item_desc || ''}</td><td>${r.stencil_no || ''}</td><td>${r.claim_date || ''}</td><td>${r.status || ''}</td></tr>`; });
+  html += '</tbody></table></div>';
+  document.getElementById('ackTableWrap').innerHTML = html;
+}
+function ackApply() { ackLoad(); }
+function ackReset() {
+  document.getElementById('ackFrom').value = '';
+  document.getElementById('ackTo').value = '';
+  document.getElementById('ackDealer').value = '';
+  ackLoad();
+}
+function ackPrintDealerWise() {
+  if (!ACK_DATA.length) { showToast('Print karne ke liye pehle data load hone do', 'error'); return; }
+  const groups = {}, order = [];
+  ACK_DATA.forEach(r => { const d = r.dealer_name || '(no dealer)'; if (!groups[d]) { groups[d] = []; order.push(d); } groups[d].push(r); });
+  let html = '';
+  order.forEach(dealer => {
+    html += `<div style="border:2px solid #0d4f4f;border-radius:4px;margin-bottom:24px;overflow:hidden"><h2 style="background:#fff;border-bottom:2px solid #0d4f4f;text-align:center;padding:10px;font-size:20px">${dealer}</h2>`;
+    html += '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="border:1px solid #ccc;padding:8px">Claim</th><th style="border:1px solid #ccc;padding:8px">Item</th><th style="border:1px solid #ccc;padding:8px">Stencil</th><th style="border:1px solid #ccc;padding:8px">Date</th></tr></thead><tbody>';
+    groups[dealer].forEach(r => { html += `<tr><td style="border:1px solid #ccc;padding:8px">${r.claim_no || ''}</td><td style="border:1px solid #ccc;padding:8px">${r.item_desc || ''}</td><td style="border:1px solid #ccc;padding:8px">${r.stencil_no || ''}</td><td style="border:1px solid #ccc;padding:8px">${r.claim_date || ''}</td></tr>`; });
+    html += '</tbody></table></div>';
+  });
+  const win = window.open('', '', 'width=900,height=700');
+  win.document.write(`<html><head><title>ACK Tracking — Dealer Wise</title></head><body>${html}</body></html>`);
+  win.document.close(); win.print();
+}
+function openAckUpload() {
+  document.getElementById('ackUploadFile').value = '';
+  document.getElementById('ackUploadResult').textContent = '';
+  openModal('ackUploadModal');
+}
+document.getElementById('ackUploadFile').addEventListener('change', function () {
+  const f = this.files[0], inp = this; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = function () {
+    showLoad('ACK file upload ho rahi hai…');
+    api('/api/claims/ack/upload', 'POST', { b64: rd.result.split(',')[1] }).then(r => {
+      hideLoad(); inp.value = '';
+      if (r && r.error) { document.getElementById('ackUploadResult').innerHTML = `<span style="color:var(--destructive)">${r.error}</span>`; return; }
+      document.getElementById('ackUploadResult').innerHTML = `<span style="color:var(--success)">✅ ${r.count} rows imported</span>`;
+      ackInit();
+    });
+  };
+  rd.readAsDataURL(f);
+});
 
 function loadRecords() {
   // Pehli baar khulne par default week set karo, fir auto-generate
