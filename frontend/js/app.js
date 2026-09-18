@@ -4399,7 +4399,9 @@ function switchClaimsTab(tab) {
 function loadClaimsTab() {
   if (CLAIMS_TAB === 'entry') ceInit();
   if (CLAIMS_TAB === 'dashboard') cdInit();
-  // ack/recUpload/recPending — aayenge agle phase me
+  if (CLAIMS_TAB === 'recUpload') ruInit();
+  if (CLAIMS_TAB === 'recPending') rpLoad();
+  // ack — agle phase me
 }
 let CLAIMS_META = null;
 async function ensureClaimsMeta() {
@@ -4686,6 +4688,64 @@ function cdCopyClaimNumbers() {
   const nos = cdFilteredRows().map(r => r.claim_no).filter(Boolean);
   if (!nos.length) { showToast('No data found', 'error'); return; }
   navigator.clipboard.writeText(nos.join('\n')).then(() => showToast('Claim numbers copied!', 'ok')).catch(() => showToast('Copy failed', 'error'));
+}
+
+// ── Claim Receiving Upload ──
+let RU_CLAIM = null;
+function ruInit() {
+  document.getElementById('ruErr').style.display = 'none';
+  document.getElementById('ruSuccess').style.display = 'none';
+  document.getElementById('ruDetail').style.display = 'none';
+  document.getElementById('ruSearch').value = '';
+  RU_CLAIM = null;
+}
+async function ruSearch() {
+  const q = (document.getElementById('ruSearch').value || '').trim();
+  const err = document.getElementById('ruErr'); err.style.display = 'none';
+  document.getElementById('ruSuccess').style.display = 'none';
+  if (!q) return;
+  await ensureClaimsMeta();
+  const row = await api('/api/claims/find?q=' + encodeURIComponent(q));
+  if (!row) { err.textContent = 'No claim found'; err.style.display = 'block'; document.getElementById('ruDetail').style.display = 'none'; return; }
+  RU_CLAIM = row;
+  document.getElementById('ruClaimInfo').innerHTML =
+    `<b>${row.claim_no || '(no claim no)'}</b><br>Dealer: ${row.dealer_name || ''}<br>Material: ${row.material || ''}<br>Status: ${CLAIMS_META.labels[row.status] || row.status}` +
+    (row.received_at ? `<br><span style="color:var(--success)">Already received on ${row.received_at.slice(0, 10)}</span>` : '');
+  document.getElementById('ruReceiving').value = row.receiving || '';
+  document.getElementById('ruDetail').style.display = 'block';
+}
+async function ruSubmit() {
+  const err = document.getElementById('ruErr'); err.style.display = 'none';
+  const suc = document.getElementById('ruSuccess'); suc.style.display = 'none';
+  if (!RU_CLAIM) return;
+  const receiving = (document.getElementById('ruReceiving').value || '').trim();
+  if (!receiving) { err.textContent = 'Receiving daalo'; err.style.display = 'block'; return; }
+  const r = await api(`/api/claims/${RU_CLAIM.id}/receiving`, 'PUT', { receiving });
+  if (r && r.error) { err.textContent = r.error; err.style.display = 'block'; return; }
+  suc.textContent = '✅ Receiving saved!';
+  suc.style.display = 'block';
+  ruInit();
+}
+
+// ── Claim Receiving Pending ──
+async function rpLoad() {
+  document.getElementById('rpTableWrap').innerHTML = '<div class="empty">Loading…</div>';
+  await ensureClaimsMeta();
+  const rows = await api('/api/claims?status=REJECTED_DISPATCHED&pendingReceiving=1');
+  const list = Array.isArray(rows) ? rows : [];
+  if (!list.length) { document.getElementById('rpTableWrap').innerHTML = '<div class="empty" style="background:var(--card);border-radius:12px;border:1px solid var(--border);padding:24px;text-align:center;color:var(--muted-foreground)">Koi claim pending nahi hai — sab receive ho chuke hain.</div>'; return; }
+  let html = `<div class="users-grid"><table><thead><tr><th>#</th><th>Claim No</th><th>Dealer</th><th>Material</th><th>Stencil</th><th>Dispatched On</th><th></th></tr></thead><tbody>`;
+  list.forEach((r, i) => {
+    html += `<tr><td>${i + 1}</td><td style="font-weight:600">${r.claim_no || '—'}</td><td>${r.dealer_name || ''}</td><td>${r.material || ''}</td><td>${r.stencil_no || ''}</td><td style="color:var(--muted-foreground);font-size:12px">${(r.updated_at || '').slice(0, 10)}</td>
+      <td><button class="action-btn edit" onclick="rpUpload('${(r.claim_no || '').replace(/'/g, "\\'")}')">Upload Receiving</button></td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  document.getElementById('rpTableWrap').innerHTML = html;
+}
+function rpUpload(claimNo) {
+  switchClaimsTab('recUpload');
+  document.getElementById('ruSearch').value = claimNo;
+  ruSearch();
 }
 
 function loadRecords() {

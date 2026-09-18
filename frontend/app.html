@@ -756,11 +756,24 @@
     </div>
     <!-- Claim Receiving Upload -->
     <div id="claimsView-recUpload" style="display:none">
-      <div class="empty" style="background:var(--card);border-radius:12px;border:1px solid var(--border);">Coming soon.</div>
+      <div class="alert error" id="ruErr"></div>
+      <div class="alert success" id="ruSuccess"></div>
+      <div class="search-bar" style="display:flex;gap:8px;margin-bottom:16px">
+        <input type="text" id="ruSearch" placeholder="🔍 Search claim number…" style="flex:1;max-width:320px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;"
+          onkeydown="if(event.key==='Enter') ruSearch()"/>
+        <button class="btn btn-outline" onclick="ruSearch()">Search</button>
+      </div>
+      <div id="ruDetail" class="chart-card" style="display:none;max-width:480px">
+        <div id="ruClaimInfo" style="font-size:13px;line-height:1.8;margin-bottom:14px"></div>
+        <div class="form-group"><label>Receiving <span style="color:var(--muted-foreground);font-weight:400">(link / photo note / remark)</span></label>
+          <input type="text" id="ruReceiving" placeholder="Receiving confirmation…"/>
+        </div>
+        <button class="btn btn-primary" onclick="ruSubmit()">Save Receiving</button>
+      </div>
     </div>
     <!-- Claim Receiving Pending -->
     <div id="claimsView-recPending" style="display:none">
-      <div class="empty" style="background:var(--card);border-radius:12px;border:1px solid var(--border);">Coming soon.</div>
+      <div id="rpTableWrap"></div>
     </div>
   </div>
 
