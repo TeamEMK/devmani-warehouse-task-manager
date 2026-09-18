@@ -366,6 +366,32 @@ tbody tr:last-child td{border-bottom:none;}
 .claim-card div{font-size:13px;font-weight:600;color:var(--foreground);margin-top:8px;}
 .claim-card:hover{transform:translateY(-3px);border-color:var(--primary);}
 
+/* Claims — Dashboard status cards */
+.claim-status-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;}
+.claim-status-card{
+  background:var(--card);border-radius:var(--radius-lg);border:1.5px solid var(--border);border-top:4px solid var(--primary);
+  box-shadow:var(--shadow-xs);padding:16px;cursor:pointer;transition:transform .15s,box-shadow .15s;
+}
+.claim-status-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md,0 6px 16px rgba(0,0,0,.08));}
+.claim-status-card h4{font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted-foreground);margin-bottom:8px;}
+.claim-status-card .num{font-size:32px;font-weight:700;color:var(--foreground);text-align:center;}
+
+/* Claims — area (drill-down) view */
+.claim-area-head{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:14px;}
+.claim-bulk-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:14px;}
+.claim-filter-bar{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:14px;}
+.claim-act-btn{padding:7px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;color:#fff;transition:opacity .15s,transform .15s;}
+.claim-act-btn:hover{opacity:.88;transform:translateY(-1px);}
+.claim-act-btn:disabled{opacity:.35;cursor:not-allowed;transform:none;}
+.claim-act-btn.green{background:linear-gradient(135deg,#059669,#10b981);}
+.claim-act-btn.red{background:linear-gradient(135deg,#dc2626,#ef4444);}
+.claim-act-btn.yellow{background:linear-gradient(135deg,#d97706,#f59e0b);}
+.claim-act-btn.purple{background:linear-gradient(135deg,#6d28d9,#8b5cf6);}
+.claim-act-btn.pink{background:linear-gradient(135deg,#be185d,#f43f5e);}
+.claim-act-btn.cyan{background:linear-gradient(135deg,#0891b2,#06b6d4);}
+.claim-act-btn.orange{background:linear-gradient(135deg,#ea580c,#f97316);}
+.claim-act-btn.gray{background:linear-gradient(135deg,#4b5563,#6b7280);}
+
 /* ══════════════════════════════════════
    PROFILE
 ══════════════════════════════════════ */

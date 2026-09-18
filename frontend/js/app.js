@@ -4398,7 +4398,14 @@ function switchClaimsTab(tab) {
 }
 function loadClaimsTab() {
   if (CLAIMS_TAB === 'entry') ceInit();
-  // dashboard/ack/recUpload/recPending — aayenge agle phase me
+  if (CLAIMS_TAB === 'dashboard') cdInit();
+  // ack/recUpload/recPending — aayenge agle phase me
+}
+let CLAIMS_META = null;
+async function ensureClaimsMeta() {
+  if (CLAIMS_META) return CLAIMS_META;
+  CLAIMS_META = await api('/api/claims/meta');
+  return CLAIMS_META;
 }
 
 // ── Claim Entry ──
@@ -4474,6 +4481,211 @@ async function ceSubmit() {
   suc.textContent = '✅ Claim saved successfully!' + (r.claimNo ? ' (' + r.claimNo + ')' : '');
   suc.style.display = 'block';
   ceShowCards();
+}
+
+// ── Claim Dashboard ──
+let CD_STATUS = null, CD_ROWS = [], CD_SELECTED = new Set(), CD_FILTER_DEALER = '', CD_FILTER_Q = '';
+async function cdInit() {
+  CD_STATUS = null;
+  document.getElementById('cdHome').style.display = '';
+  document.getElementById('cdArea').style.display = 'none';
+  await ensureClaimsMeta();
+  await cdLoadCounts();
+}
+async function cdLoadCounts() {
+  const d = await api('/api/claims/counts');
+  document.getElementById('cdCards').innerHTML = (d.cards || []).map(c =>
+    `<div class="claim-status-card" onclick="cdOpenArea('${c.key}')"><h4>${c.label}</h4><div class="num">${c.count}</div></div>`).join('');
+}
+async function cdHomeSearch() {
+  const q = (document.getElementById('cdHomeSearch').value || '').trim();
+  if (!q) return;
+  const row = await api('/api/claims/find?q=' + encodeURIComponent(q));
+  if (!row) { showToast('No result found', 'error'); return; }
+  await ensureClaimsMeta();
+  cdOpenArea(row.status);
+}
+async function cdOpenArea(status) {
+  await ensureClaimsMeta();
+  CD_STATUS = status; CD_SELECTED = new Set(); CD_FILTER_DEALER = ''; CD_FILTER_Q = '';
+  document.getElementById('cdHome').style.display = 'none';
+  document.getElementById('cdArea').style.display = '';
+  document.getElementById('cdAreaTitle').textContent = CLAIMS_META.labels[status] || status;
+  document.getElementById('cdAreaSub').textContent = 'Records for: ' + (CLAIMS_META.labels[status] || status);
+  cdSetupBulkBar();
+  cdLoadRows();
+}
+function cdGoHome() { cdInit(); }
+
+function cdSetupBulkBar() {
+  const bar = document.getElementById('cdBulkBar');
+  const isReadOnly = CLAIMS_META.readonlyStatuses.includes(CD_STATUS);
+  const isRemark = CLAIMS_META.remarkStatuses.includes(CD_STATUS);
+  const transitions = CLAIMS_META.transitions[CD_STATUS] || {};
+  const selectAllChk = `<label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer"><input type="checkbox" id="cdSelectAll" onchange="cdToggleSelectAll(this.checked)"/> Select All</label>
+    <div><span id="cdSelCount" style="font-weight:700">0</span> <span style="color:var(--muted-foreground);font-size:12px">selected</span></div>`;
+  if (isRemark) {
+    bar.style.display = 'flex';
+    bar.innerHTML = selectAllChk + `
+      <input type="text" id="cdRemarkInput" placeholder="Type remark…" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;min-width:200px"/>
+      <button class="claim-act-btn cyan" onclick="cdSubmitBulkRemark()">Submit</button>`;
+  } else if (isReadOnly || !Object.keys(transitions).length) {
+    bar.style.display = 'none'; bar.innerHTML = '';
+  } else {
+    bar.style.display = 'flex';
+    const btns = Object.keys(transitions).map(dest => {
+      const label = CLAIMS_META.labels[dest] || dest, color = CLAIMS_META.colors[dest] || 'gray';
+      return `<button class="claim-act-btn ${color}" data-dest="${dest}" disabled onclick="cdSubmitBulkAction('${dest}')">→ ${label}</button>`;
+    }).join('');
+    bar.innerHTML = selectAllChk + `
+      <div style="width:1px;height:28px;background:var(--border)"></div>
+      <span style="font-size:11px;text-transform:uppercase;color:var(--muted-foreground);font-weight:700">Move to →</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${btns}</div>`;
+  }
+}
+function cdUpdateBulkBar() {
+  const cnt = CD_SELECTED.size;
+  const el = document.getElementById('cdSelCount'); if (el) el.textContent = cnt;
+  document.querySelectorAll('.claim-act-btn[data-dest]').forEach(b => b.disabled = (cnt === 0));
+  const boxes = document.querySelectorAll('.cd-row-check');
+  ['cdSelectAll', 'cdSelectAllTbl'].forEach(id => {
+    const chk = document.getElementById(id); if (!chk) return;
+    chk.checked = boxes.length > 0 && cnt === boxes.length;
+    chk.indeterminate = cnt > 0 && cnt < boxes.length;
+  });
+}
+function cdToggleSelectAll(checked) {
+  document.querySelectorAll('.cd-row-check').forEach(cb => {
+    cb.checked = checked;
+    const id = +cb.dataset.id;
+    if (checked) CD_SELECTED.add(id); else CD_SELECTED.delete(id);
+  });
+  cdUpdateBulkBar();
+}
+function cdToggleRow(cb) {
+  const id = +cb.dataset.id;
+  if (cb.checked) CD_SELECTED.add(id); else CD_SELECTED.delete(id);
+  cdUpdateBulkBar();
+}
+async function cdSubmitBulkAction(dest) {
+  if (!CD_SELECTED.size) { showToast('Pehle records select karo', 'error'); return; }
+  const label = CLAIMS_META.labels[dest] || dest;
+  if (!confirm(`${CD_SELECTED.size} records ko "${label}" mein move karein?`)) return;
+  const r = await api('/api/claims/bulk-status', 'POST', { ids: [...CD_SELECTED], newStatus: dest });
+  if (r && r.error) { showToast(r.error, 'error'); return; }
+  showToast(`${r.count} claim(s) moved to ${label}`, 'ok');
+  CD_SELECTED = new Set();
+  cdLoadRows();
+}
+async function cdSubmitBulkRemark() {
+  const val = (document.getElementById('cdRemarkInput').value || '').trim();
+  if (!val) { showToast('Remark type karo', 'error'); return; }
+  if (!CD_SELECTED.size) { showToast('Pehle records select karo', 'error'); return; }
+  if (!confirm(`${CD_SELECTED.size} records mein remark save karein?`)) return;
+  for (const id of CD_SELECTED) await api(`/api/claims/${id}/remark`, 'PUT', { remark: val });
+  showToast('Remark saved', 'ok');
+  document.getElementById('cdRemarkInput').value = '';
+  CD_SELECTED = new Set();
+  cdLoadRows();
+}
+
+async function cdLoadRows() {
+  document.getElementById('cdTableWrap').innerHTML = '<div class="empty">Loading…</div>';
+  const rows = await api('/api/claims?status=' + encodeURIComponent(CD_STATUS));
+  CD_ROWS = Array.isArray(rows) ? rows : [];
+  cdBuildFilterBar();
+  cdRenderTable(cdFilteredRows());
+}
+function cdFilteredRows() {
+  return CD_ROWS.filter(r => {
+    if (CD_FILTER_DEALER && r.dealer_name !== CD_FILTER_DEALER) return false;
+    if (CD_FILTER_Q && !(r.claim_no || '').toLowerCase().includes(CD_FILTER_Q.toLowerCase())) return false;
+    return true;
+  });
+}
+function cdBuildFilterBar() {
+  const bar = document.getElementById('cdFilterBar');
+  if (!CD_ROWS.length) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  const dealers = [...new Set(CD_ROWS.map(r => r.dealer_name).filter(Boolean))].sort();
+  bar.innerHTML = `
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted-foreground);margin-bottom:4px">Dealer</div>
+      <select id="cdFilterDealer" onchange="cdApplyFilters()" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;min-width:180px">
+        <option value="">All Dealers</option>${dealers.map(d => `<option value="${d}"${d === CD_FILTER_DEALER ? ' selected' : ''}>${d}</option>`).join('')}
+      </select></div>
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted-foreground);margin-bottom:4px">Claim Number</div>
+      <input type="text" id="cdFilterQ" value="${CD_FILTER_Q}" oninput="cdApplyFilters()" placeholder="Enter claim no…" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;min-width:200px"/></div>`;
+}
+function cdApplyFilters() {
+  CD_FILTER_DEALER = document.getElementById('cdFilterDealer').value;
+  CD_FILTER_Q = document.getElementById('cdFilterQ').value;
+  cdRenderTable(cdFilteredRows());
+}
+function cdRenderTable(rows) {
+  if (!rows.length) {
+    document.getElementById('cdTableWrap').innerHTML = '<div class="empty" style="background:var(--card);border-radius:12px;border:1px solid var(--border);padding:24px;text-align:center;color:var(--muted-foreground)">No records found.</div>';
+    cdUpdateBulkBar();
+    return;
+  }
+  const isReadOnly = CLAIMS_META.readonlyStatuses.includes(CD_STATUS);
+  const isRemark = CLAIMS_META.remarkStatuses.includes(CD_STATUS);
+  const hasActions = !isReadOnly && Object.keys(CLAIMS_META.transitions[CD_STATUS] || {}).length;
+  const showChk = hasActions || isRemark;
+  let html = '<div class="users-grid"><table><thead><tr>';
+  if (showChk) html += `<th style="width:36px"><input type="checkbox" id="cdSelectAllTbl" onchange="cdToggleSelectAll(this.checked)"/></th>`;
+  html += '<th>#</th><th>Claim No</th><th>Dealer</th><th>Material</th><th>Stencil</th><th>Status</th><th>Created</th>';
+  if (hasActions) html += '<th>Action</th>';
+  html += '</tr></thead><tbody>';
+  rows.forEach((r, i) => {
+    const sel = CD_SELECTED.has(r.id);
+    html += `<tr>`;
+    if (showChk) html += `<td><input type="checkbox" class="cd-row-check" data-id="${r.id}" ${sel ? 'checked' : ''} onchange="cdToggleRow(this)"/></td>`;
+    html += `<td>${i + 1}</td><td style="font-weight:600">${r.claim_no || '—'}</td><td>${r.dealer_name || ''}</td><td>${r.material || ''}</td><td>${r.stencil_no || ''}</td><td>${CLAIMS_META.labels[r.status] || r.status}</td><td style="color:var(--muted-foreground);font-size:12px">${(r.created_at || '').slice(0, 10)}</td>`;
+    // Remark-only areas (WITHOUT_ONLINE/NO_DATA_TYRE) are always read-only too — no
+    // per-row action here, remark ke liye checkbox + bulk bar hi rasta hai (jaise purana system).
+    if (hasActions) {
+      const opts = Object.keys(CLAIMS_META.transitions[CD_STATUS]).map(k => `<option value="${k}">${CLAIMS_META.labels[k] || k}</option>`).join('');
+      html += `<td><select id="cdRowAct_${r.id}" style="padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px"><option value="">Select</option>${opts}</select>
+        <button class="action-btn edit" onclick="cdSubmitRowAction(${r.id})">Submit</button></td>`;
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table></div><div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">' +
+    '<button class="btn btn-outline" onclick="cdPrintArea()">🖨 Print</button>' +
+    '<button class="btn btn-outline" onclick="cdCopyTable()">📋 Copy Data</button>' +
+    '<button class="btn btn-outline" onclick="cdCopyClaimNumbers()">🔖 Copy Claim Numbers</button></div>';
+  document.getElementById('cdTableWrap').innerHTML = html;
+  cdUpdateBulkBar();
+}
+async function cdSubmitRowAction(id) {
+  const val = document.getElementById('cdRowAct_' + id).value;
+  if (!val) { showToast('Select a value', 'error'); return; }
+  const r = await api(`/api/claims/${id}/status`, 'PUT', { newStatus: val });
+  if (r && r.error) { showToast(r.error, 'error'); return; }
+  showToast('Status updated', 'ok');
+  cdLoadRows();
+}
+function cdPrintArea() {
+  const html = document.getElementById('cdTableWrap').innerHTML;
+  const title = (CLAIMS_META.labels[CD_STATUS] || CD_STATUS) + ' — DEVMANI CLAIMS';
+  const win = window.open('', '', 'width=900,height=700');
+  win.document.write(`<html><head><title>${title}</title><style>body{font-family:Arial;padding:20px}h2{text-align:center}table{width:100%;border-collapse:collapse}th,td{border:1px solid #000;padding:8px;font-size:13px}th{background:#ddd}</style></head><body><h2>${title}</h2>${html}</body></html>`);
+  win.document.close(); win.print();
+}
+function cdCopyTable() {
+  const table = document.querySelector('#cdTableWrap table');
+  if (!table) return;
+  let text = '';
+  for (const row of table.rows) {
+    const cols = [...row.cells].map(c => c.innerText.replace(/\s+/g, ' ').trim());
+    text += cols.join('\t') + '\n';
+  }
+  navigator.clipboard.writeText(text).then(() => showToast('Copied! Paste in Excel', 'ok')).catch(() => showToast('Copy failed', 'error'));
+}
+function cdCopyClaimNumbers() {
+  const nos = cdFilteredRows().map(r => r.claim_no).filter(Boolean);
+  if (!nos.length) { showToast('No data found', 'error'); return; }
+  navigator.clipboard.writeText(nos.join('\n')).then(() => showToast('Claim numbers copied!', 'ok')).catch(() => showToast('Copy failed', 'error'));
 }
 
 function loadRecords() {

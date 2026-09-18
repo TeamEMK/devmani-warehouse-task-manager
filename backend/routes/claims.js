@@ -74,6 +74,16 @@ module.exports = function registerClaimsRoutes(app, ctx) {
   });
 
   // ── Dashboard ──
+  // Ek hi jagah se catalog (cards/transitions/labels/colors) — frontend duplicate
+  // nahi rakhta, jaise permissions.js ka catalog /api/permissions/catalog se aata hai.
+  app.get('/api/claims/meta', requireAuth, gate, (req, res) => {
+    res.json({
+      statusCards: claims.STATUS_CARDS, transitions: claims.STATUS_TRANSITIONS,
+      labels: claims.STATUS_LABELS, colors: claims.STATUS_COLOR,
+      remarkStatuses: claims.REMARK_STATUSES, readonlyStatuses: claims.READONLY_STATUSES,
+    });
+  });
+
   app.get('/api/claims/counts', requireAuth, gate, async (req, res) => {
     try {
       const [rows] = await db.query('SELECT status, COUNT(*) AS n FROM claims GROUP BY status');

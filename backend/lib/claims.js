@@ -55,6 +55,21 @@ const STATUS_CARDS = [
 
 function nextStatusesFor(status) { return Object.keys(STATUS_TRANSITIONS[status] || {}); }
 
+// Dashboard ke liye — Dashboard/Bulk action buttons ke labels + colors (purane
+// "actionMap" jaisa hi), aur read-only/remark-only areas — sab ek jagah, frontend
+// GET /api/claims/meta se fetch karta hai (koi duplicate catalog nahi rakhna padta).
+const STATUS_LABELS = {
+  INSPECTION: 'Inspection', ACCEPTED: 'Accepted', REJECTED: 'Rejected', HOLD: 'Hold',
+  RESUBMITTED: 'Resubmitted', WITHOUT_ONLINE: 'Without Online', RETURN_BY_DEALER: 'Return By Dealer',
+  SEND_BACK_TO_DEALER: 'Send Back To Dealer', NO_DATA_TYRE: 'No Data Tyre',
+  REJECTED_DISPATCHED: 'Rejected Dispatched', FG_KUNDLI: 'FG-Kundli', PLANT: 'Plant', DONE: 'Done',
+};
+const STATUS_COLOR = {
+  ACCEPTED: 'green', REJECTED: 'red', HOLD: 'yellow', RESUBMITTED: 'purple',
+  SEND_BACK_TO_DEALER: 'pink', FG_KUNDLI: 'cyan', PLANT: 'orange',
+  REJECTED_DISPATCHED: 'gray', DONE: 'green',
+};
+
 // Ek claim ka status badlo — validate karke, log likh kar. db = mysql pool/connection.
 async function applyStatusChange(db, claimId, newStatus, userId, note) {
   const [[claim]] = await db.query('SELECT id, status FROM claims WHERE id=?', [claimId]);
@@ -70,5 +85,6 @@ async function applyStatusChange(db, claimId, newStatus, userId, note) {
 
 module.exports = {
   CLAIM_PREFIX, formatClaimNo, ENTRY_INITIAL_STATUS, STATUS_TRANSITIONS,
-  REMARK_STATUSES, READONLY_STATUSES, STATUS_CARDS, nextStatusesFor, applyStatusChange,
+  REMARK_STATUSES, READONLY_STATUSES, STATUS_CARDS, STATUS_LABELS, STATUS_COLOR,
+  nextStatusesFor, applyStatusChange,
 };
