@@ -59,8 +59,11 @@ function nextStatusesFor(status) { return Object.keys(STATUS_TRANSITIONS[status]
 // jaise hi receiving mil jaati, sheet se row gayab; Without Online/No Data Tyre
 // jaise hi remark bhar jaata). Data delete nahi karte — bas dashboard count/list me
 // "abhi bhi pending" wale hi dikhte hain, resolved history search se milti rehti hai.
+// '__UNSWEPT__' un legacy-import claims ka marker hai jo purane system me kabhi
+// kisi AREA tab me pahunchi hi nahi (sirf raw entry-log me atki reh gayi) — purana
+// dashboard bhi inhe kabhi ginta nahi tha.
 const ACTIVE_ONLY_SQL =
-  "NOT ((status='REJECTED_DISPATCHED' AND received_at IS NOT NULL) OR (status IN ('WITHOUT_ONLINE','NO_DATA_TYRE') AND remark<>''))";
+  "NOT ((status='REJECTED_DISPATCHED' AND received_at IS NOT NULL) OR (status IN ('WITHOUT_ONLINE','NO_DATA_TYRE') AND remark<>'') OR remark='__UNSWEPT__')";
 
 // Dashboard ke liye — Dashboard/Bulk action buttons ke labels + colors (purane
 // "actionMap" jaisa hi), aur read-only/remark-only areas — sab ek jagah, frontend

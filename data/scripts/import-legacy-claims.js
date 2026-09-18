@@ -168,6 +168,7 @@ function isRealLink(v) { return /^https?:\/\//i.test((v || '').trim()); }
       claim_no: claimNo, entry_type: entryType, dealer_name: g(D.dealer), material: g(D.material),
       stencil_no: g(D.stencil), mould_no: g(D.mould), status: ENTRY_INITIAL_STATUS[entryType],
       remark: '', receiving: null, received_at: null, created_at: t ? (t.ts || `${t.date} 00:00:00`) : null,
+      swept: false, // AREA tab me kabhi dikha hi nahi — "Data" tab me hi atki hai, purana dashboard bhi ise kabhi ginta nahi
     });
   }
   console.log(`  Data tab: ${claims.size} claims (NewClaim+ReturnDealer), ${dataSkippedWithoutOnline} WithoutOnline chhode (AREA tab se aayenge)`);
@@ -215,12 +216,13 @@ function isRealLink(v) { return /^https?:\/\//i.test((v || '').trim()); }
         existing = {
           claim_no: claimNo, entry_type: 'NEW_CLAIM', dealer_name: g(C.dealer), material: g(C.material),
           stencil_no: g(C.stencil), mould_no: '', status, remark: '', receiving: null, received_at: null,
-          created_at: t ? (t.ts || `${t.date} 00:00:00`) : null,
+          created_at: t ? (t.ts || `${t.date} 00:00:00`) : null, swept: true,
         };
         claims.set(claimNo, existing);
         added++; orphansAdded.count++;
       } else {
         existing.status = status;
+        existing.swept = true;
         matched++;
       }
       if (spec.receivingCol) {
@@ -253,7 +255,7 @@ function isRealLink(v) { return /^https?:\/\//i.test((v || '').trim()); }
       const rec = {
         claim_no: claimNo, entry_type: spec.entryType, dealer_name: dealer, material, stencil_no: stencil,
         mould_no: '', status: spec.status, remark: g(C.status),
-        receiving: null, received_at: null, created_at: t ? (t.ts || `${t.date} 00:00:00`) : null,
+        receiving: null, received_at: null, created_at: t ? (t.ts || `${t.date} 00:00:00`) : null, swept: true,
       };
       if (claimNo && claims.has(claimNo)) { Object.assign(claims.get(claimNo), rec); }
       else if (claimNo) { claims.set(claimNo, rec); }
@@ -361,6 +363,16 @@ function isRealLink(v) { return /^https?:\/\//i.test((v || '').trim()); }
     ackOut.push({ claim_no: claimNo, dealer_name: g(A.dealer), item_desc: g(A.item), stencil_no: g(A.stencil), claim_date: t ? t.date : null, status: g(A.status) });
   }
   console.log(`  ${ackOut.length} ACK rows`);
+
+  // Jo claim kabhi kisi AREA tab me dikhi hi nahi (sirf Data tab me atki reh gayi) —
+  // purana dashboard bhi inhe kabhi ginta nahi tha (wo bhi sirf AREA tabs ginta
+  // hai). Remark me internal marker daal dete hain taaki dashboard/list unhe
+  // chhod de, par data delete nahi hota — claim number se search karke mil jaati hain.
+  let unsweptCount = 0;
+  for (const c of claims.values()) {
+    if (!c.swept) { c.remark = '__UNSWEPT__'; unsweptCount++; }
+  }
+  if (unsweptCount) console.log(`  ${unsweptCount} claims kabhi AREA tab me nahi dikhi (Data tab me hi atki) — dashboard se hidden rahengi`);
 
   // ── dealers seen (for claim_dealers) ────────────────────────────────────
   const dealerSet = new Set();
